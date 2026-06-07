@@ -13,7 +13,7 @@ interface EventMarkerProps {
 export function EventMarker({ event, selected, mapWidth, mapHeight, onSelect }: EventMarkerProps) {
   const position = relativeToCanvas(event, mapWidth, mapHeight);
   return (
-    <Group x={position.x} y={position.y} visible={event.visible} opacity={0.95} onClick={onSelect} onTap={onSelect}>
+    <Group x={position.x} y={position.y} opacity={0.95} onClick={onSelect} onTap={onSelect}>
       <Circle radius={selected ? 17 : 13} fill="#e35d4f" stroke={selected ? "#f4d06f" : "#fff7e6"} strokeWidth={selected ? 4 : 2} />
       <Text text="!" x={-5} y={-10} width={10} align="center" fontSize={18} fontStyle="bold" fill="#fff7e6" />
       <Text text={event.title} x={-80} y={18} width={160} align="center" fontSize={14} fill="#fff7e6" />

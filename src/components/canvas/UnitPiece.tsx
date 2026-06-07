@@ -49,11 +49,9 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
   const bodyHeight = hasImage ? 68 * size : 44 * size;
   const labelHeight = hasImage && showName ? 22 * size : 0;
   const totalHeight = bodyHeight + labelHeight;
-  const imagePadding = 4 * size;
-  const imageMax = bodyHeight - imagePadding * 2;
-  const imageScale = image ? Math.min(imageMax / image.naturalWidth, imageMax / image.naturalHeight) : 1;
-  const imageWidth = image ? image.naturalWidth * imageScale : imageMax;
-  const imageHeight = image ? image.naturalHeight * imageScale : imageMax;
+  const imageScale = image ? Math.max(width / image.naturalWidth, bodyHeight / image.naturalHeight) : 1;
+  const imageWidth = image ? image.naturalWidth * imageScale : width;
+  const imageHeight = image ? image.naturalHeight * imageScale : bodyHeight;
 
   return (
     <Group
@@ -79,8 +77,15 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
       {selected && <Rect x={-width / 2 - 6} y={-bodyHeight / 2 - 6} width={width + 12} height={totalHeight + 12} stroke="#f4d06f" strokeWidth={3} cornerRadius={8} />}
       {hasImage ? (
         <>
-          <Rect x={-width / 2} y={-bodyHeight / 2} width={width} height={bodyHeight} fill="#101822" stroke={color} strokeWidth={3} cornerRadius={8} shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
-          {image && <KonvaImage image={image} x={-imageWidth / 2} y={-bodyHeight / 2 + (bodyHeight - imageHeight) / 2} width={imageWidth} height={imageHeight} />}
+          <Group
+            clipFunc={(context) => {
+              context.beginPath();
+              context.roundRect(-width / 2, -bodyHeight / 2, width, bodyHeight, 8);
+            }}
+          >
+            {image && <KonvaImage image={image} x={-imageWidth / 2} y={-imageHeight / 2} width={imageWidth} height={imageHeight} />}
+          </Group>
+          <Rect x={-width / 2} y={-bodyHeight / 2} width={width} height={bodyHeight} stroke={color} strokeWidth={3} cornerRadius={8} shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
           {showName && <Text text={unit.name} x={-width / 2 - 18} y={bodyHeight / 2 + 4} width={width + 36} align="center" fontSize={14 * size} fontStyle="bold" fill="#f5efe3" ellipsis />}
         </>
       ) : (

@@ -62,6 +62,7 @@ interface ProjectStore {
   project: ProjectData;
   selected: SelectionState;
   selectedLinePointIndices: number[];
+  selectedArrowPointIndices: number[];
   tool: ToolMode;
   drawingPoints: MapPoint[];
   historyPast: ProjectData[];
@@ -105,7 +106,9 @@ interface ProjectStore {
   deleteLabel: (id: string) => void;
   selectObject: (type: SelectionState["type"], id: string | null) => void;
   toggleLinePointSelection: (lineId: string, pointIndex: number) => void;
+  toggleArrowPointSelection: (arrowId: string, pointIndex: number) => void;
   clearLinePointSelection: () => void;
+  clearArrowPointSelection: () => void;
   clearSelection: () => void;
   updateUnitKeyframe: (unitId: string, time: string, keyframe: Partial<UnitKeyframe>) => void;
   deleteUnitKeyframe: (unitId: string, time: string) => void;
@@ -271,6 +274,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     site.keyframes ||= [];
   }
   for (const arrow of normalized.arrows ?? []) {
+    arrow.curveMode ||= "straight";
     arrow.startTime ||= normalized.timeline.start || normalized.timeline.currentTime || "0";
     arrow.endTime ||= normalized.timeline.end || arrow.startTime;
     if (!arrow.keyframes || arrow.keyframes.length === 0) {
@@ -279,7 +283,6 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
           time: arrow.startTime || normalized.timeline.currentTime || "0",
           displayDate: formatTimelineLabel(arrow.startTime || normalized.timeline.currentTime || "0"),
           points: (arrow.points ?? []).map((point) => ({ ...point })),
-          visible: arrow.visible ?? true,
           sourceNote: arrow.sourceNote ?? "",
         },
       ];
@@ -304,6 +307,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   project: normalizeImportedProject(sampleProjects[0] ?? emptyProject),
   selected: { type: null, id: null },
   selectedLinePointIndices: [],
+  selectedArrowPointIndices: [],
   tool: "select",
   drawingPoints: [],
   historyPast: [],
@@ -314,6 +318,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       project: normalizeImportedProject(project),
       selected: { type: null, id: null },
       selectedLinePointIndices: [],
+      selectedArrowPointIndices: [],
       tool: "select",
       drawingPoints: [],
       historyPast: [],
@@ -414,7 +419,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             x: resolved?.x ?? 0.5,
             y: resolved?.y ?? 0.5,
             rotation: resolved?.rotation ?? 0,
-            visible: resolved?.visible ?? true,
             status: resolved?.status ?? unit.status,
             factionId: resolved?.effectiveFactionId,
             certainty: resolved?.effectiveCertainty,
@@ -435,7 +439,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             time,
             displayDate: formatTimelineLabel(time),
             points: resolved?.points.map((point) => ({ ...point })) ?? [],
-            visible: resolved?.visible ?? true,
             sourceNote: resolved?.sourceNote ?? line.sourceNote,
           };
           if (existing) Object.assign(existing, keyframe);
@@ -452,7 +455,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
               time: arrow.startTime,
               displayDate: formatTimelineLabel(arrow.startTime),
               points: arrow.points.map((point) => ({ ...point })),
-              visible: arrow.visible,
               sourceNote: arrow.sourceNote,
             },
           ];
@@ -462,7 +464,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             time,
             displayDate: formatTimelineLabel(time),
             points: resolved?.points.map((point) => ({ ...point })) ?? arrow.points.map((point) => ({ ...point })),
-            visible: resolved?.visible ?? true,
             sourceNote: resolved?.sourceNote ?? arrow.sourceNote,
           };
           if (existing) Object.assign(existing, keyframe);
@@ -584,7 +585,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         strengthText: "",
         status: "normal",
         certainty: "fictional",
-        visible: true,
         locked: false,
         size: 1,
         displayStartTime: frame?.time ?? project.timeline.currentTime,
@@ -598,7 +598,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             displayDate: frame?.displayDate ?? formatTimelineLabel(project.timeline.currentTime),
             ...clampPoint(point),
             rotation: 0,
-            visible: true,
             status: "normal",
             sourceNote: "",
           },
@@ -661,7 +660,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         strengthText: "",
         status: "normal",
         certainty: "confirmed",
-        visible: true,
         locked: false,
         size: asset.size ?? 1,
         displayStartTime: frame?.time ?? project.timeline.currentTime,
@@ -677,7 +675,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             displayDate: frame?.displayDate ?? formatTimelineLabel(project.timeline.currentTime),
             ...point,
             rotation: 0,
-            visible: true,
             status: "normal",
             sourceNote: "",
           },
@@ -705,7 +702,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         certainty: "fictional",
         memo: "",
         sourceNote: "",
-        visible: true,
         locked: false,
         size: 1,
         showName: true,
@@ -761,7 +757,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         certainty: "confirmed",
         memo: "",
         sourceNote: "",
-        visible: true,
         locked: false,
         size: asset.size ?? 1,
         assetId: asset.id,
@@ -815,7 +810,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         opacity: 0.85,
         dashed: false,
         curveMode: "straight",
-        visible: true,
         locked: false,
         displayStartTime: frame?.time ?? project.timeline.currentTime,
         displayEndTime: project.timeline.end,
@@ -827,7 +821,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             time: frame?.time ?? project.timeline.currentTime,
             displayDate: frame?.displayDate ?? formatTimelineLabel(project.timeline.currentTime),
             points,
-            visible: true,
             sourceNote: "",
           },
         ],
@@ -846,13 +839,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const normalizedPoints = points.map(clampPoint);
       if (existing) {
         existing.points = normalizedPoints;
-        existing.visible = true;
       } else {
         line.keyframes.push({
           time,
           displayDate: frame?.displayDate ?? formatTimelineLabel(time),
           points: normalizedPoints,
-          visible: true,
           sourceNote: line.sourceNote,
         });
       }
@@ -880,6 +871,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         width: 5,
         opacity: 0.85,
         dashed: false,
+        curveMode: "straight",
         startTime: project.timeline.currentTime,
         endTime: project.timeline.end,
         points,
@@ -888,11 +880,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             time: project.timeline.currentTime,
             displayDate: formatTimelineLabel(project.timeline.currentTime),
             points,
-            visible: true,
             sourceNote: "",
           },
         ],
-        visible: true,
         locked: false,
         certainty: "fictional",
         memo: "",
@@ -912,7 +902,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           time: arrow.startTime,
           displayDate: formatTimelineLabel(arrow.startTime),
           points: arrow.points.map((point) => ({ ...point })),
-          visible: arrow.visible,
           sourceNote: arrow.sourceNote,
         },
       ];
@@ -920,13 +909,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const normalizedPoints = points.map(clampPoint);
       if (existing) {
         existing.points = normalizedPoints;
-        existing.visible = true;
       } else {
         arrow.keyframes.push({
           time,
           displayDate: frame?.displayDate ?? formatTimelineLabel(time),
           points: normalizedPoints,
-          visible: true,
           sourceNote: arrow.sourceNote,
         });
       }
@@ -950,7 +937,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         certainty: "fictional",
         memo: "",
         sourceNote: "",
-        visible: true,
       });
       get().selectObject("event", id);
     }),
@@ -970,7 +956,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         backgroundColor: "#111827",
         borderColor: "#f0c665",
         opacity: 0.9,
-        visible: true,
         locked: false,
         memo: "",
       });
@@ -984,6 +969,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((state) => ({
       selected: { type, id },
       selectedLinePointIndices: type === "line" && id === state.selected.id ? state.selectedLinePointIndices : [],
+      selectedArrowPointIndices: type === "arrow" && id === state.selected.id ? state.selectedArrowPointIndices : [],
     })),
   toggleLinePointSelection: (lineId, pointIndex) =>
     set((state) => {
@@ -992,10 +978,22 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       return {
         selected: { type: "line", id: lineId },
         selectedLinePointIndices: next,
+        selectedArrowPointIndices: [],
+      };
+    }),
+  toggleArrowPointSelection: (arrowId, pointIndex) =>
+    set((state) => {
+      const current = state.selected.type === "arrow" && state.selected.id === arrowId ? state.selectedArrowPointIndices : [];
+      const next = current.includes(pointIndex) ? current.filter((index) => index !== pointIndex) : [...current, pointIndex].slice(-2);
+      return {
+        selected: { type: "arrow", id: arrowId },
+        selectedLinePointIndices: [],
+        selectedArrowPointIndices: next,
       };
     }),
   clearLinePointSelection: () => set({ selectedLinePointIndices: [] }),
-  clearSelection: () => set({ selected: { type: null, id: null }, selectedLinePointIndices: [] }),
+  clearArrowPointSelection: () => set({ selectedArrowPointIndices: [] }),
+  clearSelection: () => set({ selected: { type: null, id: null }, selectedLinePointIndices: [], selectedArrowPointIndices: [] }),
 
   updateUnitKeyframe: (unitId, time, keyframe) =>
     commit(set, get, (project) => {
@@ -1029,7 +1027,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
               y: previousResolved?.y ?? resolved?.y ?? 0.5,
               rotation: previousResolved?.rotation ?? 0,
               size: previousSize,
-              visible: previousResolved?.visible ?? true,
               status: previousResolved?.status ?? unit.status,
               factionId: previousResolved?.effectiveFactionId,
               certainty: previousResolved?.effectiveCertainty,
@@ -1048,7 +1045,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           x: normalizedPatch.x ?? resolved?.x ?? 0.5,
           y: normalizedPatch.y ?? resolved?.y ?? 0.5,
           rotation: normalizedPatch.rotation ?? 0,
-          visible: normalizedPatch.visible ?? true,
           status: normalizedPatch.status ?? unit.status,
           factionId: normalizedPatch.factionId,
           certainty: normalizedPatch.certainty as Certainty | undefined,
@@ -1130,7 +1126,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (selected.type === "arrow") get().deleteArrow(selected.id);
     if (selected.type === "event") get().deleteEvent(selected.id);
     if (selected.type === "label") get().deleteLabel(selected.id);
-    set({ selected: { type: null, id: null }, selectedLinePointIndices: [] });
+    set({ selected: { type: null, id: null }, selectedLinePointIndices: [], selectedArrowPointIndices: [] });
   },
 
   undo: () => {
@@ -1143,6 +1139,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       historyFuture: [project, ...historyFuture],
       selected: { type: null, id: null },
       selectedLinePointIndices: [],
+      selectedArrowPointIndices: [],
     });
   },
 
@@ -1156,6 +1153,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       historyFuture: historyFuture.slice(1),
       selected: { type: null, id: null },
       selectedLinePointIndices: [],
+      selectedArrowPointIndices: [],
     });
   },
 }));

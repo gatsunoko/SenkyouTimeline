@@ -20,18 +20,18 @@ interface LineShapeProps {
 export function LineShape({ line, frame, selected, selectedPointIndices = [], mapWidth, mapHeight, onSelect, onPointSelect, onPointDragEnd }: LineShapeProps) {
   const [dragPoints, setDragPoints] = useState<MapPoint[] | null>(null);
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
-  const visiblePoints = dragPoints ?? frame.points;
+  const activePoints = dragPoints ?? frame.points;
   const tension = line.curveMode === "curve" ? 0.45 : 0;
 
   useEffect(() => {
     setDragPoints(null);
   }, [frame.time, frame.points]);
 
-  if (!frame.visible || frame.points.length < 2) return null;
+  if (frame.points.length < 2) return null;
   return (
     <>
       <Line
-        points={pointsToCanvas(visiblePoints, mapWidth, mapHeight)}
+        points={pointsToCanvas(activePoints, mapWidth, mapHeight)}
         stroke="rgba(255,255,255,0.01)"
         strokeWidth={Math.max(18, line.width + 14)}
         opacity={0.01}
@@ -42,7 +42,7 @@ export function LineShape({ line, frame, selected, selectedPointIndices = [], ma
         onTap={onSelect}
       />
       <Line
-        points={pointsToCanvas(visiblePoints, mapWidth, mapHeight)}
+        points={pointsToCanvas(activePoints, mapWidth, mapHeight)}
         stroke={selected ? "#f4d06f" : line.color}
         strokeWidth={selected ? line.width + 3 : line.width}
         opacity={line.opacity}
@@ -54,7 +54,7 @@ export function LineShape({ line, frame, selected, selectedPointIndices = [], ma
         onTap={onSelect}
       />
       {selected &&
-        visiblePoints.map((point, index) => {
+        activePoints.map((point, index) => {
           const position = relativeToCanvas(point, mapWidth, mapHeight);
           const pointSelected = selectedPointIndices.includes(index);
           return (
@@ -82,7 +82,7 @@ export function LineShape({ line, frame, selected, selectedPointIndices = [], ma
               onDragMove={(event) => {
                 if (!isDragAllowed()) return;
                 const nextPoint = canvasToRelative({ x: event.target.x(), y: event.target.y() }, mapWidth, mapHeight);
-                setDragPoints(visiblePoints.map((currentPoint, pointIndex) => (pointIndex === index ? nextPoint : currentPoint)));
+                setDragPoints(activePoints.map((currentPoint, pointIndex) => (pointIndex === index ? nextPoint : currentPoint)));
               }}
               onDragEnd={(event) => {
                 if (!isDragAllowed()) {

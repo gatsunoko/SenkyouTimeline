@@ -1,23 +1,22 @@
-import type { MapPoint } from "../../types/project";
+import type { LineCurveMode, MapPoint } from "../../types/project";
 import { useProjectStore } from "../../store/projectStore";
 import { resolveArrowKeyframe } from "../../utils/interpolation";
 import { compareTime, sortedFrames } from "../../utils/time";
 import { ColorField, NumberField, TextAreaField, TextField, ToggleField } from "./InspectorFields";
 
-function insertedPoint(points: MapPoint[]) {
-  if (points.length === 0) return { x: 0.5, y: 0.5 };
-  const last = points[points.length - 1];
-  const previous = points[points.length - 2] ?? last;
+function midpoint(a: MapPoint, b: MapPoint) {
   return {
-    x: (previous.x + last.x) / 2,
-    y: (previous.y + last.y) / 2,
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
   };
 }
 
 export function ArrowInspector({ id }: { id: string }) {
   const project = useProjectStore((state) => state.project);
+  const selectedArrowPointIndices = useProjectStore((state) => state.selectedArrowPointIndices);
   const updateArrow = useProjectStore((state) => state.updateArrow);
   const updateArrowKeyframe = useProjectStore((state) => state.updateArrowKeyframe);
+  const clearArrowPointSelection = useProjectStore((state) => state.clearArrowPointSelection);
   const arrow = project.arrows.find((entry) => entry.id === id);
   if (!arrow) return null;
 
@@ -25,6 +24,19 @@ export function ArrowInspector({ id }: { id: string }) {
   const points = frame?.points ?? [];
   const canDeletePoint = points.length > 2;
   const frames = sortedFrames(project.timeline.frames);
+  const selectedPoints = selectedArrowPointIndices
+    .filter((index) => index >= 0 && index < points.length)
+    .sort((a, b) => a - b);
+  const canInsertPoint = selectedPoints.length === 2;
+
+  const insertPointBetweenSelection = () => {
+    if (!canInsertPoint) return;
+    const [firstIndex, secondIndex] = selectedPoints;
+    const nextPoints = [...points];
+    nextPoints.splice(secondIndex, 0, midpoint(points[firstIndex], points[secondIndex]));
+    updateArrowKeyframe(arrow.id, project.timeline.currentTime, nextPoints);
+    clearArrowPointSelection();
+  };
 
   const setDisplayStartTime = (value: string) => {
     updateArrow(arrow.id, {
@@ -43,11 +55,18 @@ export function ArrowInspector({ id }: { id: string }) {
   return (
     <aside className="right-inspector">
       <h2>矢印編集</h2>
-      <TextField label="名称" value={arrow.name} onChange={(value) => updateArrow(arrow.id, { name: value })} />
+      <TextField label="名前" value={arrow.name} onChange={(value) => updateArrow(arrow.id, { name: value })} />
       <ColorField label="色" value={arrow.color} onChange={(value) => updateArrow(arrow.id, { color: value })} />
       <NumberField label="太さ" value={arrow.width} min={1} max={20} onChange={(value) => updateArrow(arrow.id, { width: value })} />
       <NumberField label="透明度" value={arrow.opacity} min={0.1} max={1} step={0.05} onChange={(value) => updateArrow(arrow.id, { opacity: value })} />
       <ToggleField label="点線" checked={arrow.dashed} onChange={(value) => updateArrow(arrow.id, { dashed: value })} />
+      <label>
+        矢印の形
+        <select value={arrow.curveMode ?? "straight"} onChange={(event) => updateArrow(arrow.id, { curveMode: event.target.value as LineCurveMode })}>
+          <option value="straight">直線</option>
+          <option value="curve">曲線</option>
+        </select>
+      </label>
 
       <h3>表示期間</h3>
       <label>
@@ -72,12 +91,12 @@ export function ArrowInspector({ id }: { id: string }) {
       </label>
 
       <h3>現在時間の点</h3>
-      <button type="button" onClick={() => updateArrowKeyframe(arrow.id, project.timeline.currentTime, [...points, insertedPoint(points)])}>
-        点を追加
+      <button type="button" disabled={!canInsertPoint} onClick={insertPointBetweenSelection}>
+        選択した点の間に点を追加
       </button>
       <div className="point-list">
         {points.map((point, index) => (
-          <div className="point-row" key={`${arrow.id}-point-editor-${index}`}>
+          <div className={`point-row ${selectedPoints.includes(index) ? "is-selected" : ""}`} key={`${arrow.id}-point-editor-${index}`}>
             <span>点 {index + 1}</span>
             <small>
               x {point.x.toFixed(3)} / y {point.y.toFixed(3)}
@@ -86,7 +105,10 @@ export function ArrowInspector({ id }: { id: string }) {
               type="button"
               className="icon-only danger"
               disabled={!canDeletePoint}
-              onClick={() => updateArrowKeyframe(arrow.id, project.timeline.currentTime, points.filter((_, pointIndex) => pointIndex !== index))}
+              onClick={() => {
+                updateArrowKeyframe(arrow.id, project.timeline.currentTime, points.filter((_, pointIndex) => pointIndex !== index));
+                clearArrowPointSelection();
+              }}
             >
               削除
             </button>

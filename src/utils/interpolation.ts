@@ -175,7 +175,6 @@ export function resolveArrowKeyframe(arrow: BattleArrow, currentTime: string, mo
             time: arrow.startTime,
             displayDate: arrow.startTime,
             points: arrow.points,
-            visible: arrow.visible,
             sourceNote: arrow.sourceNote,
           },
         ];

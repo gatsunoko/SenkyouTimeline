@@ -1,7 +1,7 @@
 import { eventTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
 import type { EventType } from "../../types/project";
-import { NumberField, SelectField, TextAreaField, TextField, ToggleField } from "./InspectorFields";
+import { NumberField, SelectField, TextAreaField, TextField } from "./InspectorFields";
 
 export function EventInspector({ id }: { id: string }) {
   const project = useProjectStore((state) => state.project);
@@ -21,7 +21,6 @@ export function EventInspector({ id }: { id: string }) {
         <NumberField label="y" value={event.y} min={0} max={1} step={0.001} onChange={(value) => updateEvent(event.id, { y: value })} />
       </div>
       <TextAreaField label="説明" value={event.description} onChange={(value) => updateEvent(event.id, { description: value })} />
-      <ToggleField label="表示" checked={event.visible} onChange={(value) => updateEvent(event.id, { visible: value })} />
       <TextAreaField label="メモ" value={event.memo} onChange={(value) => updateEvent(event.id, { memo: value })} />
     </aside>
   );

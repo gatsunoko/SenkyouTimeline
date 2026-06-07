@@ -30,11 +30,13 @@ export function MapCanvas() {
   const mapHeight = project.map.height ?? MAP_HEIGHT;
   const selected = useProjectStore((state) => state.selected);
   const selectedLinePointIndices = useProjectStore((state) => state.selectedLinePointIndices);
+  const selectedArrowPointIndices = useProjectStore((state) => state.selectedArrowPointIndices);
   const tool = useProjectStore((state) => state.tool);
   const drawingPoints = useProjectStore((state) => state.drawingPoints);
   const selectObject = useProjectStore((state) => state.selectObject);
   const clearSelection = useProjectStore((state) => state.clearSelection);
   const toggleLinePointSelection = useProjectStore((state) => state.toggleLinePointSelection);
+  const toggleArrowPointSelection = useProjectStore((state) => state.toggleArrowPointSelection);
   const updateUnitKeyframe = useProjectStore((state) => state.updateUnitKeyframe);
   const updateSite = useProjectStore((state) => state.updateSite);
   const updateLineKeyframe = useProjectStore((state) => state.updateLineKeyframe);
@@ -252,7 +254,7 @@ export function MapCanvas() {
 
           {withoutSelected(project.lines, "line").map((line) => {
             const frame = resolveLineKeyframe(line, project.timeline.currentTime, project.timeline.interpolationMode);
-            if (!line.visible || !frame) return null;
+            if (!frame) return null;
             return (
               <LineShape
                 key={line.id}
@@ -282,9 +284,11 @@ export function MapCanvas() {
                 arrow={arrow}
                 frame={frame}
                 selected={selected.type === "arrow" && selected.id === arrow.id}
+                selectedPointIndices={selected.type === "arrow" && selected.id === arrow.id ? selectedArrowPointIndices : []}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
                 onSelect={() => selectObject("arrow", arrow.id)}
+                onPointSelect={(pointIndex) => toggleArrowPointSelection(arrow.id, pointIndex)}
                 onPointDragEnd={(pointIndex, x, y) => {
                   const points = frame.points.map((point, index) => (index === pointIndex ? { x, y } : point));
                   updateArrowKeyframe(arrow.id, project.timeline.currentTime, points);
@@ -320,13 +324,12 @@ export function MapCanvas() {
           {withoutSelected(project.sites, "site").map((site) => {
             const siteFrame = resolveSiteFrame(site, project.timeline.currentTime);
             const faction = project.factions.find((entry) => entry.id === siteFrame.effectiveFactionId);
-            if (!site.visible) return null;
             return <SitePiece key={site.id} site={site} color={faction?.color ?? "#8a96a8"} selected={selected.type === "site" && selected.id === site.id} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
           })}
 
           {withoutSelected(project.units, "unit").map((unit) => {
             const frame = resolveUnitFrame(unit, project.timeline.currentTime, project.timeline.interpolationMode);
-            if (!unit.visible || !frame?.visible) return null;
+            if (!frame) return null;
             const faction = project.factions.find((entry) => entry.id === frame.effectiveFactionId);
             return (
               <UnitPiece
@@ -338,7 +341,7 @@ export function MapCanvas() {
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
                 onSelect={() => selectObject("unit", unit.id)}
-                onDragEnd={(x, y) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x, y, visible: true, status: unit.status })}
+                onDragEnd={(x, y) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x, y, status: unit.status })}
               />
             );
           })}
@@ -360,7 +363,7 @@ export function MapCanvas() {
               const line = project.lines.find((entry) => entry.id === selected.id);
               if (!line) return null;
               const frame = resolveLineKeyframe(line, project.timeline.currentTime, project.timeline.interpolationMode);
-              if (!line.visible || !frame) return null;
+              if (!frame) return null;
               return (
                 <LineShape
                   key={`${line.id}-selected-front`}
@@ -392,9 +395,11 @@ export function MapCanvas() {
                   arrow={arrow}
                   frame={frame}
                   selected
+                  selectedPointIndices={selectedArrowPointIndices}
                   mapWidth={mapWidth}
                   mapHeight={mapHeight}
                   onSelect={() => selectObject("arrow", arrow.id)}
+                  onPointSelect={(pointIndex) => toggleArrowPointSelection(arrow.id, pointIndex)}
                   onPointDragEnd={(pointIndex, x, y) => {
                     const points = frame.points.map((point, index) => (index === pointIndex ? { x, y } : point));
                     updateArrowKeyframe(arrow.id, project.timeline.currentTime, points);
@@ -406,7 +411,7 @@ export function MapCanvas() {
           {selected.type === "site" &&
             (() => {
               const site = project.sites.find((entry) => entry.id === selected.id);
-              if (!site?.visible) return null;
+              if (!site) return null;
               const siteFrame = resolveSiteFrame(site, project.timeline.currentTime);
               const faction = project.factions.find((entry) => entry.id === siteFrame.effectiveFactionId);
               return <SitePiece key={`${site.id}-selected-front`} site={site} color={faction?.color ?? "#8a96a8"} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
@@ -417,7 +422,7 @@ export function MapCanvas() {
               const unit = project.units.find((entry) => entry.id === selected.id);
               if (!unit) return null;
               const frame = resolveUnitFrame(unit, project.timeline.currentTime, project.timeline.interpolationMode);
-              if (!unit.visible || !frame?.visible) return null;
+              if (!frame) return null;
               const faction = project.factions.find((entry) => entry.id === frame.effectiveFactionId);
               return (
                 <UnitPiece
@@ -429,7 +434,7 @@ export function MapCanvas() {
                   mapWidth={mapWidth}
                   mapHeight={mapHeight}
                   onSelect={() => selectObject("unit", unit.id)}
-                  onDragEnd={(x, y) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x, y, visible: true, status: unit.status })}
+                  onDragEnd={(x, y) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x, y, status: unit.status })}
                 />
               );
             })()}

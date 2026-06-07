@@ -186,7 +186,6 @@ export interface UnitKeyframe extends MapPoint {
   displayDate: string;
   rotation: number;
   size?: number;
-  visible: boolean;
   status: UnitStatus;
   factionId?: string;
   certainty?: Certainty;
@@ -204,7 +203,6 @@ export interface Unit {
   strengthText: string;
   status: UnitStatus;
   certainty: Certainty;
-  visible: boolean;
   locked: boolean;
   size: number;
   displayStartTime?: string;
@@ -225,7 +223,6 @@ export interface Site extends MapPoint {
   certainty: Certainty;
   memo: string;
   sourceNote: string;
-  visible: boolean;
   locked: boolean;
   size?: number;
   assetId?: string;
@@ -238,7 +235,6 @@ export interface LineKeyframe {
   time: string;
   displayDate: string;
   points: MapPoint[];
-  visible: boolean;
   sourceNote: string;
 }
 
@@ -246,7 +242,6 @@ export interface ArrowKeyframe {
   time: string;
   displayDate: string;
   points: MapPoint[];
-  visible: boolean;
   sourceNote: string;
 }
 
@@ -260,7 +255,6 @@ export interface BattleLine {
   opacity: number;
   dashed: boolean;
   curveMode?: LineCurveMode;
-  visible: boolean;
   locked: boolean;
   displayStartTime?: string;
   displayEndTime?: string;
@@ -280,11 +274,11 @@ export interface BattleArrow {
   width: number;
   opacity: number;
   dashed: boolean;
+  curveMode?: LineCurveMode;
   startTime: string;
   endTime: string;
   points: MapPoint[];
   keyframes?: ArrowKeyframe[];
-  visible: boolean;
   locked: boolean;
   certainty: Certainty;
   memo: string;
@@ -301,7 +295,6 @@ export interface BattleEvent extends MapPoint {
   certainty: Certainty;
   memo: string;
   sourceNote: string;
-  visible: boolean;
 }
 
 export interface MapLabel extends MapPoint {
@@ -314,7 +307,6 @@ export interface MapLabel extends MapPoint {
   backgroundColor: string;
   borderColor: string;
   opacity: number;
-  visible: boolean;
   locked: boolean;
   memo: string;
 }

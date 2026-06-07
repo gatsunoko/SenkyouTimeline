@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Castle, Copy, Eye, EyeOff, Flag, Lock, PanelLeftClose, Plus, Unlock } from "lucide-react";
+import { Castle, Copy, Flag, Lock, PanelLeftClose, Plus, Unlock } from "lucide-react";
 import { factionTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
 
@@ -87,9 +87,6 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                   <strong>{unit.name}</strong>
                   <small>{faction?.name ?? "陣営なし"}</small>
                 </span>
-                <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateUnit(unit.id, { visible: !unit.visible }); }}>
-                  {unit.visible ? <Eye size={15} /> : <EyeOff size={15} />}
-                </button>
                 <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateUnit(unit.id, { locked: !unit.locked }); }}>
                   {unit.locked ? <Lock size={15} /> : <Unlock size={15} />}
                 </button>
@@ -132,9 +129,6 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                 <strong>{site.name}</strong>
                 <small>拠点</small>
               </span>
-              <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateSite(site.id, { visible: !site.visible }); }}>
-                {site.visible ? <Eye size={15} /> : <EyeOff size={15} />}
-              </button>
               <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateSite(site.id, { locked: !site.locked }); }}>
                 {site.locked ? <Lock size={15} /> : <Unlock size={15} />}
               </button>

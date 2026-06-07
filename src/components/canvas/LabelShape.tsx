@@ -25,7 +25,6 @@ export function LabelShape({ label, selected, mapWidth, mapHeight, onSelect, onD
     <Group
       x={position.x}
       y={position.y}
-      visible={label.visible}
       opacity={label.opacity}
       draggable={!label.locked}
       onClick={onSelect}

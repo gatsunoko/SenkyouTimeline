@@ -46,7 +46,6 @@ export function SiteInspector({ id }: { id: string }) {
         <NumberField label="x" value={site.x} min={0} max={1} step={0.001} onChange={(value) => updateSite(site.id, { x: value })} />
         <NumberField label="y" value={site.y} min={0} max={1} step={0.001} onChange={(value) => updateSite(site.id, { y: value })} />
       </div>
-      <ToggleField label="表示" checked={site.visible} onChange={(value) => updateSite(site.id, { visible: value })} />
       <ToggleField label="ロック" checked={site.locked} onChange={(value) => updateSite(site.id, { locked: value })} />
 
       <h3>陣営キーフレーム</h3>
