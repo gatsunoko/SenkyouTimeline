@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Castle, Copy, Eye, EyeOff, Flag, Lock, PanelLeftClose, Plus, Shield, Unlock } from "lucide-react";
-import { factionTypeLabels, siteTypeLabels } from "../../data/pieceTemplates";
+import { Castle, Copy, Eye, EyeOff, Flag, Lock, PanelLeftClose, Plus, Unlock } from "lucide-react";
+import { factionTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
 
 type TabKey = "factions" | "units" | "sites";
@@ -127,10 +127,10 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
               key={site.id}
               onClick={() => selectObject("site", site.id)}
             >
-              {site.iconUrl ? <img className="asset-thumb" src={site.iconUrl} alt="" /> : site.siteType === "castle" ? <Castle size={17} /> : <Shield size={17} />}
+              {site.iconUrl ? <img className="asset-thumb" src={site.iconUrl} alt="" /> : <Castle size={17} />}
               <span>
                 <strong>{site.name}</strong>
-                <small>{siteTypeLabels[site.siteType]}</small>
+                <small>拠点</small>
               </span>
               <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateSite(site.id, { visible: !site.visible }); }}>
                 {site.visible ? <Eye size={15} /> : <EyeOff size={15} />}

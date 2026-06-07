@@ -19,6 +19,7 @@ interface LineShapeProps {
 export function LineShape({ line, frame, selected, selectedPointIndices = [], mapWidth, mapHeight, onSelect, onPointSelect, onPointDragEnd }: LineShapeProps) {
   const [dragPoints, setDragPoints] = useState<MapPoint[] | null>(null);
   const visiblePoints = dragPoints ?? frame.points;
+  const tension = line.curveMode === "curve" ? 0.45 : 0;
 
   useEffect(() => {
     setDragPoints(null);
@@ -34,6 +35,7 @@ export function LineShape({ line, frame, selected, selectedPointIndices = [], ma
         opacity={0.01}
         lineCap="round"
         lineJoin="round"
+        tension={tension}
         onClick={onSelect}
         onTap={onSelect}
       />
@@ -45,6 +47,7 @@ export function LineShape({ line, frame, selected, selectedPointIndices = [], ma
         dash={line.dashed ? [16, 10] : undefined}
         lineCap="round"
         lineJoin="round"
+        tension={tension}
         onClick={onSelect}
         onTap={onSelect}
       />

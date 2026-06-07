@@ -5,7 +5,6 @@ import type {
   FactionType,
   LineType,
   SiteStatus,
-  SiteType,
   TroopType,
   UnitStatus,
   UnitType,
@@ -19,28 +18,28 @@ export const factionTypeLabels: Record<FactionType, string> = {
   ikki: "一揆勢",
   shogunate: "幕府",
   imperial: "朝廷・公家",
-  neutral: "中立・地形",
+  neutral: "中立",
   unknown: "不明",
 };
 
 export const certaintyLabels: Record<Certainty, string> = {
-  confirmed: "標準",
-  probable: "補助",
-  possible: "候補",
-  uncertain: "下書き",
-  fictional: "表示確認用",
+  confirmed: "確定",
+  probable: "有力",
+  possible: "可能性あり",
+  uncertain: "不明",
+  fictional: "作図用",
 };
 
 export const unitTypeLabels: Record<UnitType, string> = {
-  taisho: "総大将",
+  taisho: "大将",
   honjin: "本陣",
-  busho: "武将隊",
+  busho: "武将",
   vanguard: "先鋒",
   main_force: "本隊",
   detached: "別働隊",
   ambush: "伏兵",
   reinforcement: "援軍",
-  retreating: "撤退軍",
+  retreating: "撤退中",
   castle_garrison: "城兵",
   ashigaru: "足軽",
   spear: "槍隊",
@@ -48,9 +47,9 @@ export const unitTypeLabels: Record<UnitType, string> = {
   archer: "弓隊",
   cavalry: "騎馬隊",
   navy: "水軍",
-  ikki: "一揆勢",
-  temple_army: "寺社勢力",
-  supply: "補給隊",
+  ikki: "一揆",
+  temple_army: "寺社兵",
+  supply: "補給",
   scout: "斥候",
   messenger: "使者",
 };
@@ -94,7 +93,7 @@ export const troopTypeLabels: Record<TroopType, string> = {
 export const unitStatusLabels: Record<UnitStatus, string> = {
   normal: "通常",
   moving: "移動中",
-  arrived: "着陣",
+  arrived: "到着",
   battle: "交戦",
   attack: "攻撃",
   retreat: "撤退",
@@ -104,46 +103,8 @@ export const unitStatusLabels: Record<UnitStatus, string> = {
   defected: "寝返り",
   destroyed: "壊滅",
   surrendered: "降伏",
-  hidden: "非表示扱い",
+  hidden: "非表示",
   food_shortage: "兵糧不足",
-};
-
-export const siteTypeLabels: Record<SiteType, string> = {
-  castle: "城",
-  fort: "砦",
-  camp: "陣",
-  temple: "寺",
-  shrine: "神社",
-  port: "港",
-  bridge: "橋",
-  pass: "峠",
-  road: "街道",
-  river: "川",
-  town: "町",
-  village: "村",
-  battlefield: "古戦場",
-  checkpoint: "関所",
-  mountain: "山",
-  other: "その他",
-};
-
-export const siteTypeIcons: Record<SiteType, string> = {
-  castle: "城",
-  fort: "砦",
-  camp: "陣",
-  temple: "寺",
-  shrine: "社",
-  port: "港",
-  bridge: "橋",
-  pass: "峠",
-  road: "道",
-  river: "川",
-  town: "町",
-  village: "村",
-  battlefield: "戦",
-  checkpoint: "関",
-  mountain: "山",
-  other: "点",
 };
 
 export const siteStatusLabels: Record<SiteStatus, string> = {
@@ -163,8 +124,8 @@ export const lineTypeLabels: Record<LineType, string> = {
   defense_line: "防御線",
   frontline: "前線",
   border: "境界",
-  road_route: "街道ルート",
-  river_line: "川",
+  road_route: "経路",
+  river_line: "河川",
   other: "その他",
 };
 
@@ -176,13 +137,13 @@ export const arrowTypeLabels: Record<ArrowType, string> = {
   attack: "攻撃",
   escape: "脱出",
   messenger: "伝令",
-  estimated: "推定ルート",
+  estimated: "作図用",
 };
 
 export const eventTypeLabels: Record<EventType, string> = {
-  departure: "出陣",
-  arrival: "着陣",
-  battle: "開戦・合戦",
+  departure: "出発",
+  arrival: "到着",
+  battle: "戦闘",
   ambush: "奇襲",
   night_attack: "夜襲",
   siege_start: "包囲開始",
@@ -196,7 +157,7 @@ export const eventTypeLabels: Record<EventType, string> = {
   food_shortage: "兵糧不足",
   reinforcement: "援軍到着",
   retreat: "退却",
-  peace: "和睦",
+  peace: "和議",
   other: "その他",
 };
 
@@ -209,12 +170,6 @@ export const statusMarks = [
   "壊滅",
   "寝返り",
   "援軍到着",
-  "籠城中",
-  "兵糧不足",
-  "調略中",
-  "奇襲",
-  "夜襲",
-  "渡河",
   "進軍中",
   "待機中",
 ] as const;

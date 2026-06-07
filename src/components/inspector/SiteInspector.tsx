@@ -1,12 +1,10 @@
 import { useRef } from "react";
 import { ImagePlus } from "lucide-react";
-import { siteTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
-import type { SiteType } from "../../types/project";
 import { readFileAsDataUrl } from "../../utils/fileIO";
 import { resolveSiteFrame } from "../../utils/interpolation";
 import { compareTime } from "../../utils/time";
-import { NumberField, SelectField, TextAreaField, TextField, ToggleField } from "./InspectorFields";
+import { NumberField, TextAreaField, TextField, ToggleField } from "./InspectorFields";
 
 export function SiteInspector({ id }: { id: string }) {
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -32,8 +30,7 @@ export function SiteInspector({ id }: { id: string }) {
   return (
     <aside className="right-inspector">
       <h2>拠点編集</h2>
-      <TextField label="名称" value={site.name} onChange={(value) => updateSite(site.id, { name: value })} />
-      <SelectField<SiteType> label="拠点種類" value={site.siteType} options={siteTypeLabels} onChange={(value) => updateSite(site.id, { siteType: value })} />
+      <TextField label="名前" value={site.name} onChange={(value) => updateSite(site.id, { name: value })} />
       <label>
         現在時間の陣営
         <select value={siteFrame.effectiveFactionId} onChange={(event) => updateSiteKeyframe(site.id, project.timeline.currentTime, { factionId: event.target.value })}>
@@ -92,7 +89,7 @@ export function SiteInspector({ id }: { id: string }) {
           event.currentTarget.value = "";
         }}
       />
-      {site.iconUrl && <ToggleField label="名称を表示" checked={site.showName !== false} onChange={(value) => updateSite(site.id, { showName: value })} />}
+      {site.iconUrl && <ToggleField label="名前を表示" checked={site.showName !== false} onChange={(value) => updateSite(site.id, { showName: value })} />}
       {site.iconUrl && !site.assetId && (
         <button type="button" onClick={() => registerSiteAsset(site.id)}>
           アセットとして登録

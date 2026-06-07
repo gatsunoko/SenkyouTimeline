@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Group, Image as KonvaImage, Rect, Text } from "react-konva";
-import { siteTypeIcons } from "../../data/pieceTemplates";
 import type { Site } from "../../types/project";
 import { relativeToCanvas } from "../../utils/coordinate";
 
@@ -61,7 +60,7 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
       ) : (
         <>
           <Rect x={-width / 2} y={-bodyHeight / 2} width={width} height={bodyHeight} fill="#101822" stroke={color} strokeWidth={3} cornerRadius={7} shadowBlur={8} shadowColor="#000" shadowOpacity={0.28} />
-          <Text text={siteTypeIcons[site.siteType]} x={-width / 2 + 4} y={-bodyHeight / 2 + 8 * size} width={width - 8} align="center" fontSize={20 * size} fontStyle="bold" fill="#fff7e6" />
+          <Text text="城" x={-width / 2 + 4} y={-bodyHeight / 2 + 8 * size} width={width - 8} align="center" fontSize={20 * size} fontStyle="bold" fill="#fff7e6" />
         </>
       )}
       {showName && <Text text={site.name} x={-Math.max(120, width + 36) / 2} y={bodyHeight / 2 + 5} width={Math.max(120, width + 36)} align="center" fontSize={14 * size} fill="#f5efe3" ellipsis />}

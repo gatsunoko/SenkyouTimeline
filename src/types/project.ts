@@ -64,24 +64,6 @@ export type UnitStatus =
 
 export type Certainty = "confirmed" | "probable" | "possible" | "uncertain" | "fictional";
 
-export type SiteType =
-  | "castle"
-  | "fort"
-  | "camp"
-  | "temple"
-  | "shrine"
-  | "port"
-  | "bridge"
-  | "pass"
-  | "road"
-  | "river"
-  | "town"
-  | "village"
-  | "battlefield"
-  | "checkpoint"
-  | "mountain"
-  | "other";
-
 export type SiteStatus =
   | "normal"
   | "occupied"
@@ -101,6 +83,8 @@ export type LineType =
   | "road_route"
   | "river_line"
   | "other";
+
+export type LineCurveMode = "straight" | "curve";
 
 export type ArrowType =
   | "advance"
@@ -235,7 +219,6 @@ export interface Unit {
 export interface Site extends MapPoint {
   id: string;
   name: string;
-  siteType: SiteType;
   factionId: string;
   status: SiteStatus;
   certainty: Certainty;
@@ -275,6 +258,7 @@ export interface BattleLine {
   width: number;
   opacity: number;
   dashed: boolean;
+  curveMode?: LineCurveMode;
   visible: boolean;
   locked: boolean;
   displayStartTime?: string;

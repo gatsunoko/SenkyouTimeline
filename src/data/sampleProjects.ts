@@ -31,7 +31,6 @@ export const sampleProjects: ProjectData[] = [
       {
         id: "base",
         name: "拠点",
-        siteType: "castle",
         x: 0.48,
         y: 0.48,
         factionId: "blue",
@@ -104,6 +103,7 @@ export const sampleProjects: ProjectData[] = [
         width: 5,
         opacity: 0.9,
         dashed: true,
+        curveMode: "straight",
         visible: true,
         locked: false,
         displayStartTime: "0",

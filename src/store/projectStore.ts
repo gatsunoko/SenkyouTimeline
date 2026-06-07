@@ -56,6 +56,7 @@ const emptyProject: ProjectData = {
 };
 
 type ProjectMutator = (project: ProjectData) => void;
+type TimedEntry = { time: string; displayDate?: string };
 
 interface ProjectStore {
   project: ProjectData;
@@ -135,6 +136,7 @@ function commit(set: (partial: Partial<ProjectStore>) => void, get: () => Projec
   const previous = get().project;
   const next = cloneProject(previous);
   mutator(next);
+  normalizeProjectTiming(next);
   set({
     project: next,
     historyPast: trimHistory([...get().historyPast, previous]),
@@ -145,6 +147,100 @@ function commit(set: (partial: Partial<ProjectStore>) => void, get: () => Projec
 function applyListPatch<T extends { id: string }>(items: T[], id: string, patch: Partial<T>) {
   const item = items.find((entry) => entry.id === id);
   if (item) Object.assign(item, patch);
+}
+
+function isSameTime(a: string, b: string) {
+  return Math.abs(parseTimelineSeconds(a) - parseTimelineSeconds(b)) < 0.05;
+}
+
+function normalizeTimedEntries<T extends TimedEntry>(entries: T[] | undefined): T[] {
+  if (!entries) return [];
+  const result: T[] = [];
+
+  for (const entry of [...entries].sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time))) {
+    const existing = result.find((candidate) => isSameTime(candidate.time, entry.time));
+    if (existing) {
+      Object.assign(existing, entry);
+      existing.displayDate ||= formatTimelineLabel(existing.time);
+    } else {
+      result.push({
+        ...entry,
+        displayDate: entry.displayDate || formatTimelineLabel(entry.time),
+      });
+    }
+  }
+
+  return result.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+}
+
+function normalizeTimelineFrames(project: ProjectData) {
+  const result: ProjectData["timeline"]["frames"] = [];
+
+  for (const frame of sortedFrames(project.timeline.frames ?? [])) {
+    const seconds = parseTimelineSeconds(frame.time);
+    const normalizedTime = Number.isFinite(seconds) ? seconds.toFixed(1) : frame.time;
+    const existing = result.find((candidate) => isSameTime(candidate.time, normalizedTime));
+    if (existing) {
+      existing.displayDate = frame.displayDate || existing.displayDate || formatTimelineLabel(normalizedTime);
+      existing.memo = frame.memo || existing.memo;
+      existing.time = normalizedTime;
+    } else {
+      result.push({
+        ...frame,
+        time: normalizedTime,
+        displayDate: frame.displayDate || formatTimelineLabel(normalizedTime),
+      });
+    }
+  }
+
+  project.timeline.frames = sortedFrames(result).map((frame, index) => ({ ...frame, order: index + 1 }));
+}
+
+function normalizeProjectTiming(project: ProjectData) {
+  normalizeTimelineFrames(project);
+
+  for (const unit of project.units ?? []) {
+    unit.keyframes = normalizeTimedEntries(unit.keyframes);
+  }
+
+  for (const site of project.sites ?? []) {
+    site.keyframes = normalizeTimedEntries(site.keyframes);
+  }
+
+  for (const line of project.lines ?? []) {
+    line.keyframes = normalizeTimedEntries(line.keyframes);
+  }
+
+  for (const arrow of project.arrows ?? []) {
+    arrow.keyframes = normalizeTimedEntries(arrow.keyframes);
+  }
+}
+
+function ensureTimelineFrame(project: ProjectData, time: string) {
+  const seconds = parseTimelineSeconds(time);
+  const normalizedTime = Number.isFinite(seconds) ? seconds.toFixed(1) : time;
+  const existing = project.timeline.frames.find((frame) => isSameTime(frame.time, normalizedTime));
+  if (existing) {
+    project.timeline.currentTime = existing.time;
+    return existing;
+  }
+
+  const frame = {
+    id: createId("frame"),
+    time: normalizedTime,
+    displayDate: formatTimelineLabel(normalizedTime),
+    order: project.timeline.frames.length + 1,
+    memo: "",
+  };
+
+  project.timeline.frames.push(frame);
+  project.timeline.currentTime = normalizedTime;
+  project.timeline.frames = sortedFrames(project.timeline.frames).map((entry, index) => ({ ...entry, order: index + 1 }));
+  const frameSeconds = project.timeline.frames.map((entry) => parseTimelineSeconds(entry.time));
+  project.timeline.start = Math.min(...frameSeconds, parseTimelineSeconds(project.timeline.start)).toFixed(1);
+  project.timeline.end = Math.max(...frameSeconds, parseTimelineSeconds(project.timeline.end)).toFixed(1);
+
+  return frame;
 }
 
 function normalizeImportedProject(project: ProjectData): ProjectData {
@@ -185,10 +281,11 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     }
   }
   for (const line of normalized.lines ?? []) {
+    line.curveMode ||= "straight";
     line.displayStartTime ||= line.keyframes?.[0]?.time ?? normalized.timeline.start ?? "0";
     line.displayEndTime ||= normalized.timeline.end ?? line.displayStartTime;
   }
-  normalized.timeline.frames = sortedFrames(normalized.timeline.frames ?? []);
+  normalizeProjectTiming(normalized);
   normalized.timeline.currentTime = normalized.timeline.currentTime || normalized.timeline.frames[0]?.time || "";
   normalized.timeline.start ||= "0";
   normalized.timeline.end ||= normalized.timeline.frames[normalized.timeline.frames.length - 1]?.time || "10";
@@ -196,7 +293,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
-  project: sampleProjects[0] ? cloneProject(sampleProjects[0]) : emptyProject,
+  project: normalizeImportedProject(sampleProjects[0] ?? emptyProject),
   selected: { type: null, id: null },
   selectedLinePointIndices: [],
   tool: "select",
@@ -233,7 +330,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     get().setCurrentTime(nextFrameTime(project.timeline.frames, project.timeline.currentTime, direction));
   },
 
-  addTimelineKeyframe: () =>
+  addTimelineKeyframe: () => {
+    const selectedBefore = get().selected;
+    let createdFrameId: string | null = null;
+
     commit(set, get, (project) => {
       const currentSeconds = parseTimelineSeconds(project.timeline.currentTime);
       const previousEndSeconds = parseTimelineSeconds(project.timeline.end);
@@ -247,8 +347,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       }
 
       const time = targetSeconds.toFixed(1);
+      createdFrameId = createId("frame");
       project.timeline.frames.push({
-        id: createId("frame"),
+        id: createdFrameId,
         time,
         displayDate: formatTimelineLabel(time),
         order: project.timeline.frames.length + 1,
@@ -361,7 +462,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           arrow.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
         }
       }
-    }),
+    });
+
+    if (createdFrameId && (selectedBefore.type === "frame" || selectedBefore.type === null)) {
+      get().selectObject("frame", createdFrameId);
+    }
+  },
 
   updateTimelineFrame: (id, patch) =>
     commit(set, get, (project) => {
@@ -371,6 +477,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const oldTime = frame.time;
       const oldSeconds = parseTimelineSeconds(oldTime);
       const nextTime = patch.time !== undefined ? Number(parseTimelineSeconds(patch.time)).toFixed(1) : frame.time;
+      if (patch.time !== undefined && project.timeline.frames.some((entry) => entry.id !== id && isSameTime(entry.time, nextTime))) {
+        return;
+      }
 
       frame.time = nextTime;
       frame.displayDate = patch.displayDate ?? (patch.time !== undefined ? formatTimelineLabel(nextTime) : frame.displayDate);
@@ -581,7 +690,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       project.sites.push({
         id,
         name: "新規拠点",
-        siteType: "castle",
         ...clampPoint(point),
         factionId: firstFactionId(project),
         status: "normal",
@@ -638,7 +746,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       project.sites.push({
         id,
         name: asset.name,
-        siteType: "castle",
         ...point,
         factionId: firstFactionId(project),
         status: "normal",
@@ -697,7 +804,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         color: "#e4d08b",
         width: 4,
         opacity: 0.85,
-        dashed: true,
+        dashed: false,
+        curveMode: "straight",
         visible: true,
         locked: false,
         displayStartTime: frame?.time ?? project.timeline.currentTime,
@@ -883,8 +991,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     commit(set, get, (project) => {
       const unit = project.units.find((entry) => entry.id === unitId);
       if (!unit) return;
-      const frame = getCurrentFrame(project.timeline.frames, time);
-      const targetSeconds = parseTimelineSeconds(time);
+      const frame = ensureTimelineFrame(project, time);
+      const keyframeTime = frame.time;
+      const targetSeconds = parseTimelineSeconds(keyframeTime);
       const existing = unit.keyframes.find((entry) => Math.abs(parseTimelineSeconds(entry.time) - targetSeconds) < 0.05);
       const normalizedPatch: Partial<UnitKeyframe> = {
         ...keyframe,
@@ -894,8 +1003,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         Object.assign(existing, normalizedPatch);
       } else {
         unit.keyframes.push({
-          time,
-          displayDate: frame?.displayDate ?? formatTimelineLabel(time),
+          time: keyframeTime,
+          displayDate: frame.displayDate ?? formatTimelineLabel(keyframeTime),
           x: normalizedPatch.x ?? 0.5,
           y: normalizedPatch.y ?? 0.5,
           rotation: normalizedPatch.rotation ?? 0,
@@ -905,6 +1014,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           certainty: normalizedPatch.certainty as Certainty | undefined,
           sourceNote: normalizedPatch.sourceNote ?? unit.sourceNote,
         });
+      }
+      if (existing) {
+        existing.time = keyframeTime;
+        existing.displayDate = frame.displayDate ?? formatTimelineLabel(keyframeTime);
       }
       unit.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
     }),

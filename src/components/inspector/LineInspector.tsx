@@ -1,4 +1,4 @@
-import type { MapPoint } from "../../types/project";
+import type { LineCurveMode, MapPoint } from "../../types/project";
 import { useProjectStore } from "../../store/projectStore";
 import { resolveLineKeyframe } from "../../utils/interpolation";
 import { compareTime, sortedFrames } from "../../utils/time";
@@ -59,11 +59,18 @@ export function LineInspector({ id }: { id: string }) {
   return (
     <aside className="right-inspector">
       <h2>線編集</h2>
-      <TextField label="名称" value={line.name} onChange={(value) => updateLine(line.id, { name: value })} />
+      <TextField label="名前" value={line.name} onChange={(value) => updateLine(line.id, { name: value })} />
       <ColorField label="色" value={line.color} onChange={(value) => updateLine(line.id, { color: value })} />
       <NumberField label="太さ" value={line.width} min={1} max={20} onChange={(value) => updateLine(line.id, { width: value })} />
       <NumberField label="透明度" value={line.opacity} min={0.1} max={1} step={0.05} onChange={(value) => updateLine(line.id, { opacity: value })} />
       <ToggleField label="点線" checked={line.dashed} onChange={(value) => updateLine(line.id, { dashed: value })} />
+      <label>
+        線の形
+        <select value={line.curveMode ?? "straight"} onChange={(event) => updateLine(line.id, { curveMode: event.target.value as LineCurveMode })}>
+          <option value="straight">直線</option>
+          <option value="curve">曲線</option>
+        </select>
+      </label>
 
       <h3>表示期間</h3>
       <label>

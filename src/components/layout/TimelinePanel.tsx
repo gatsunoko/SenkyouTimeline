@@ -67,11 +67,50 @@ export function TimelinePanel() {
 
   const deleteFrame = () => {
     if (!activeFrame || frames.length <= 1) return;
+    const deletedSeconds = parseTimelineSeconds(activeFrame.time);
     const next = structuredClone(project);
     next.timeline.frames = next.timeline.frames
       .filter((frame) => frame.id !== activeFrame.id)
       .map((frame, index) => ({ ...frame, order: index + 1 }));
-    next.timeline.currentTime = Math.min(currentSeconds, parseTimelineSeconds(next.timeline.end)).toFixed(1);
+    const remainingFrames = sortedFrames(next.timeline.frames);
+    const previousFrame = [...remainingFrames].reverse().find((frame) => parseTimelineSeconds(frame.time) < deletedSeconds);
+    const nextFrame = remainingFrames.find((frame) => parseTimelineSeconds(frame.time) > deletedSeconds);
+    const fallbackStart = remainingFrames[0]?.time ?? "0";
+    const fallbackEnd = remainingFrames[remainingFrames.length - 1]?.time ?? fallbackStart;
+    const replacementStart = nextFrame?.time ?? previousFrame?.time ?? fallbackStart;
+    const replacementEnd = previousFrame?.time ?? nextFrame?.time ?? fallbackEnd;
+    const isDeletedTime = (time?: string) => Boolean(time && Math.abs(parseTimelineSeconds(time) - deletedSeconds) < 0.05);
+
+    for (const unit of next.units) {
+      unit.keyframes = unit.keyframes.filter((keyframe) => !isDeletedTime(keyframe.time));
+      if (isDeletedTime(unit.displayStartTime)) unit.displayStartTime = replacementStart;
+      if (isDeletedTime(unit.displayEndTime)) unit.displayEndTime = replacementEnd;
+    }
+
+    for (const site of next.sites) {
+      site.keyframes = site.keyframes?.filter((keyframe) => !isDeletedTime(keyframe.time)) ?? [];
+    }
+
+    for (const line of next.lines) {
+      line.keyframes = line.keyframes.filter((keyframe) => !isDeletedTime(keyframe.time));
+      if (isDeletedTime(line.displayStartTime)) line.displayStartTime = replacementStart;
+      if (isDeletedTime(line.displayEndTime)) line.displayEndTime = replacementEnd;
+    }
+
+    for (const arrow of next.arrows) {
+      arrow.keyframes = arrow.keyframes?.filter((keyframe) => !isDeletedTime(keyframe.time)) ?? [];
+      if (isDeletedTime(arrow.startTime)) arrow.startTime = replacementStart;
+      if (isDeletedTime(arrow.endTime)) arrow.endTime = replacementEnd;
+    }
+
+    for (const label of next.labels) {
+      if (isDeletedTime(label.startTime)) label.startTime = replacementStart;
+      if (isDeletedTime(label.endTime)) label.endTime = replacementEnd;
+    }
+
+    next.timeline.currentTime = previousFrame?.time ?? nextFrame?.time ?? fallbackStart;
+    next.timeline.start = fallbackStart;
+    next.timeline.end = fallbackEnd;
     loadProject(next);
   };
 
