@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.vite/
+.edge-profile/
+.chrome-profile/
+*.log
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
