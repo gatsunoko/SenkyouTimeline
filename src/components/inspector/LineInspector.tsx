@@ -1,7 +1,7 @@
 import type { MapPoint } from "../../types/project";
 import { useProjectStore } from "../../store/projectStore";
 import { resolveLineKeyframe } from "../../utils/interpolation";
-import { compareTime } from "../../utils/time";
+import { compareTime, sortedFrames } from "../../utils/time";
 import { ColorField, NumberField, TextAreaField, TextField, ToggleField } from "./InspectorFields";
 
 function midpoint(a: MapPoint, b: MapPoint) {
@@ -25,6 +25,9 @@ export function LineInspector({ id }: { id: string }) {
   const points = frame?.points ?? [];
   const canDeletePoint = points.length > 2;
   const keyframes = [...line.keyframes].sort((a, b) => compareTime(a.time, b.time));
+  const frames = sortedFrames(project.timeline.frames);
+  const displayStartTime = line.displayStartTime ?? keyframes[0]?.time ?? frames[0]?.time ?? project.timeline.currentTime;
+  const displayEndTime = line.displayEndTime ?? frames[frames.length - 1]?.time ?? project.timeline.end;
   const selectedPoints = selectedLinePointIndices
     .filter((index) => index >= 0 && index < points.length)
     .sort((a, b) => a - b);
@@ -39,6 +42,20 @@ export function LineInspector({ id }: { id: string }) {
     clearLinePointSelection();
   };
 
+  const setDisplayStartTime = (value: string) => {
+    updateLine(line.id, {
+      displayStartTime: value,
+      displayEndTime: compareTime(value, displayEndTime) > 0 ? value : displayEndTime,
+    });
+  };
+
+  const setDisplayEndTime = (value: string) => {
+    updateLine(line.id, {
+      displayStartTime: compareTime(displayStartTime, value) > 0 ? value : displayStartTime,
+      displayEndTime: value,
+    });
+  };
+
   return (
     <aside className="right-inspector">
       <h2>線編集</h2>
@@ -47,6 +64,28 @@ export function LineInspector({ id }: { id: string }) {
       <NumberField label="太さ" value={line.width} min={1} max={20} onChange={(value) => updateLine(line.id, { width: value })} />
       <NumberField label="透明度" value={line.opacity} min={0.1} max={1} step={0.05} onChange={(value) => updateLine(line.id, { opacity: value })} />
       <ToggleField label="点線" checked={line.dashed} onChange={(value) => updateLine(line.id, { dashed: value })} />
+
+      <h3>表示期間</h3>
+      <label>
+        表示開始
+        <select value={displayStartTime} onChange={(event) => setDisplayStartTime(event.target.value)}>
+          {frames.map((timelineFrame) => (
+            <option value={timelineFrame.time} key={timelineFrame.id}>
+              {timelineFrame.displayDate}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        表示終了
+        <select value={displayEndTime} onChange={(event) => setDisplayEndTime(event.target.value)}>
+          {frames.map((timelineFrame) => (
+            <option value={timelineFrame.time} key={timelineFrame.id}>
+              {timelineFrame.displayDate}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <h3>現在時間の点</h3>
       <button type="button" disabled={!canInsertPoint} onClick={insertPointBetweenSelection}>

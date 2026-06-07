@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Castle, Copy, Eye, EyeOff, Flag, Lock, Plus, Shield, Unlock } from "lucide-react";
+import { Castle, Copy, Eye, EyeOff, Flag, Lock, PanelLeftClose, Plus, Shield, Unlock } from "lucide-react";
 import { factionTypeLabels, siteTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
 
 type TabKey = "factions" | "units" | "sites";
 
-export function LeftSidebar() {
+export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const [tab, setTab] = useState<TabKey>("factions");
   const project = useProjectStore((state) => state.project);
   const selected = useProjectStore((state) => state.selected);
@@ -21,6 +21,12 @@ export function LeftSidebar() {
 
   return (
     <aside className="left-sidebar">
+      <div className="sidebar-header">
+        <strong>一覧</strong>
+        <button className="icon-only" type="button" onClick={onCollapse} title="サイドバーをしまう">
+          <PanelLeftClose size={17} />
+        </button>
+      </div>
       <div className="tabs">
         <button className={tab === "factions" ? "is-active" : ""} onClick={() => setTab("factions")} type="button">
           陣営

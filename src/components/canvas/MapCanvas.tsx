@@ -4,7 +4,7 @@ import type Konva from "konva";
 import { useProjectStore } from "../../store/projectStore";
 import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas } from "../../utils/coordinate";
 import { exportStageToPng } from "../../utils/exportImage";
-import { resolveArrowKeyframe, resolveLineKeyframe, resolveUnitFrame } from "../../utils/interpolation";
+import { resolveArrowKeyframe, resolveLineKeyframe, resolveSiteFrame, resolveUnitFrame } from "../../utils/interpolation";
 import { compareTime, parseTimelineSeconds } from "../../utils/time";
 import { ArrowShape } from "./ArrowShape";
 import { EventMarker } from "./EventMarker";
@@ -317,7 +317,8 @@ export function MapCanvas() {
           )}
 
           {withoutSelected(project.sites, "site").map((site) => {
-            const faction = project.factions.find((entry) => entry.id === site.factionId);
+            const siteFrame = resolveSiteFrame(site, project.timeline.currentTime);
+            const faction = project.factions.find((entry) => entry.id === siteFrame.effectiveFactionId);
             if (!site.visible) return null;
             return <SitePiece key={site.id} site={site} color={faction?.color ?? "#8a96a8"} selected={selected.type === "site" && selected.id === site.id} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
           })}
@@ -405,7 +406,8 @@ export function MapCanvas() {
             (() => {
               const site = project.sites.find((entry) => entry.id === selected.id);
               if (!site?.visible) return null;
-              const faction = project.factions.find((entry) => entry.id === site.factionId);
+              const siteFrame = resolveSiteFrame(site, project.timeline.currentTime);
+              const faction = project.factions.find((entry) => entry.id === siteFrame.effectiveFactionId);
               return <SitePiece key={`${site.id}-selected-front`} site={site} color={faction?.color ?? "#8a96a8"} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
             })()}
 

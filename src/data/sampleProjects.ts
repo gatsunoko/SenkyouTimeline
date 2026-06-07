@@ -43,6 +43,7 @@ export const sampleProjects: ProjectData[] = [
         locked: false,
         size: 1,
         showName: true,
+        keyframes: [],
       },
     ],
     units: [
@@ -105,6 +106,8 @@ export const sampleProjects: ProjectData[] = [
         dashed: true,
         visible: true,
         locked: false,
+        displayStartTime: "0",
+        displayEndTime: "10",
         certainty: "confirmed",
         memo: "",
         sourceNote: "",

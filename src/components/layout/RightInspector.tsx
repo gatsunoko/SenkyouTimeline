@@ -1,3 +1,4 @@
+import { factionTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
 import { ArrowInspector } from "../inspector/ArrowInspector";
 import { EventInspector } from "../inspector/EventInspector";
@@ -6,21 +7,13 @@ import { LabelInspector } from "../inspector/LabelInspector";
 import { LineInspector } from "../inspector/LineInspector";
 import { SiteInspector } from "../inspector/SiteInspector";
 import { UnitInspector } from "../inspector/UnitInspector";
-import { factionTypeLabels } from "../../data/pieceTemplates";
 
 export function RightInspector() {
   const project = useProjectStore((state) => state.project);
   const selected = useProjectStore((state) => state.selected);
   const updateFaction = useProjectStore((state) => state.updateFaction);
 
-  if (!selected.type || !selected.id) {
-    return (
-      <aside className="right-inspector">
-        <h2>インスペクター</h2>
-        <p className="empty-message">キャンバスまたは一覧から編集対象を選択してください。</p>
-      </aside>
-    );
-  }
+  if (!selected.type || !selected.id) return null;
 
   if (selected.type === "faction") {
     const faction = project.factions.find((entry) => entry.id === selected.id);
@@ -29,7 +22,7 @@ export function RightInspector() {
       <aside className="right-inspector">
         <h2>陣営編集</h2>
         <label>
-          名前
+          名称
           <input value={faction.name} onChange={(event) => updateFaction(faction.id, { name: event.target.value })} />
         </label>
         <label>

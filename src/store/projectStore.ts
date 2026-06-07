@@ -21,7 +21,7 @@ import { clampPoint } from "../utils/coordinate";
 import { createId } from "../utils/id";
 import { formatTimelineLabel, getCurrentFrame, nextFrameTime, parseTimelineSeconds, sortedFrames } from "../utils/time";
 import { cloneProject, trimHistory } from "./historyStore";
-import { resolveArrowKeyframe, resolveLineKeyframe, resolveUnitFrame } from "../utils/interpolation";
+import { resolveArrowKeyframe, resolveLineKeyframe, resolveSiteFrame, resolveUnitFrame } from "../utils/interpolation";
 
 const emptyProject: ProjectData = {
   version: "1.0.0",
@@ -84,6 +84,8 @@ interface ProjectStore {
   registerSiteAsset: (siteId: string) => void;
   duplicateSiteFromAsset: (assetId: string) => void;
   updateSite: (id: string, patch: Partial<Site>) => void;
+  updateSiteKeyframe: (siteId: string, time: string, patch: { factionId: string }) => void;
+  deleteSiteKeyframe: (siteId: string, time: string) => void;
   deleteSite: (id: string) => void;
   addLine: (points?: MapPoint[]) => void;
   updateLine: (id: string, patch: Partial<BattleLine>) => void;
@@ -156,6 +158,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   normalized.unitAssets ||= [];
   for (const asset of normalized.unitAssets) {
     asset.size ||= 1;
+    asset.factionId ||= normalized.factions?.[0]?.id ?? "faction_default_a";
   }
   normalized.siteAssets ||= [];
   for (const asset of normalized.siteAssets) {
@@ -164,8 +167,11 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   for (const site of normalized.sites ?? []) {
     site.size ||= 1;
     site.showName = site.showName ?? true;
+    site.keyframes ||= [];
   }
   for (const arrow of normalized.arrows ?? []) {
+    arrow.startTime ||= normalized.timeline.start || normalized.timeline.currentTime || "0";
+    arrow.endTime ||= normalized.timeline.end || arrow.startTime;
     if (!arrow.keyframes || arrow.keyframes.length === 0) {
       arrow.keyframes = [
         {
@@ -177,6 +183,10 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
         },
       ];
     }
+  }
+  for (const line of normalized.lines ?? []) {
+    line.displayStartTime ||= line.keyframes?.[0]?.time ?? normalized.timeline.start ?? "0";
+    line.displayEndTime ||= normalized.timeline.end ?? line.displayStartTime;
   }
   normalized.timeline.frames = sortedFrames(normalized.timeline.frames ?? []);
   normalized.timeline.currentTime = normalized.timeline.currentTime || normalized.timeline.frames[0]?.time || "";
@@ -254,9 +264,36 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             unit.displayEndTime = time;
           }
         }
+        for (const line of project.lines) {
+          if (line.displayEndTime && Math.abs(parseTimelineSeconds(line.displayEndTime) - previousEndSeconds) < 0.05) {
+            line.displayEndTime = time;
+          }
+        }
+        for (const arrow of project.arrows) {
+          if (arrow.endTime && Math.abs(parseTimelineSeconds(arrow.endTime) - previousEndSeconds) < 0.05) {
+            arrow.endTime = time;
+          }
+        }
       }
 
       const selected = get().selected;
+      if (selected.type === "site" && selected.id) {
+        const site = project.sites.find((entry) => entry.id === selected.id);
+        if (site) {
+          const resolved = resolveSiteFrame(site, time);
+          const existing = site.keyframes?.find((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) < 0.05);
+          const keyframe = {
+            time,
+            displayDate: formatTimelineLabel(time),
+            factionId: resolved.effectiveFactionId,
+          };
+          site.keyframes ||= [];
+          if (existing) Object.assign(existing, keyframe);
+          else site.keyframes.push(keyframe);
+          site.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+        }
+      }
+
       if (selected.type === "unit" && selected.id) {
         const unit = project.units.find((entry) => entry.id === selected.id);
         if (unit) {
@@ -353,6 +390,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         }
 
         for (const line of project.lines) {
+          if (line.displayStartTime && Math.abs(parseTimelineSeconds(line.displayStartTime) - oldSeconds) < 0.05) line.displayStartTime = nextTime;
+          if (line.displayEndTime && Math.abs(parseTimelineSeconds(line.displayEndTime) - oldSeconds) < 0.05) line.displayEndTime = nextTime;
           for (const keyframe of line.keyframes) {
             if (Math.abs(parseTimelineSeconds(keyframe.time) - oldSeconds) < 0.05) {
               keyframe.time = nextTime;
@@ -472,6 +511,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         name,
         imageDataUrl: unit.iconUrl,
         size: unit.size,
+        factionId: unit.factionId,
       };
       project.unitAssets.push(asset);
       unit.assetId = asset.id;
@@ -496,7 +536,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         id,
         name: asset.name,
         shortName: asset.name,
-        factionId: firstFactionId(project),
+        factionId: project.factions.some((faction) => faction.id === asset.factionId) ? asset.factionId : firstFactionId(project),
         unitType: "busho",
         commander: "",
         troopType: "mixed",
@@ -552,6 +592,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         locked: false,
         size: 1,
         showName: true,
+        keyframes: [],
       });
       get().selectObject("site", id);
     }),
@@ -610,11 +651,38 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         assetId: asset.id,
         iconUrl: asset.imageDataUrl,
         showName: true,
+        keyframes: [],
       });
       get().selectObject("site", id);
     }),
 
   updateSite: (id, patch) => commit(set, get, (project) => applyListPatch(project.sites, id, patch)),
+  updateSiteKeyframe: (siteId, time, patch) =>
+    commit(set, get, (project) => {
+      const site = project.sites.find((entry) => entry.id === siteId);
+      if (!site) return;
+      const frame = getCurrentFrame(project.timeline.frames, time);
+      const targetSeconds = parseTimelineSeconds(time);
+      site.keyframes ||= [];
+      const existing = site.keyframes.find((entry) => Math.abs(parseTimelineSeconds(entry.time) - targetSeconds) < 0.05);
+      const keyframe = {
+        time,
+        displayDate: frame?.displayDate ?? formatTimelineLabel(time),
+        factionId: patch.factionId,
+      };
+      if (existing) Object.assign(existing, keyframe);
+      else site.keyframes.push(keyframe);
+      site.factionId = patch.factionId;
+      site.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+    }),
+  deleteSiteKeyframe: (siteId, time) =>
+    commit(set, get, (project) => {
+      const site = project.sites.find((entry) => entry.id === siteId);
+      if (!site?.keyframes) return;
+      const targetSeconds = parseTimelineSeconds(time);
+      site.keyframes = site.keyframes.filter((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) >= 0.05);
+      site.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+    }),
   deleteSite: (id) => commit(set, get, (project) => (project.sites = project.sites.filter((site) => site.id !== id))),
 
   addLine: (points = []) =>
@@ -632,6 +700,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         dashed: true,
         visible: true,
         locked: false,
+        displayStartTime: frame?.time ?? project.timeline.currentTime,
+        displayEndTime: project.timeline.end,
         certainty: "fictional",
         memo: "",
         sourceNote: "",

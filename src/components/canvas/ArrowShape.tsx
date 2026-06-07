@@ -26,6 +26,19 @@ export function ArrowShape({ arrow, frame, selected, mapWidth, mapHeight, onSele
     <>
       <Arrow
         points={pointsToCanvas(visiblePoints, mapWidth, mapHeight)}
+        stroke="rgba(255,255,255,0.01)"
+        fill="rgba(255,255,255,0.01)"
+        strokeWidth={Math.max(20, arrow.width + 16)}
+        pointerLength={26}
+        pointerWidth={24}
+        opacity={0.01}
+        lineCap="round"
+        lineJoin="round"
+        onClick={onSelect}
+        onTap={onSelect}
+      />
+      <Arrow
+        points={pointsToCanvas(visiblePoints, mapWidth, mapHeight)}
         stroke={selected ? "#f4d06f" : arrow.color}
         fill={selected ? "#f4d06f" : arrow.color}
         strokeWidth={selected ? arrow.width + 2 : arrow.width}
@@ -50,6 +63,7 @@ export function ArrowShape({ arrow, frame, selected, mapWidth, mapHeight, onSele
               fill="#f4d06f"
               stroke="#1b1f29"
               strokeWidth={2}
+              hitStrokeWidth={14}
               draggable={!arrow.locked}
               onClick={onSelect}
               onTap={onSelect}

@@ -1,6 +1,7 @@
 import type { MapPoint } from "../../types/project";
 import { useProjectStore } from "../../store/projectStore";
 import { resolveArrowKeyframe } from "../../utils/interpolation";
+import { compareTime, sortedFrames } from "../../utils/time";
 import { ColorField, NumberField, TextAreaField, TextField, ToggleField } from "./InspectorFields";
 
 function insertedPoint(points: MapPoint[]) {
@@ -23,6 +24,21 @@ export function ArrowInspector({ id }: { id: string }) {
   const frame = resolveArrowKeyframe(arrow, project.timeline.currentTime, project.timeline.interpolationMode);
   const points = frame?.points ?? [];
   const canDeletePoint = points.length > 2;
+  const frames = sortedFrames(project.timeline.frames);
+
+  const setDisplayStartTime = (value: string) => {
+    updateArrow(arrow.id, {
+      startTime: value,
+      endTime: compareTime(value, arrow.endTime) > 0 ? value : arrow.endTime,
+    });
+  };
+
+  const setDisplayEndTime = (value: string) => {
+    updateArrow(arrow.id, {
+      startTime: compareTime(arrow.startTime, value) > 0 ? value : arrow.startTime,
+      endTime: value,
+    });
+  };
 
   return (
     <aside className="right-inspector">
@@ -32,6 +48,28 @@ export function ArrowInspector({ id }: { id: string }) {
       <NumberField label="太さ" value={arrow.width} min={1} max={20} onChange={(value) => updateArrow(arrow.id, { width: value })} />
       <NumberField label="透明度" value={arrow.opacity} min={0.1} max={1} step={0.05} onChange={(value) => updateArrow(arrow.id, { opacity: value })} />
       <ToggleField label="点線" checked={arrow.dashed} onChange={(value) => updateArrow(arrow.id, { dashed: value })} />
+
+      <h3>表示期間</h3>
+      <label>
+        表示開始
+        <select value={arrow.startTime} onChange={(event) => setDisplayStartTime(event.target.value)}>
+          {frames.map((timelineFrame) => (
+            <option value={timelineFrame.time} key={timelineFrame.id}>
+              {timelineFrame.displayDate}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        表示終了
+        <select value={arrow.endTime} onChange={(event) => setDisplayEndTime(event.target.value)}>
+          {frames.map((timelineFrame) => (
+            <option value={timelineFrame.time} key={timelineFrame.id}>
+              {timelineFrame.displayDate}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <h3>現在時間の点</h3>
       <button type="button" onClick={() => updateArrowKeyframe(arrow.id, project.timeline.currentTime, [...points, insertedPoint(points)])}>

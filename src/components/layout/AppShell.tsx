@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { PanelLeftOpen } from "lucide-react";
 import { MapCanvas } from "../canvas/MapCanvas";
 import { LeftSidebar } from "./LeftSidebar";
 import { RightInspector } from "./RightInspector";
@@ -8,7 +9,9 @@ import { useProjectStore } from "../../store/projectStore";
 import { downloadJson } from "../../utils/fileIO";
 
 export function AppShell() {
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const exportProject = useProjectStore((state) => state.exportProject);
+  const selected = useProjectStore((state) => state.selected);
   const undo = useProjectStore((state) => state.undo);
   const redo = useProjectStore((state) => state.redo);
   const deleteSelected = useProjectStore((state) => state.deleteSelected);
@@ -55,12 +58,18 @@ export function AppShell() {
   return (
     <div className="app-shell">
       <Toolbar />
-      <div className="main-grid">
-        <LeftSidebar />
+      <div className={`main-grid ${selected.type && selected.id ? "" : "is-inspector-hidden"} ${leftSidebarOpen ? "" : "is-sidebar-hidden"}`}>
+        {leftSidebarOpen ? (
+          <LeftSidebar onCollapse={() => setLeftSidebarOpen(false)} />
+        ) : (
+          <button className="sidebar-open-button" type="button" onClick={() => setLeftSidebarOpen(true)} title="サイドバーを開く">
+            <PanelLeftOpen size={18} />
+          </button>
+        )}
         <main className="canvas-region">
           <MapCanvas />
         </main>
-        <RightInspector />
+        {selected.type && selected.id && <RightInspector />}
       </div>
       <TimelinePanel />
     </div>

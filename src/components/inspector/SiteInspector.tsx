@@ -1,15 +1,19 @@
 import { useRef } from "react";
 import { ImagePlus } from "lucide-react";
-import { siteStatusLabels, siteTypeLabels } from "../../data/pieceTemplates";
+import { siteTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
-import type { SiteStatus, SiteType } from "../../types/project";
+import type { SiteType } from "../../types/project";
 import { readFileAsDataUrl } from "../../utils/fileIO";
+import { resolveSiteFrame } from "../../utils/interpolation";
+import { compareTime } from "../../utils/time";
 import { NumberField, SelectField, TextAreaField, TextField, ToggleField } from "./InspectorFields";
 
 export function SiteInspector({ id }: { id: string }) {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const project = useProjectStore((state) => state.project);
   const updateSite = useProjectStore((state) => state.updateSite);
+  const updateSiteKeyframe = useProjectStore((state) => state.updateSiteKeyframe);
+  const deleteSiteKeyframe = useProjectStore((state) => state.deleteSiteKeyframe);
   const setSiteImage = useProjectStore((state) => state.setSiteImage);
   const registerSiteAsset = useProjectStore((state) => state.registerSiteAsset);
   const duplicateSiteFromAsset = useProjectStore((state) => state.duplicateSiteFromAsset);
@@ -17,6 +21,8 @@ export function SiteInspector({ id }: { id: string }) {
   if (!site) return null;
 
   const linkedAsset = project.siteAssets.find((asset) => asset.id === site.assetId);
+  const siteFrame = resolveSiteFrame(site, project.timeline.currentTime);
+  const keyframes = [...(site.keyframes ?? [])].sort((a, b) => compareTime(a.time, b.time));
 
   const onImageFile = async (file?: File) => {
     if (!file) return;
@@ -29,8 +35,8 @@ export function SiteInspector({ id }: { id: string }) {
       <TextField label="名称" value={site.name} onChange={(value) => updateSite(site.id, { name: value })} />
       <SelectField<SiteType> label="拠点種類" value={site.siteType} options={siteTypeLabels} onChange={(value) => updateSite(site.id, { siteType: value })} />
       <label>
-        陣営
-        <select value={site.factionId} onChange={(event) => updateSite(site.id, { factionId: event.target.value })}>
+        現在時間の陣営
+        <select value={siteFrame.effectiveFactionId} onChange={(event) => updateSiteKeyframe(site.id, project.timeline.currentTime, { factionId: event.target.value })}>
           {project.factions.map((faction) => (
             <option value={faction.id} key={faction.id}>
               {faction.name}
@@ -38,7 +44,6 @@ export function SiteInspector({ id }: { id: string }) {
           ))}
         </select>
       </label>
-      <SelectField<SiteStatus> label="状態" value={site.status} options={siteStatusLabels} onChange={(value) => updateSite(site.id, { status: value })} />
       <NumberField label="サイズ" value={site.size ?? 1} min={0.3} max={4} step={0.05} onChange={(value) => updateSite(site.id, { size: value })} />
       <div className="coordinate-grid">
         <NumberField label="x" value={site.x} min={0} max={1} step={0.001} onChange={(value) => updateSite(site.id, { x: value })} />
@@ -46,6 +51,25 @@ export function SiteInspector({ id }: { id: string }) {
       </div>
       <ToggleField label="表示" checked={site.visible} onChange={(value) => updateSite(site.id, { visible: value })} />
       <ToggleField label="ロック" checked={site.locked} onChange={(value) => updateSite(site.id, { locked: value })} />
+
+      <h3>陣営キーフレーム</h3>
+      <button type="button" onClick={() => updateSiteKeyframe(site.id, project.timeline.currentTime, { factionId: siteFrame.effectiveFactionId })}>
+        現在時間に追加/更新
+      </button>
+      <div className="point-list">
+        {keyframes.map((entry, index) => {
+          const faction = project.factions.find((item) => item.id === entry.factionId);
+          return (
+            <div className="point-row keyframe-row" key={`${site.id}-faction-keyframe-${entry.time}-${index}`}>
+              <span>{entry.displayDate || entry.time}</span>
+              <small>{faction?.name ?? "陣営なし"}</small>
+              <button type="button" className="icon-only danger" onClick={() => deleteSiteKeyframe(site.id, entry.time)}>
+                削除
+              </button>
+            </div>
+          );
+        })}
+      </div>
 
       <h3>画像拠点</h3>
       {site.iconUrl && (

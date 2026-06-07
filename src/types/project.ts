@@ -181,6 +181,7 @@ export interface UnitAsset {
   name: string;
   imageDataUrl: string;
   size: number;
+  factionId: string;
 }
 
 export interface SiteAsset {
@@ -188,6 +189,12 @@ export interface SiteAsset {
   name: string;
   imageDataUrl: string;
   size: number;
+}
+
+export interface SiteKeyframe {
+  time: string;
+  displayDate: string;
+  factionId: string;
 }
 
 export interface UnitKeyframe extends MapPoint {
@@ -240,6 +247,7 @@ export interface Site extends MapPoint {
   assetId?: string;
   showName?: boolean;
   iconUrl?: string;
+  keyframes?: SiteKeyframe[];
 }
 
 export interface LineKeyframe {
@@ -269,6 +277,8 @@ export interface BattleLine {
   dashed: boolean;
   visible: boolean;
   locked: boolean;
+  displayStartTime?: string;
+  displayEndTime?: string;
   certainty: Certainty;
   memo: string;
   sourceNote: string;

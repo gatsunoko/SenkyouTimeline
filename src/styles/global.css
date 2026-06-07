@@ -158,6 +158,18 @@ textarea {
   min-height: 0;
 }
 
+.main-grid.is-inspector-hidden {
+  grid-template-columns: 260px 1fr;
+}
+
+.main-grid.is-sidebar-hidden {
+  grid-template-columns: 42px 1fr 320px;
+}
+
+.main-grid.is-sidebar-hidden.is-inspector-hidden {
+  grid-template-columns: 42px 1fr;
+}
+
 .left-sidebar,
 .right-inspector {
   overflow: auto;
@@ -167,6 +179,28 @@ textarea {
 
 .left-sidebar {
   border-right: 1px solid #263142;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 10px 0;
+  color: #d8dfeb;
+  font-size: 13px;
+}
+
+.sidebar-open-button {
+  align-self: start;
+  justify-self: center;
+  width: 32px;
+  min-height: 32px;
+  margin-top: 10px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .right-inspector {
@@ -514,5 +548,17 @@ textarea {
 
   .main-grid {
     grid-template-columns: 220px 1fr 280px;
+  }
+
+  .main-grid.is-inspector-hidden {
+    grid-template-columns: 220px 1fr;
+  }
+
+  .main-grid.is-sidebar-hidden {
+    grid-template-columns: 42px 1fr 280px;
+  }
+
+  .main-grid.is-sidebar-hidden.is-inspector-hidden {
+    grid-template-columns: 42px 1fr;
   }
 }

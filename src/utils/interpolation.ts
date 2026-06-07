@@ -1,9 +1,13 @@
-import type { ArrowKeyframe, BattleArrow, BattleLine, InterpolationMode, LineKeyframe, Unit, UnitKeyframe } from "../types/project";
+import type { ArrowKeyframe, BattleArrow, BattleLine, InterpolationMode, LineKeyframe, Site, SiteKeyframe, Unit, UnitKeyframe } from "../types/project";
 import { compareTime, parseTimelineSeconds } from "./time";
 
 export interface ResolvedUnitFrame extends UnitKeyframe {
   effectiveFactionId: string;
   effectiveCertainty: Unit["certainty"];
+}
+
+export interface ResolvedSiteFrame extends SiteKeyframe {
+  effectiveFactionId: string;
 }
 
 function orderedUnitKeyframes(unit: Unit) {
@@ -101,8 +105,27 @@ export function resolveUnitFrame(unit: Unit, currentTime: string, mode: Interpol
   };
 }
 
+export function resolveSiteFrame(site: Site, currentTime: string): ResolvedSiteFrame {
+  const keyframes = site.keyframes && site.keyframes.length > 0 ? [...site.keyframes].sort((a, b) => compareTime(a.time, b.time)) : [];
+  const previous = [...keyframes].reverse().find((frame) => compareTime(frame.time, currentTime) <= 0);
+  const fallback: SiteKeyframe = {
+    time: currentTime,
+    displayDate: currentTime,
+    factionId: site.factionId,
+  };
+  const base = previous ?? fallback;
+  return {
+    ...base,
+    effectiveFactionId: base.factionId || site.factionId,
+  };
+}
+
 export function resolveLineKeyframe(line: BattleLine, currentTime: string, mode: InterpolationMode): LineKeyframe | null {
   const keyframes = [...line.keyframes].sort((a, b) => compareTime(a.time, b.time));
+  const displayStartTime = line.displayStartTime ?? keyframes[0]?.time;
+  const displayEndTime = line.displayEndTime;
+  if (displayStartTime && compareTime(currentTime, displayStartTime) < 0) return null;
+  if (displayEndTime && compareTime(currentTime, displayEndTime) > 0) return null;
   const previous = [...keyframes].reverse().find((frame) => compareTime(frame.time, currentTime) <= 0);
   const next = keyframes.find((frame) => compareTime(frame.time, currentTime) >= 0);
   if (!previous && next) return null;
