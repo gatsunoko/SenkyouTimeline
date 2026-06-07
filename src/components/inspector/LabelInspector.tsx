@@ -19,6 +19,7 @@ export function LabelInspector({ id }: { id: string }) {
       <NumberField label="文字サイズ" value={label.fontSize} min={10} max={72} onChange={(value) => updateLabel(label.id, { fontSize: value })} />
       <ColorField label="文字色" value={label.color} onChange={(value) => updateLabel(label.id, { color: value })} />
       <ColorField label="背景色" value={label.backgroundColor} onChange={(value) => updateLabel(label.id, { backgroundColor: value })} />
+      <ColorField label="枠線色" value={label.borderColor} onChange={(value) => updateLabel(label.id, { borderColor: value })} />
       <NumberField label="透明度" value={label.opacity} min={0.1} max={1} step={0.05} onChange={(value) => updateLabel(label.id, { opacity: value })} />
       <ToggleField label="表示" checked={label.visible} onChange={(value) => updateLabel(label.id, { visible: value })} />
       <ToggleField label="ロック" checked={label.locked} onChange={(value) => updateLabel(label.id, { locked: value })} />

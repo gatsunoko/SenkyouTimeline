@@ -3,7 +3,8 @@ import { ImagePlus } from "lucide-react";
 import { useProjectStore } from "../../store/projectStore";
 import type { Unit } from "../../types/project";
 import { readFileAsDataUrl } from "../../utils/fileIO";
-import { compareTime, getCurrentFrame, parseTimelineSeconds, sortedFrames } from "../../utils/time";
+import { resolveUnitFrame } from "../../utils/interpolation";
+import { compareTime, parseTimelineSeconds, sortedFrames } from "../../utils/time";
 import { NumberField, TextAreaField, TextField, ToggleField } from "./InspectorFields";
 
 function firstUnitKeyframeTime(unit: Unit, fallback: string) {
@@ -22,15 +23,18 @@ export function UnitInspector({ id }: { id: string }) {
   const unit = project.units.find((entry) => entry.id === id);
   if (!unit) return null;
 
-  const frame = getCurrentFrame(project.timeline.frames, project.timeline.currentTime);
   const currentSeconds = parseTimelineSeconds(project.timeline.currentTime);
   const keyframe = unit.keyframes.find((entry) => Math.abs(parseTimelineSeconds(entry.time) - currentSeconds) < 0.05);
+  const resolvedFrame = resolveUnitFrame(unit, project.timeline.currentTime, project.timeline.interpolationMode);
   const frames = sortedFrames(project.timeline.frames);
   const unitKeyframes = [...unit.keyframes].sort((a, b) => compareTime(a.time, b.time));
   const fallbackStart = firstUnitKeyframeTime(unit, frames[0]?.time ?? project.timeline.currentTime);
   const displayStartTime = unit.displayStartTime ?? fallbackStart;
   const displayEndTime = unit.displayEndTime ?? frames[frames.length - 1]?.time ?? project.timeline.end;
   const linkedAsset = project.unitAssets.find((asset) => asset.id === unit.assetId);
+  const currentX = keyframe?.x ?? resolvedFrame?.x ?? 0.5;
+  const currentY = keyframe?.y ?? resolvedFrame?.y ?? 0.5;
+  const currentSize = keyframe?.size ?? resolvedFrame?.size ?? unit.size;
 
   const setDisplayStartTime = (value: string) => {
     updateUnit(unit.id, {
@@ -55,7 +59,7 @@ export function UnitInspector({ id }: { id: string }) {
   return (
     <aside className="right-inspector">
       <h2>コマ編集</h2>
-      <TextField label="名称" value={unit.name} onChange={(value) => updateUnit(unit.id, { name: value })} />
+      <TextField label="名前" value={unit.name} onChange={(value) => updateUnit(unit.id, { name: value })} />
       <label>
         陣営
         <select value={unit.factionId} onChange={(event) => updateUnit(unit.id, { factionId: event.target.value })}>
@@ -66,7 +70,6 @@ export function UnitInspector({ id }: { id: string }) {
           ))}
         </select>
       </label>
-      <NumberField label="サイズ" value={unit.size} min={0.5} max={2} step={0.05} onChange={(value) => updateUnit(unit.id, { size: value })} />
       <ToggleField label="表示" checked={unit.visible} onChange={(value) => updateUnit(unit.id, { visible: value })} />
       <ToggleField label="ロック" checked={unit.locked} onChange={(value) => updateUnit(unit.id, { locked: value })} />
 
@@ -91,7 +94,7 @@ export function UnitInspector({ id }: { id: string }) {
           event.currentTarget.value = "";
         }}
       />
-      {unit.iconUrl && <ToggleField label="名称を表示" checked={unit.showName !== false} onChange={(value) => updateUnit(unit.id, { showName: value })} />}
+      {unit.iconUrl && <ToggleField label="名前を表示" checked={unit.showName !== false} onChange={(value) => updateUnit(unit.id, { showName: value })} />}
       {unit.iconUrl && !unit.assetId && (
         <button type="button" onClick={() => registerUnitAsset(unit.id)}>
           アセットとして登録
@@ -129,10 +132,11 @@ export function UnitInspector({ id }: { id: string }) {
 
       <h3>現在時間のキーフレーム</h3>
       <div className="coordinate-grid">
-        <NumberField label="x" value={keyframe?.x ?? 0.5} min={0} max={1} step={0.001} onChange={(value) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: value, y: keyframe?.y ?? 0.5 })} />
-        <NumberField label="y" value={keyframe?.y ?? 0.5} min={0} max={1} step={0.001} onChange={(value) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: keyframe?.x ?? 0.5, y: value })} />
+        <NumberField label="x" value={currentX} min={0} max={1} step={0.001} onChange={(value) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: value, y: currentY })} />
+        <NumberField label="y" value={currentY} min={0} max={1} step={0.001} onChange={(value) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: currentX, y: value })} />
       </div>
-      <button type="button" onClick={() => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: keyframe?.x ?? 0.5, y: keyframe?.y ?? 0.5, visible: true, status: unit.status, displayDate: frame?.displayDate })}>
+      <NumberField label="サイズ" value={currentSize} min={0.2} max={4} step={0.05} onChange={(value) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: currentX, y: currentY, size: value, visible: true, status: unit.status })} />
+      <button type="button" onClick={() => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: currentX, y: currentY, visible: true, status: unit.status })}>
         現在時間にキーフレーム追加/更新
       </button>
       <button type="button" className="danger" onClick={() => deleteUnitKeyframe(unit.id, project.timeline.currentTime)}>
@@ -146,12 +150,9 @@ export function UnitInspector({ id }: { id: string }) {
             <span>{entry.displayDate || entry.time}</span>
             <small>
               x {entry.x.toFixed(3)} / y {entry.y.toFixed(3)}
+              {entry.size !== undefined ? ` / size ${entry.size.toFixed(2)}` : ""}
             </small>
-            <button
-              type="button"
-              className="icon-only danger"
-              onClick={() => deleteUnitKeyframe(unit.id, entry.time)}
-            >
+            <button type="button" className="icon-only danger" onClick={() => deleteUnitKeyframe(unit.id, entry.time)}>
               削除
             </button>
           </div>

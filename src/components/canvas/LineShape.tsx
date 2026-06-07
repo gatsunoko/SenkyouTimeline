@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { BattleLine, LineKeyframe } from "../../types/project";
 import type { MapPoint } from "../../types/project";
 import { canvasToRelative, relativeToCanvas, pointsToCanvas } from "../../utils/coordinate";
+import { usePrimaryButtonDrag } from "./usePrimaryButtonDrag";
 
 interface LineShapeProps {
   line: BattleLine;
@@ -18,6 +19,7 @@ interface LineShapeProps {
 
 export function LineShape({ line, frame, selected, selectedPointIndices = [], mapWidth, mapHeight, onSelect, onPointSelect, onPointDragEnd }: LineShapeProps) {
   const [dragPoints, setDragPoints] = useState<MapPoint[] | null>(null);
+  const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const visiblePoints = dragPoints ?? frame.points;
   const tension = line.curveMode === "curve" ? 0.45 : 0;
 
@@ -66,6 +68,7 @@ export function LineShape({ line, frame, selected, selectedPointIndices = [], ma
               strokeWidth={pointSelected ? 3 : 2}
               hitStrokeWidth={14}
               draggable={!line.locked}
+              onMouseDown={updateDragButton}
               onClick={(event) => {
                 event.cancelBubble = true;
                 onPointSelect?.(index);
@@ -74,13 +77,23 @@ export function LineShape({ line, frame, selected, selectedPointIndices = [], ma
                 event.cancelBubble = true;
                 onPointSelect?.(index);
               }}
+              onDragStart={stopBlockedDrag}
+              dragBoundFunc={(nextPosition) => (isDragAllowed() ? nextPosition : position)}
               onDragMove={(event) => {
+                if (!isDragAllowed()) return;
                 const nextPoint = canvasToRelative({ x: event.target.x(), y: event.target.y() }, mapWidth, mapHeight);
                 setDragPoints(visiblePoints.map((currentPoint, pointIndex) => (pointIndex === index ? nextPoint : currentPoint)));
               }}
               onDragEnd={(event) => {
+                if (!isDragAllowed()) {
+                  event.target.position(position);
+                  setDragPoints(null);
+                  resetDragButton();
+                  return;
+                }
                 const nextPoint = canvasToRelative({ x: event.target.x(), y: event.target.y() }, mapWidth, mapHeight);
                 setDragPoints(null);
+                resetDragButton();
                 onPointDragEnd?.(index, nextPoint.x, nextPoint.y);
               }}
             />

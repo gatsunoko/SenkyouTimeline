@@ -185,6 +185,7 @@ export interface UnitKeyframe extends MapPoint {
   time: string;
   displayDate: string;
   rotation: number;
+  size?: number;
   visible: boolean;
   status: UnitStatus;
   factionId?: string;
@@ -311,6 +312,7 @@ export interface MapLabel extends MapPoint {
   fontSize: number;
   color: string;
   backgroundColor: string;
+  borderColor: string;
   opacity: number;
   visible: boolean;
   locked: boolean;

@@ -192,6 +192,7 @@ export const sampleProjects: ProjectData[] = [
         fontSize: 24,
         color: "#f5efe3",
         backgroundColor: "#12191f",
+        borderColor: "#f0c665",
         opacity: 0.9,
         visible: true,
         locked: false,

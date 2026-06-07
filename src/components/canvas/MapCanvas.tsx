@@ -39,6 +39,7 @@ export function MapCanvas() {
   const updateSite = useProjectStore((state) => state.updateSite);
   const updateLineKeyframe = useProjectStore((state) => state.updateLineKeyframe);
   const updateArrowKeyframe = useProjectStore((state) => state.updateArrowKeyframe);
+  const updateLabel = useProjectStore((state) => state.updateLabel);
   const addUnit = useProjectStore((state) => state.addUnit);
   const addSite = useProjectStore((state) => state.addSite);
   const addLabel = useProjectStore((state) => state.addLabel);
@@ -351,7 +352,7 @@ export function MapCanvas() {
           {withoutSelected(project.labels, "label")
             .filter((label) => (!label.startTime || compareTime(label.startTime, project.timeline.currentTime) <= 0) && (!label.endTime || compareTime(label.endTime, project.timeline.currentTime) >= 0))
             .map((label) => (
-              <LabelShape key={label.id} label={label} selected={selected.type === "label" && selected.id === label.id} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("label", label.id)} />
+              <LabelShape key={label.id} label={label} selected={selected.type === "label" && selected.id === label.id} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />
             ))}
 
           {selected.type === "line" &&
@@ -444,7 +445,7 @@ export function MapCanvas() {
             (() => {
               const label = project.labels.find((entry) => entry.id === selected.id);
               if (!label || (label.startTime && compareTime(label.startTime, project.timeline.currentTime) > 0) || (label.endTime && compareTime(label.endTime, project.timeline.currentTime) < 0)) return null;
-              return <LabelShape key={`${label.id}-selected-front`} label={label} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("label", label.id)} />;
+              return <LabelShape key={`${label.id}-selected-front`} label={label} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />;
             })()}
         </Layer>
       </Stage>

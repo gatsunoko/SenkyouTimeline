@@ -3,6 +3,7 @@ import { Group, Image as KonvaImage, Rect, Text } from "react-konva";
 import type { Unit } from "../../types/project";
 import type { ResolvedUnitFrame } from "../../utils/interpolation";
 import { relativeToCanvas } from "../../utils/coordinate";
+import { usePrimaryButtonDrag } from "./usePrimaryButtonDrag";
 
 interface UnitPieceProps {
   unit: Unit;
@@ -26,10 +27,12 @@ function readableTextColor(color: string) {
 
 export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, onSelect, onDragEnd }: UnitPieceProps) {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const position = relativeToCanvas(frame, mapWidth, mapHeight);
   const hasImage = Boolean(unit.iconUrl);
   const showName = unit.showName !== false;
   const textColor = readableTextColor(color);
+  const size = frame.size ?? unit.size;
 
   useEffect(() => {
     if (!unit.iconUrl) {
@@ -42,11 +45,11 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
     nextImage.src = unit.iconUrl;
   }, [unit.iconUrl]);
 
-  const width = hasImage ? 68 * unit.size : 92 * unit.size;
-  const bodyHeight = hasImage ? 68 * unit.size : 44 * unit.size;
-  const labelHeight = hasImage && showName ? 22 * unit.size : 0;
+  const width = hasImage ? 68 * size : 92 * size;
+  const bodyHeight = hasImage ? 68 * size : 44 * size;
+  const labelHeight = hasImage && showName ? 22 * size : 0;
   const totalHeight = bodyHeight + labelHeight;
-  const imagePadding = 4 * unit.size;
+  const imagePadding = 4 * size;
   const imageMax = bodyHeight - imagePadding * 2;
   const imageScale = image ? Math.min(imageMax / image.naturalWidth, imageMax / image.naturalHeight) : 1;
   const imageWidth = image ? image.naturalWidth * imageScale : imageMax;
@@ -60,19 +63,30 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
       opacity={0.96}
       onClick={onSelect}
       onTap={onSelect}
-      onDragEnd={(event) => onDragEnd(event.target.x() / mapWidth, event.target.y() / mapHeight)}
+      onMouseDown={updateDragButton}
+      onDragStart={stopBlockedDrag}
+      dragBoundFunc={(nextPosition) => (isDragAllowed() ? nextPosition : position)}
+      onDragEnd={(event) => {
+        if (!isDragAllowed()) {
+          event.target.position(position);
+          resetDragButton();
+          return;
+        }
+        resetDragButton();
+        onDragEnd(event.target.x() / mapWidth, event.target.y() / mapHeight);
+      }}
     >
       {selected && <Rect x={-width / 2 - 6} y={-bodyHeight / 2 - 6} width={width + 12} height={totalHeight + 12} stroke="#f4d06f" strokeWidth={3} cornerRadius={8} />}
       {hasImage ? (
         <>
           <Rect x={-width / 2} y={-bodyHeight / 2} width={width} height={bodyHeight} fill="#101822" stroke={color} strokeWidth={3} cornerRadius={8} shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
           {image && <KonvaImage image={image} x={-imageWidth / 2} y={-bodyHeight / 2 + (bodyHeight - imageHeight) / 2} width={imageWidth} height={imageHeight} />}
-          {showName && <Text text={unit.name} x={-width / 2 - 18} y={bodyHeight / 2 + 4} width={width + 36} align="center" fontSize={14 * unit.size} fontStyle="bold" fill="#f5efe3" ellipsis />}
+          {showName && <Text text={unit.name} x={-width / 2 - 18} y={bodyHeight / 2 + 4} width={width + 36} align="center" fontSize={14 * size} fontStyle="bold" fill="#f5efe3" ellipsis />}
         </>
       ) : (
         <>
           <Rect x={-width / 2} y={-bodyHeight / 2} width={width} height={bodyHeight} fill={color} stroke="#1b1f29" strokeWidth={2} cornerRadius={8} shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
-          <Text text={unit.name} x={-width / 2 + 8} y={-bodyHeight / 2 + 11} width={width - 16} align="center" fontSize={17 * unit.size} fontStyle="bold" fill={textColor} ellipsis />
+          <Text text={unit.name} x={-width / 2 + 8} y={-bodyHeight / 2 + 11} width={width - 16} align="center" fontSize={17 * size} fontStyle="bold" fill={textColor} ellipsis />
         </>
       )}
     </Group>

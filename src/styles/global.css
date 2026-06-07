@@ -104,17 +104,19 @@ textarea {
   white-space: nowrap;
 }
 
-.toolbar-select-label {
-  display: flex;
+.toolbar-size-label {
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   color: #b8c1d1;
-  font-size: 13px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
-.toolbar-select-label select {
-  width: 180px;
-  padding: 5px 8px;
+.toolbar-size-label input {
+  width: 72px;
+  height: 30px;
+  padding: 4px 6px;
 }
 
 .toolbar-divider {
@@ -373,6 +375,7 @@ textarea {
 }
 
 .canvas-hint {
+  display: none;
   position: absolute;
   left: 12px;
   bottom: 12px;

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Group, Image as KonvaImage, Rect, Text } from "react-konva";
 import type { Site } from "../../types/project";
 import { relativeToCanvas } from "../../utils/coordinate";
+import { usePrimaryButtonDrag } from "./usePrimaryButtonDrag";
 
 interface SitePieceProps {
   site: Site;
@@ -15,6 +16,7 @@ interface SitePieceProps {
 
 export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect, onDragEnd }: SitePieceProps) {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const position = relativeToCanvas(site, mapWidth, mapHeight);
   const size = site.size ?? 1;
   const hasImage = Boolean(site.iconUrl);
@@ -49,7 +51,18 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
       draggable={!site.locked}
       onClick={onSelect}
       onTap={onSelect}
-      onDragEnd={(event) => onDragEnd(event.target.x() / mapWidth, event.target.y() / mapHeight)}
+      onMouseDown={updateDragButton}
+      onDragStart={stopBlockedDrag}
+      dragBoundFunc={(nextPosition) => (isDragAllowed() ? nextPosition : position)}
+      onDragEnd={(event) => {
+        if (!isDragAllowed()) {
+          event.target.position(position);
+          resetDragButton();
+          return;
+        }
+        resetDragButton();
+        onDragEnd(event.target.x() / mapWidth, event.target.y() / mapHeight);
+      }}
     >
       {selected && <Rect x={-width / 2 - 6} y={-bodyHeight / 2 - 6} width={width + 12} height={totalHeight + 12} stroke="#f4d06f" strokeWidth={3} cornerRadius={8} />}
       {hasImage ? (

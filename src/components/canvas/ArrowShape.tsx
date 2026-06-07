@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Arrow, Circle } from "react-konva";
 import type { ArrowKeyframe, BattleArrow, MapPoint } from "../../types/project";
 import { canvasToRelative, pointsToCanvas, relativeToCanvas } from "../../utils/coordinate";
+import { usePrimaryButtonDrag } from "./usePrimaryButtonDrag";
 
 interface ArrowShapeProps {
   arrow: BattleArrow;
@@ -15,6 +16,7 @@ interface ArrowShapeProps {
 
 export function ArrowShape({ arrow, frame, selected, mapWidth, mapHeight, onSelect, onPointDragEnd }: ArrowShapeProps) {
   const [dragPoints, setDragPoints] = useState<MapPoint[] | null>(null);
+  const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const visiblePoints = dragPoints ?? frame.points;
 
   useEffect(() => {
@@ -65,15 +67,26 @@ export function ArrowShape({ arrow, frame, selected, mapWidth, mapHeight, onSele
               strokeWidth={2}
               hitStrokeWidth={14}
               draggable={!arrow.locked}
+              onMouseDown={updateDragButton}
               onClick={onSelect}
               onTap={onSelect}
+              onDragStart={stopBlockedDrag}
+              dragBoundFunc={(nextPosition) => (isDragAllowed() ? nextPosition : position)}
               onDragMove={(event) => {
+                if (!isDragAllowed()) return;
                 const nextPoint = canvasToRelative({ x: event.target.x(), y: event.target.y() }, mapWidth, mapHeight);
                 setDragPoints(visiblePoints.map((currentPoint, pointIndex) => (pointIndex === index ? nextPoint : currentPoint)));
               }}
               onDragEnd={(event) => {
+                if (!isDragAllowed()) {
+                  event.target.position(position);
+                  setDragPoints(null);
+                  resetDragButton();
+                  return;
+                }
                 const nextPoint = canvasToRelative({ x: event.target.x(), y: event.target.y() }, mapWidth, mapHeight);
                 setDragPoints(null);
+                resetDragButton();
                 onPointDragEnd?.(index, nextPoint.x, nextPoint.y);
               }}
             />

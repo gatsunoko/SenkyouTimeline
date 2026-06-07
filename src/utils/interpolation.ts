@@ -14,6 +14,25 @@ function orderedUnitKeyframes(unit: Unit) {
   return [...unit.keyframes].sort((a, b) => compareTime(a.time, b.time));
 }
 
+function resolveUnitSize(unit: Unit, keyframes: UnitKeyframe[], currentTime: string, mode: InterpolationMode) {
+  const sizeKeyframes = keyframes.filter((frame) => frame.size !== undefined);
+  const previous = [...sizeKeyframes].reverse().find((frame) => compareTime(frame.time, currentTime) <= 0);
+  const next = sizeKeyframes.find((frame) => compareTime(frame.time, currentTime) >= 0);
+  const baseSize = previous?.size ?? unit.size;
+
+  if (mode === "linear" && previous?.size !== undefined && next?.size !== undefined && previous.time !== next.time) {
+    const start = parseTimelineSeconds(previous.time);
+    const end = parseTimelineSeconds(next.time);
+    const current = parseTimelineSeconds(currentTime);
+    if (!Number.isNaN(start) && !Number.isNaN(end) && !Number.isNaN(current) && end > start) {
+      const t = Math.min(1, Math.max(0, (current - start) / (end - start)));
+      return previous.size + (next.size - previous.size) * t;
+    }
+  }
+
+  return baseSize;
+}
+
 function distance(a: { x: number; y: number }, b: { x: number; y: number }) {
   return Math.hypot(b.x - a.x, b.y - a.y);
 }
@@ -77,6 +96,7 @@ export function resolveUnitFrame(unit: Unit, currentTime: string, mode: Interpol
     const certaintyFrame = next.certainty ? next : undefined;
     return {
       ...next,
+      size: resolveUnitSize(unit, keyframes, currentTime, mode),
       effectiveFactionId: factionFrame?.factionId ?? unit.factionId,
       effectiveCertainty: certaintyFrame?.certainty ?? unit.certainty,
     };
@@ -84,7 +104,7 @@ export function resolveUnitFrame(unit: Unit, currentTime: string, mode: Interpol
   if (!previous) return null;
   const factionFrame = [...keyframes].reverse().find((frame) => compareTime(frame.time, currentTime) <= 0 && frame.factionId);
   const certaintyFrame = [...keyframes].reverse().find((frame) => compareTime(frame.time, currentTime) <= 0 && frame.certainty);
-  const base = { ...previous };
+  const base = { ...previous, size: resolveUnitSize(unit, keyframes, currentTime, mode) };
 
   if (mode === "linear" && next && previous.time !== next.time) {
     const start = parseTimelineSeconds(previous.time);

@@ -111,6 +111,7 @@ interface ProjectStore {
   deleteUnitKeyframe: (unitId: string, time: string) => void;
   setInterpolationMode: (mode: ProjectData["timeline"]["interpolationMode"]) => void;
   setMapImage: (dataUrl: string) => void;
+  setMapSize: (width: number, height: number) => void;
   setMapAreaScale: (scale: number) => void;
   exportProject: () => ProjectData;
   importProject: (project: ProjectData) => void;
@@ -200,6 +201,10 @@ function normalizeProjectTiming(project: ProjectData) {
   normalizeTimelineFrames(project);
 
   for (const unit of project.units ?? []) {
+    const explicitSizes = (unit.keyframes ?? []).filter((keyframe) => keyframe.size !== undefined).map((keyframe) => keyframe.size);
+    if (explicitSizes.length > 0 && explicitSizes.every((size) => Math.abs((size ?? unit.size) - unit.size) < 0.0001)) {
+      for (const keyframe of unit.keyframes ?? []) delete keyframe.size;
+    }
     unit.keyframes = normalizeTimedEntries(unit.keyframes);
   }
 
@@ -284,6 +289,9 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     line.curveMode ||= "straight";
     line.displayStartTime ||= line.keyframes?.[0]?.time ?? normalized.timeline.start ?? "0";
     line.displayEndTime ||= normalized.timeline.end ?? line.displayStartTime;
+  }
+  for (const label of normalized.labels ?? []) {
+    label.borderColor ||= "#f0c665";
   }
   normalizeProjectTiming(normalized);
   normalized.timeline.currentTime = normalized.timeline.currentTime || normalized.timeline.frames[0]?.time || "";
@@ -615,11 +623,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const unit = project.units.find((entry) => entry.id === unitId);
       if (!unit?.iconUrl) return;
       const name = unit.name.trim() || "画像コマ";
+      const currentFrame = resolveUnitFrame(unit, project.timeline.currentTime, project.timeline.interpolationMode);
       const asset: UnitAsset = {
         id: createId("unit_asset"),
         name,
         imageDataUrl: unit.iconUrl,
-        size: unit.size,
+        size: currentFrame?.size ?? unit.size,
         factionId: unit.factionId,
       };
       project.unitAssets.push(asset);
@@ -959,6 +968,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         fontSize: 24,
         color: "#fff7e6",
         backgroundColor: "#111827",
+        borderColor: "#f0c665",
         opacity: 0.9,
         visible: true,
         locked: false,
@@ -995,25 +1005,57 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const keyframeTime = frame.time;
       const targetSeconds = parseTimelineSeconds(keyframeTime);
       const existing = unit.keyframes.find((entry) => Math.abs(parseTimelineSeconds(entry.time) - targetSeconds) < 0.05);
+      const resolved = resolveUnitFrame(unit, keyframeTime, project.timeline.interpolationMode);
       const normalizedPatch: Partial<UnitKeyframe> = {
         ...keyframe,
         ...(keyframe.x !== undefined && keyframe.y !== undefined ? clampPoint({ x: keyframe.x, y: keyframe.y }) : {}),
       };
+      const hasSizePatch = normalizedPatch.size !== undefined;
+
+      if (hasSizePatch) {
+        const previousFrame = [...sortedFrames(project.timeline.frames)].reverse().find((entry) => parseTimelineSeconds(entry.time) < targetSeconds - 0.0001);
+        if (previousFrame) {
+          const previousResolved = resolveUnitFrame(unit, previousFrame.time, project.timeline.interpolationMode);
+          const previousExisting = unit.keyframes.find((entry) => Math.abs(parseTimelineSeconds(entry.time) - parseTimelineSeconds(previousFrame.time)) < 0.05);
+          const previousSize = previousResolved?.size ?? unit.size;
+
+          if (previousExisting) {
+            previousExisting.size = previousSize;
+          } else {
+            unit.keyframes.push({
+              time: previousFrame.time,
+              displayDate: previousFrame.displayDate ?? formatTimelineLabel(previousFrame.time),
+              x: previousResolved?.x ?? resolved?.x ?? 0.5,
+              y: previousResolved?.y ?? resolved?.y ?? 0.5,
+              rotation: previousResolved?.rotation ?? 0,
+              size: previousSize,
+              visible: previousResolved?.visible ?? true,
+              status: previousResolved?.status ?? unit.status,
+              factionId: previousResolved?.effectiveFactionId,
+              certainty: previousResolved?.effectiveCertainty,
+              sourceNote: previousResolved?.sourceNote ?? unit.sourceNote,
+            });
+          }
+        }
+      }
+
       if (existing) {
         Object.assign(existing, normalizedPatch);
       } else {
-        unit.keyframes.push({
+        const nextKeyframe: UnitKeyframe = {
           time: keyframeTime,
           displayDate: frame.displayDate ?? formatTimelineLabel(keyframeTime),
-          x: normalizedPatch.x ?? 0.5,
-          y: normalizedPatch.y ?? 0.5,
+          x: normalizedPatch.x ?? resolved?.x ?? 0.5,
+          y: normalizedPatch.y ?? resolved?.y ?? 0.5,
           rotation: normalizedPatch.rotation ?? 0,
           visible: normalizedPatch.visible ?? true,
           status: normalizedPatch.status ?? unit.status,
           factionId: normalizedPatch.factionId,
           certainty: normalizedPatch.certainty as Certainty | undefined,
           sourceNote: normalizedPatch.sourceNote ?? unit.sourceNote,
-        });
+        };
+        if (hasSizePatch) nextKeyframe.size = normalizedPatch.size;
+        unit.keyframes.push(nextKeyframe);
       }
       if (existing) {
         existing.time = keyframeTime;
@@ -1046,6 +1088,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setMapImage: (dataUrl) =>
     commit(set, get, (project) => {
       project.map.imageDataUrl = dataUrl;
+    }),
+
+  setMapSize: (width, height) =>
+    commit(set, get, (project) => {
+      project.map.width = Math.round(Math.min(6000, Math.max(320, width)));
+      project.map.height = Math.round(Math.min(6000, Math.max(180, height)));
     }),
 
   setMapAreaScale: (scale) =>
