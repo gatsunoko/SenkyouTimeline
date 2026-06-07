@@ -10,20 +10,20 @@ export function clampPoint(point: MapPoint): MapPoint {
   };
 }
 
-export function relativeToCanvas(point: MapPoint) {
+export function relativeToCanvas(point: MapPoint, width = MAP_WIDTH, height = MAP_HEIGHT) {
   return {
-    x: point.x * MAP_WIDTH,
-    y: point.y * MAP_HEIGHT,
+    x: point.x * width,
+    y: point.y * height,
   };
 }
 
-export function canvasToRelative(point: MapPoint) {
+export function canvasToRelative(point: MapPoint, width = MAP_WIDTH, height = MAP_HEIGHT) {
   return clampPoint({
-    x: point.x / MAP_WIDTH,
-    y: point.y / MAP_HEIGHT,
+    x: point.x / width,
+    y: point.y / height,
   });
 }
 
-export function pointsToCanvas(points: MapPoint[]) {
-  return points.flatMap((point) => [point.x * MAP_WIDTH, point.y * MAP_HEIGHT]);
+export function pointsToCanvas(points: MapPoint[], width = MAP_WIDTH, height = MAP_HEIGHT) {
+  return points.flatMap((point) => [point.x * width, point.y * height]);
 }

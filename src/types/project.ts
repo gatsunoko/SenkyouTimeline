@@ -132,7 +132,7 @@ export type EventType =
   | "peace"
   | "other";
 
-export type SelectableType = "faction" | "unit" | "site" | "line" | "arrow" | "event" | "label";
+export type SelectableType = "faction" | "unit" | "site" | "line" | "arrow" | "event" | "label" | "frame";
 export type ToolMode = "select" | "addUnit" | "addSite" | "drawLine" | "drawArrow" | "addLabel";
 
 export interface MapPoint {
@@ -176,6 +176,20 @@ export interface Faction {
   memo: string;
 }
 
+export interface UnitAsset {
+  id: string;
+  name: string;
+  imageDataUrl: string;
+  size: number;
+}
+
+export interface SiteAsset {
+  id: string;
+  name: string;
+  imageDataUrl: string;
+  size: number;
+}
+
 export interface UnitKeyframe extends MapPoint {
   time: string;
   displayDate: string;
@@ -201,6 +215,10 @@ export interface Unit {
   visible: boolean;
   locked: boolean;
   size: number;
+  displayStartTime?: string;
+  displayEndTime?: string;
+  assetId?: string;
+  showName?: boolean;
   memo: string;
   sourceNote: string;
   iconUrl?: string;
@@ -218,10 +236,21 @@ export interface Site extends MapPoint {
   sourceNote: string;
   visible: boolean;
   locked: boolean;
+  size?: number;
+  assetId?: string;
+  showName?: boolean;
   iconUrl?: string;
 }
 
 export interface LineKeyframe {
+  time: string;
+  displayDate: string;
+  points: MapPoint[];
+  visible: boolean;
+  sourceNote: string;
+}
+
+export interface ArrowKeyframe {
   time: string;
   displayDate: string;
   points: MapPoint[];
@@ -259,6 +288,7 @@ export interface BattleArrow {
   startTime: string;
   endTime: string;
   points: MapPoint[];
+  keyframes?: ArrowKeyframe[];
   visible: boolean;
   locked: boolean;
   certainty: Certainty;
@@ -299,6 +329,8 @@ export interface ProjectData {
   description: string;
   timeline: Timeline;
   map: ProjectMap;
+  unitAssets: UnitAsset[];
+  siteAssets: SiteAsset[];
   factions: Faction[];
   sites: Site[];
   units: Unit[];

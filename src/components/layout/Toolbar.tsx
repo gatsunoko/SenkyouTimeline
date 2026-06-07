@@ -7,8 +7,10 @@ import {
   FileUp,
   Flag,
   ImagePlus,
+  Minus,
   MousePointer2,
   PencilLine,
+  Plus,
   Redo2,
   RotateCcw,
   Tags,
@@ -19,6 +21,7 @@ import {
 import { sampleProjects } from "../../data/sampleProjects";
 import { useProjectStore } from "../../store/projectStore";
 import type { ProjectData, ToolMode } from "../../types/project";
+import { MAP_WIDTH } from "../../utils/coordinate";
 import { downloadJson, readFileAsDataUrl, readJsonFile } from "../../utils/fileIO";
 
 const toolButtons: { tool: ToolMode; label: string; icon: LucideIcon }[] = [
@@ -37,11 +40,13 @@ export function Toolbar() {
   const importProject = useProjectStore((state) => state.importProject);
   const exportProject = useProjectStore((state) => state.exportProject);
   const setMapImage = useProjectStore((state) => state.setMapImage);
+  const setMapAreaScale = useProjectStore((state) => state.setMapAreaScale);
   const setTool = useProjectStore((state) => state.setTool);
   const undo = useProjectStore((state) => state.undo);
   const redo = useProjectStore((state) => state.redo);
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const mapAreaScale = (project.map.width ?? MAP_WIDTH) / MAP_WIDTH;
 
   const onJsonFile = async (file?: File) => {
     if (!file) return;
@@ -110,6 +115,16 @@ export function Toolbar() {
       <button type="button" onClick={() => window.dispatchEvent(new Event("sengoku-reset-view"))} title="ズームリセット">
         <RotateCcw size={17} />
         リセット
+      </button>
+      <div className="toolbar-divider" />
+      <button type="button" onClick={() => setMapAreaScale(mapAreaScale - 0.25)} title="背景グリッド範囲を縮小">
+        <Minus size={17} />
+        地図範囲
+      </button>
+      <span className="toolbar-meter">{Math.round(mapAreaScale * 100)}%</span>
+      <button type="button" onClick={() => setMapAreaScale(mapAreaScale + 0.25)} title="背景グリッド範囲を拡大">
+        <Plus size={17} />
+        地図範囲
       </button>
       <input
         ref={imageInputRef}

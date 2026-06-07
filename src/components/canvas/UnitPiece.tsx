@@ -1,5 +1,5 @@
-import { Group, Rect, Text } from "react-konva";
-import { unitTypeIcons } from "../../data/pieceTemplates";
+import { useEffect, useState } from "react";
+import { Group, Image as KonvaImage, Rect, Text } from "react-konva";
 import type { Unit } from "../../types/project";
 import type { ResolvedUnitFrame } from "../../utils/interpolation";
 import { relativeToCanvas } from "../../utils/coordinate";
@@ -9,6 +9,8 @@ interface UnitPieceProps {
   frame: ResolvedUnitFrame;
   color: string;
   selected: boolean;
+  mapWidth: number;
+  mapHeight: number;
   onSelect: () => void;
   onDragEnd: (x: number, y: number) => void;
 }
@@ -22,33 +24,55 @@ function readableTextColor(color: string) {
   return r * 0.299 + g * 0.587 + b * 0.114 > 150 ? "#10151d" : "#fffaf0";
 }
 
-export function UnitPiece({ unit, frame, color, selected, onSelect, onDragEnd }: UnitPieceProps) {
-  const position = relativeToCanvas(frame);
-  const width = 92 * unit.size;
-  const height = 44 * unit.size;
-  const opacity = frame.effectiveCertainty === "uncertain" ? 0.5 : 0.96;
+export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, onSelect, onDragEnd }: UnitPieceProps) {
+  const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const position = relativeToCanvas(frame, mapWidth, mapHeight);
+  const hasImage = Boolean(unit.iconUrl);
+  const showName = unit.showName !== false;
   const textColor = readableTextColor(color);
+
+  useEffect(() => {
+    if (!unit.iconUrl) {
+      setImage(null);
+      return;
+    }
+    const nextImage = new window.Image();
+    nextImage.onload = () => setImage(nextImage);
+    nextImage.onerror = () => setImage(null);
+    nextImage.src = unit.iconUrl;
+  }, [unit.iconUrl]);
+
+  const width = hasImage ? 68 * unit.size : 92 * unit.size;
+  const bodyHeight = hasImage ? 68 * unit.size : 44 * unit.size;
+  const labelHeight = hasImage && showName ? 22 * unit.size : 0;
+  const totalHeight = bodyHeight + labelHeight;
+  const imagePadding = 4 * unit.size;
+  const imageMax = bodyHeight - imagePadding * 2;
+  const imageScale = image ? Math.min(imageMax / image.naturalWidth, imageMax / image.naturalHeight) : 1;
+  const imageWidth = image ? image.naturalWidth * imageScale : imageMax;
+  const imageHeight = image ? image.naturalHeight * imageScale : imageMax;
 
   return (
     <Group
       x={position.x}
       y={position.y}
-      rotation={frame.rotation}
       draggable={!unit.locked}
-      opacity={opacity}
+      opacity={0.96}
       onClick={onSelect}
       onTap={onSelect}
-      onDragEnd={(event) => onDragEnd(event.target.x() / 1600, event.target.y() / 900)}
+      onDragEnd={(event) => onDragEnd(event.target.x() / mapWidth, event.target.y() / mapHeight)}
     >
-      {selected && <Rect x={-width / 2 - 6} y={-height / 2 - 6} width={width + 12} height={height + 12} stroke="#f4d06f" strokeWidth={3} cornerRadius={8} />}
-      <Rect x={-width / 2} y={-height / 2} width={width} height={height} fill={color} stroke="#1b1f29" strokeWidth={2} cornerRadius={8} shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
-      <Rect x={-width / 2 + 5} y={-height / 2 + 5} width={22} height={height - 10} fill="rgba(0,0,0,0.23)" cornerRadius={5} />
-      <Text text={unitTypeIcons[unit.unitType]} x={-width / 2 + 5} y={-height / 2 + 9} width={22} align="center" fontSize={14 * unit.size} fontStyle="bold" fill={textColor} />
-      <Text text={unit.shortName || unit.name} x={-width / 2 + 30} y={-height / 2 + 10} width={width - 35} align="center" fontSize={15 * unit.size} fontStyle="bold" fill={textColor} ellipsis />
-      {frame.effectiveCertainty === "fictional" && (
+      {selected && <Rect x={-width / 2 - 6} y={-bodyHeight / 2 - 6} width={width + 12} height={totalHeight + 12} stroke="#f4d06f" strokeWidth={3} cornerRadius={8} />}
+      {hasImage ? (
         <>
-          <Rect x={width / 2 - 24} y={-height / 2 - 14} width={28} height={18} fill="#f4d06f" cornerRadius={4} />
-          <Text text="仮" x={width / 2 - 24} y={-height / 2 - 10} width={28} align="center" fontSize={12} fontStyle="bold" fill="#1a1d23" />
+          <Rect x={-width / 2} y={-bodyHeight / 2} width={width} height={bodyHeight} fill="#101822" stroke={color} strokeWidth={3} cornerRadius={8} shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
+          {image && <KonvaImage image={image} x={-imageWidth / 2} y={-bodyHeight / 2 + (bodyHeight - imageHeight) / 2} width={imageWidth} height={imageHeight} />}
+          {showName && <Text text={unit.name} x={-width / 2 - 18} y={bodyHeight / 2 + 4} width={width + 36} align="center" fontSize={14 * unit.size} fontStyle="bold" fill="#f5efe3" ellipsis />}
+        </>
+      ) : (
+        <>
+          <Rect x={-width / 2} y={-bodyHeight / 2} width={width} height={bodyHeight} fill={color} stroke="#1b1f29" strokeWidth={2} cornerRadius={8} shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
+          <Text text={unit.name} x={-width / 2 + 8} y={-bodyHeight / 2 + 11} width={width - 16} align="center" fontSize={17 * unit.size} fontStyle="bold" fill={textColor} ellipsis />
         </>
       )}
     </Group>

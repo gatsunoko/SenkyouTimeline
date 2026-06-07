@@ -47,6 +47,10 @@ button.is-active,
   border-color: #82a7d9;
 }
 
+.frame-strip button.is-selected {
+  box-shadow: inset 0 0 0 2px #f0c665;
+}
+
 button.danger {
   border-color: #7b3434;
   background: #341a1d;
@@ -118,6 +122,13 @@ textarea {
   height: 28px;
   background: #334054;
   margin: 0 2px;
+}
+
+.toolbar-meter {
+  min-width: 44px;
+  color: #c6d0df;
+  font-size: 12px;
+  text-align: center;
 }
 
 .app-title {
@@ -210,6 +221,14 @@ textarea {
   padding: 0 10px 14px;
 }
 
+.sidebar-subheading {
+  margin-top: 10px;
+  padding: 8px 2px 2px;
+  color: #e5d59c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .wide-action {
   display: flex;
   align-items: center;
@@ -271,6 +290,41 @@ textarea {
   padding: 0;
 }
 
+.asset-row {
+  grid-template-columns: 28px 1fr auto;
+}
+
+.asset-thumb {
+  width: 26px;
+  height: 26px;
+  border: 1px solid #3a4658;
+  border-radius: 5px;
+  background: #0c121b;
+  object-fit: contain;
+}
+
+.unit-image-preview {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  gap: 9px;
+  align-items: center;
+  margin: 0 0 10px;
+  padding: 8px;
+  border: 1px solid #303b4d;
+  border-radius: 6px;
+  background: #0f1621;
+  color: #c7d0de;
+  font-size: 12px;
+}
+
+.unit-image-preview img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 5px;
+  background: #080d13;
+}
+
 .canvas-region {
   min-width: 0;
   min-height: 0;
@@ -299,7 +353,7 @@ textarea {
 
 .timeline-panel {
   display: grid;
-  grid-template-rows: 43px 1fr;
+  grid-template-rows: 43px 32px 1fr;
   border-top: 1px solid #263142;
   background: #101722;
   min-width: 0;
@@ -340,12 +394,27 @@ textarea {
 }
 
 .timeline-controls input[type="range"] {
-  width: 90px;
+  width: 84px;
 }
 
 .timeline-controls select {
   width: 70px;
   padding: 4px;
+}
+
+.time-ruler {
+  display: grid;
+  grid-template-columns: 72px 1fr 72px;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 12px;
+  border-bottom: 1px solid #263142;
+  color: #bac4d3;
+  font-size: 12px;
+}
+
+.time-ruler input {
+  padding: 0;
 }
 
 .frame-strip {
@@ -358,10 +427,10 @@ textarea {
 .frame-strip button {
   display: grid;
   grid-template-columns: auto 1fr;
-  grid-template-rows: 1fr 1fr;
+  grid-template-rows: auto auto;
   gap: 2px 7px;
   align-items: center;
-  min-width: 190px;
+  min-width: 124px;
   padding: 8px;
   text-align: left;
 }
@@ -377,11 +446,16 @@ textarea {
 }
 
 .frame-strip button strong {
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.2;
 }
 
 .frame-strip button small {
   color: #9eaabc;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .empty-message {
@@ -393,6 +467,44 @@ textarea {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.point-list {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 12px;
+}
+
+.point-row {
+  display: grid;
+  grid-template-columns: 48px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  border: 1px solid #2f3b4d;
+  border-radius: 6px;
+  background: #0f1621;
+}
+
+.keyframe-row {
+  grid-template-columns: 72px 1fr 44px;
+}
+
+.point-row span {
+  color: #f0d78a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.point-row small {
+  color: #aeb9c8;
+  font-size: 11px;
+}
+
+.point-row.is-selected {
+  border-color: #f0c665;
+  background: #1c2432;
+  box-shadow: inset 0 0 0 1px #f0c665;
 }
 
 @media (max-width: 1100px) {

@@ -24,11 +24,11 @@ export const factionTypeLabels: Record<FactionType, string> = {
 };
 
 export const certaintyLabels: Record<Certainty, string> = {
-  confirmed: "史料上かなり確実",
-  probable: "有力",
-  possible: "可能性あり",
-  uncertain: "不明・推定",
-  fictional: "仮・演出用",
+  confirmed: "標準",
+  probable: "補助",
+  possible: "候補",
+  uncertain: "下書き",
+  fictional: "表示確認用",
 };
 
 export const unitTypeLabels: Record<UnitType, string> = {

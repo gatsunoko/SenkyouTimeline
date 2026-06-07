@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Castle, Eye, EyeOff, Flag, Lock, Plus, Shield, Unlock } from "lucide-react";
-import { factionTypeLabels, siteTypeLabels, unitTypeLabels } from "../../data/pieceTemplates";
+import { Castle, Copy, Eye, EyeOff, Flag, Lock, Plus, Shield, Unlock } from "lucide-react";
+import { factionTypeLabels, siteTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
 
 type TabKey = "factions" | "units" | "sites";
@@ -11,7 +11,9 @@ export function LeftSidebar() {
   const selected = useProjectStore((state) => state.selected);
   const addFaction = useProjectStore((state) => state.addFaction);
   const addUnit = useProjectStore((state) => state.addUnit);
+  const duplicateUnitFromAsset = useProjectStore((state) => state.duplicateUnitFromAsset);
   const addSite = useProjectStore((state) => state.addSite);
+  const duplicateSiteFromAsset = useProjectStore((state) => state.duplicateSiteFromAsset);
   const selectObject = useProjectStore((state) => state.selectObject);
   const updateFaction = useProjectStore((state) => state.updateFaction);
   const updateUnit = useProjectStore((state) => state.updateUnit);
@@ -24,7 +26,7 @@ export function LeftSidebar() {
           陣営
         </button>
         <button className={tab === "units" ? "is-active" : ""} onClick={() => setTab("units")} type="button">
-          軍勢
+          コマ
         </button>
         <button className={tab === "sites" ? "is-active" : ""} onClick={() => setTab("sites")} type="button">
           拠点
@@ -63,7 +65,7 @@ export function LeftSidebar() {
       {tab === "units" && (
         <section className="sidebar-section">
           <button className="wide-action" type="button" onClick={() => addUnit()}>
-            <Plus size={16} /> 軍勢追加
+            <Plus size={16} /> コマ追加
           </button>
           {project.units.map((unit) => {
             const faction = project.factions.find((entry) => entry.id === unit.factionId);
@@ -74,10 +76,10 @@ export function LeftSidebar() {
                 key={unit.id}
                 onClick={() => selectObject("unit", unit.id)}
               >
-                <Flag size={17} style={{ color: faction?.color }} />
+                {unit.iconUrl ? <img className="asset-thumb" src={unit.iconUrl} alt="" /> : <Flag size={17} style={{ color: faction?.color }} />}
                 <span>
                   <strong>{unit.name}</strong>
-                  <small>{unitTypeLabels[unit.unitType]} / {faction?.shortName ?? "陣営なし"}</small>
+                  <small>{faction?.name ?? "陣営なし"}</small>
                 </span>
                 <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateUnit(unit.id, { visible: !unit.visible }); }}>
                   {unit.visible ? <Eye size={15} /> : <EyeOff size={15} />}
@@ -88,6 +90,22 @@ export function LeftSidebar() {
               </button>
             );
           })}
+
+          {project.unitAssets.length > 0 && (
+            <>
+              <div className="sidebar-subheading">登録アセット</div>
+              {project.unitAssets.map((asset) => (
+                <button className="list-row asset-row" type="button" key={asset.id} onClick={() => duplicateUnitFromAsset(asset.id)}>
+                  <img className="asset-thumb" src={asset.imageDataUrl} alt="" />
+                  <span>
+                    <strong>{asset.name}</strong>
+                    <small>クリックで複製</small>
+                  </span>
+                  <Copy size={16} />
+                </button>
+              ))}
+            </>
+          )}
         </section>
       )}
 
@@ -103,7 +121,7 @@ export function LeftSidebar() {
               key={site.id}
               onClick={() => selectObject("site", site.id)}
             >
-              {site.siteType === "castle" ? <Castle size={17} /> : <Shield size={17} />}
+              {site.iconUrl ? <img className="asset-thumb" src={site.iconUrl} alt="" /> : site.siteType === "castle" ? <Castle size={17} /> : <Shield size={17} />}
               <span>
                 <strong>{site.name}</strong>
                 <small>{siteTypeLabels[site.siteType]}</small>
@@ -116,6 +134,21 @@ export function LeftSidebar() {
               </button>
             </button>
           ))}
+          {project.siteAssets.length > 0 && (
+            <>
+              <div className="sidebar-subheading">登録アセット</div>
+              {project.siteAssets.map((asset) => (
+                <button className="list-row asset-row" type="button" key={asset.id} onClick={() => duplicateSiteFromAsset(asset.id)}>
+                  <img className="asset-thumb" src={asset.imageDataUrl} alt="" />
+                  <span>
+                    <strong>{asset.name}</strong>
+                    <small>クリックで複製</small>
+                  </span>
+                  <Copy size={16} />
+                </button>
+              ))}
+            </>
+          )}
         </section>
       )}
     </aside>

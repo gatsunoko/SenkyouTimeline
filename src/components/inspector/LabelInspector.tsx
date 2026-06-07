@@ -10,8 +10,8 @@ export function LabelInspector({ id }: { id: string }) {
     <aside className="right-inspector">
       <h2>ラベル編集</h2>
       <TextField label="テキスト" value={label.text} onChange={(value) => updateLabel(label.id, { text: value })} />
-      <TextField label="開始日付" value={label.startTime ?? ""} onChange={(value) => updateLabel(label.id, { startTime: value || undefined })} />
-      <TextField label="終了日付" value={label.endTime ?? ""} onChange={(value) => updateLabel(label.id, { endTime: value || undefined })} />
+      <TextField label="開始時間 秒" value={label.startTime ?? ""} onChange={(value) => updateLabel(label.id, { startTime: value || undefined })} />
+      <TextField label="終了時間 秒" value={label.endTime ?? ""} onChange={(value) => updateLabel(label.id, { endTime: value || undefined })} />
       <div className="coordinate-grid">
         <NumberField label="x" value={label.x} min={0} max={1} step={0.001} onChange={(value) => updateLabel(label.id, { x: value })} />
         <NumberField label="y" value={label.y} min={0} max={1} step={0.001} onChange={(value) => updateLabel(label.id, { y: value })} />

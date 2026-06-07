@@ -1,6 +1,7 @@
 import { useProjectStore } from "../../store/projectStore";
 import { ArrowInspector } from "../inspector/ArrowInspector";
 import { EventInspector } from "../inspector/EventInspector";
+import { FrameInspector } from "../inspector/FrameInspector";
 import { LabelInspector } from "../inspector/LabelInspector";
 import { LineInspector } from "../inspector/LineInspector";
 import { SiteInspector } from "../inspector/SiteInspector";
@@ -63,6 +64,7 @@ export function RightInspector() {
   if (selected.type === "arrow") return <ArrowInspector id={selected.id} />;
   if (selected.type === "event") return <EventInspector id={selected.id} />;
   if (selected.type === "label") return <LabelInspector id={selected.id} />;
+  if (selected.type === "frame") return <FrameInspector id={selected.id} />;
 
   return null;
 }
