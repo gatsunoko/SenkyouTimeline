@@ -282,6 +282,10 @@ function normalizeProjectTiming(project: ProjectData) {
   normalizeTimelineFrames(project);
 
   for (const unit of project.units ?? []) {
+    unit.shape = unit.shape === "pentagon" ? "pentagon" : "rectangle";
+    for (const keyframe of unit.keyframes ?? []) {
+      keyframe.rotation = Number.isFinite(keyframe.rotation) ? keyframe.rotation : 0;
+    }
     const explicitSizes = (unit.keyframes ?? []).filter((keyframe) => keyframe.size !== undefined).map((keyframe) => keyframe.size);
     if (explicitSizes.length > 0 && explicitSizes.every((size) => Math.abs((size ?? unit.size) - unit.size) < 0.0001)) {
       for (const keyframe of unit.keyframes ?? []) delete keyframe.size;
@@ -341,6 +345,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   for (const asset of normalized.unitAssets) {
     asset.size ||= 1;
     asset.factionId ||= normalized.factions?.[0]?.id ?? "faction_default_a";
+    asset.shape = asset.shape === "pentagon" ? "pentagon" : "rectangle";
     asset.nameTextColor ||= "#f5efe3";
     asset.nameBackgroundEnabled = asset.nameBackgroundEnabled ?? false;
     asset.nameBackgroundColor ||= "#111827";
@@ -694,6 +699,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         certainty: "fictional",
         locked: false,
         size: 1,
+        shape: "rectangle",
         displayStartTime: frame?.time ?? project.timeline.currentTime,
         displayEndTime: project.timeline.end,
         showName: true,
@@ -742,6 +748,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         imageDataUrl: unit.iconUrl,
         size: currentFrame?.size ?? unit.size,
         factionId: unit.factionId,
+        shape: unit.shape ?? "rectangle",
         nameTextColor: unit.nameTextColor ?? "#f5efe3",
         nameBackgroundEnabled: unit.nameBackgroundEnabled ?? false,
         nameBackgroundColor: unit.nameBackgroundColor ?? "#111827",
@@ -778,6 +785,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         certainty: "confirmed",
         locked: false,
         size: asset.size ?? 1,
+        shape: asset.shape ?? "rectangle",
         displayStartTime: frame?.time ?? project.timeline.currentTime,
         displayEndTime: project.timeline.end,
         assetId: asset.id,
@@ -1279,7 +1287,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           displayDate: frame.displayDate ?? formatTimelineLabel(keyframeTime),
           x: normalizedPatch.x ?? resolved?.x ?? 0.5,
           y: normalizedPatch.y ?? resolved?.y ?? 0.5,
-          rotation: normalizedPatch.rotation ?? 0,
+          rotation: normalizedPatch.rotation ?? resolved?.rotation ?? 0,
           status: normalizedPatch.status ?? unit.status,
           factionId: normalizedPatch.factionId,
           certainty: normalizedPatch.certainty as Certainty | undefined,

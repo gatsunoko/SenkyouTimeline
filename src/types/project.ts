@@ -62,6 +62,8 @@ export type UnitStatus =
   | "hidden"
   | "food_shortage";
 
+export type UnitShape = "rectangle" | "pentagon";
+
 export type Certainty = "confirmed" | "probable" | "possible" | "uncertain" | "fictional";
 
 export type SiteStatus =
@@ -168,6 +170,7 @@ export interface UnitAsset {
   imageDataUrl: string;
   size: number;
   factionId: string;
+  shape?: UnitShape;
   nameTextColor?: string;
   nameBackgroundEnabled?: boolean;
   nameBackgroundColor?: string;
@@ -228,6 +231,7 @@ export interface Unit {
   certainty: Certainty;
   locked: boolean;
   size: number;
+  shape?: UnitShape;
   displayStartTime?: string;
   displayEndTime?: string;
   assetId?: string;

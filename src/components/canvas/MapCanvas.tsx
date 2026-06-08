@@ -16,13 +16,8 @@ import { UnitPiece } from "./UnitPiece";
 
 type TimelineExportFormat = "png-sequence" | "mp4";
 type TimelineExportRequest = { format: TimelineExportFormat; fps: number };
-type CanvasStreamTrack = MediaStreamTrack & { requestFrame?: () => void };
 
 const mp4MimeTypes = ["video/mp4", "video/mp4;codecs=avc1.42E01E", "video/mp4;codecs=h264"];
-
-function sleep(milliseconds: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
-}
 
 function waitForPaint() {
   return new Promise<void>((resolve) => {
@@ -62,15 +57,6 @@ async function dataUrlToBytes(dataUrl: string) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
-function loadDataUrlImage(dataUrl: string) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new window.Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("\u753b\u50cf\u306e\u8aad\u307f\u8fbc\u307f\u306b\u5931\u6557\u3057\u307e\u3057\u305f"));
-    image.src = dataUrl;
-  });
-}
-
 function mp4MimeType() {
   if (typeof MediaRecorder === "undefined") return null;
   return mp4MimeTypes.find((type) => MediaRecorder.isTypeSupported(type)) ?? null;
@@ -80,12 +66,20 @@ function dispatchExportStatus(message: string, busy: boolean) {
   window.dispatchEvent(new CustomEvent("sengoku-export-status", { detail: { message, busy } }));
 }
 
+function drawStageLayerToCanvas(stage: Konva.Stage, context: CanvasRenderingContext2D, width: number, height: number) {
+  const sourceCanvas = stage.getLayers()[0]?.getCanvas()._canvas;
+  if (!sourceCanvas) throw new Error("動画用キャンバスを取得できません");
+  context.clearRect(0, 0, width, height);
+  context.drawImage(sourceCanvas, 0, 0, width, height);
+}
+
 export function MapCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const [size, setSize] = useState({ width: 900, height: 560 });
   const [stagePosition, setStagePosition] = useState({ x: 40, y: 30 });
   const [scale, setScale] = useState(0.58);
+  const [exportViewport, setExportViewport] = useState<{ width: number; height: number } | null>(null);
   const [spacePressed, setSpacePressed] = useState(false);
   const [middlePanning, setMiddlePanning] = useState(false);
   const [previewPoint, setPreviewPoint] = useState<{ x: number; y: number } | null>(null);
@@ -244,8 +238,8 @@ export function MapCanvas() {
         const context = exportCanvas.getContext("2d");
         if (!context) throw new Error("\u52d5\u753b\u7528\u30ad\u30e3\u30f3\u30d0\u30b9\u3092\u4f5c\u6210\u3067\u304d\u307e\u305b\u3093");
 
-        const stream = exportCanvas.captureStream(0);
-        const [track] = stream.getVideoTracks() as CanvasStreamTrack[];
+        const stream = exportCanvas.captureStream(fps);
+        const [track] = stream.getVideoTracks();
         const chunks: BlobPart[] = [];
         const recorder = new MediaRecorder(stream, { mimeType });
         const stopped = new Promise<void>((resolve, reject) => {
@@ -256,20 +250,39 @@ export function MapCanvas() {
           if (recordedEvent.data.size > 0) chunks.push(recordedEvent.data);
         };
 
-        recorder.start();
-        await sleep(100);
-        for (let index = 0; index < times.length; index += 1) {
-          useProjectStore.getState().setCurrentTime(times[index].toFixed(4));
-          const image = await loadDataUrlImage(await captureDataUrl(exportWidth, exportHeight));
-          context.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
-          context.drawImage(image, 0, 0, exportCanvas.width, exportCanvas.height);
-          track.requestFrame?.();
-          dispatchExportStatus(`MP4\u66f8\u304d\u51fa\u3057\u4e2d ${index + 1}/${times.length}`, true);
-          await sleep(1000 / fps);
+        const durationSeconds = Math.max(1 / fps, bounds.end - bounds.start);
+        let animationFrameId: number | null = null;
+        try {
+          setExportViewport({ width: exportWidth, height: exportHeight });
+          useProjectStore.getState().setCurrentTime(bounds.start.toFixed(4));
+          await waitForPaint();
+          drawStageLayerToCanvas(stage, context, exportWidth, exportHeight);
+
+          recorder.start();
+          const startedAt = performance.now();
+          await new Promise<void>((resolve) => {
+            const tick = (now: number) => {
+              const elapsedSeconds = Math.min(durationSeconds, (now - startedAt) / 1000);
+              drawStageLayerToCanvas(stage, context, exportWidth, exportHeight);
+              useProjectStore.getState().setCurrentTime((bounds.start + elapsedSeconds).toFixed(4));
+              const progress = Math.min(100, Math.round((elapsedSeconds / durationSeconds) * 100));
+              dispatchExportStatus(`MP4\u66f8\u304d\u51fa\u3057\u4e2d ${progress}%`, true);
+              if (elapsedSeconds >= durationSeconds) {
+                animationFrameId = null;
+                resolve();
+                return;
+              }
+              animationFrameId = window.requestAnimationFrame(tick);
+            };
+            animationFrameId = window.requestAnimationFrame(tick);
+          });
+          recorder.stop();
+          await stopped;
+        } finally {
+          if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
+          track.stop();
+          setExportViewport(null);
         }
-        recorder.stop();
-        await stopped;
-        track.stop();
         downloadBlob(new Blob(chunks, { type: mimeType }), `${basename}_${fps}fps.mp4`);
         dispatchExportStatus("MP4\u3092\u66f8\u304d\u51fa\u3057\u307e\u3057\u305f", false);
       } catch (error) {
@@ -452,17 +465,17 @@ export function MapCanvas() {
     <div className="canvas-container" ref={containerRef}>
       <Stage
         ref={stageRef}
-        width={size.width}
-        height={size.height}
+        width={exportViewport?.width ?? size.width}
+        height={exportViewport?.height ?? size.height}
         onWheel={onWheel}
         onClick={onCanvasClick}
         onTap={onCanvasClick}
         onMouseMove={onStageMouseMove}
-        draggable={spacePressed}
-        x={stagePosition.x}
-        y={stagePosition.y}
-        scaleX={scale}
-        scaleY={scale}
+        draggable={!exportViewport && spacePressed}
+        x={exportViewport ? 0 : stagePosition.x}
+        y={exportViewport ? 0 : stagePosition.y}
+        scaleX={exportViewport ? 1 : scale}
+        scaleY={exportViewport ? 1 : scale}
         onMouseDown={(event) => {
           if (event.evt.button === 1) {
             event.evt.preventDefault();
@@ -587,6 +600,7 @@ export function MapCanvas() {
                 mapHeight={mapHeight}
                 onSelect={() => selectObject("unit", unit.id)}
                 onDragEnd={(x, y) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x, y, status: unit.status })}
+                onRotateEnd={(rotation) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: frame.x, y: frame.y, rotation, status: unit.status })}
               />
             );
           })}
@@ -683,6 +697,7 @@ export function MapCanvas() {
                   mapHeight={mapHeight}
                   onSelect={() => selectObject("unit", unit.id)}
                   onDragEnd={(x, y) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x, y, status: unit.status })}
+                  onRotateEnd={(rotation) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: frame.x, y: frame.y, rotation, status: unit.status })}
                 />
               );
             })()}

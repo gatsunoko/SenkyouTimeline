@@ -1,18 +1,23 @@
 import { useRef } from "react";
 import { ImagePlus } from "lucide-react";
 import { useProjectStore } from "../../store/projectStore";
-import type { RouteDirection, RouteSourceType, Unit, UnitRoute, UnitRouteSegment } from "../../types/project";
+import type { RouteDirection, RouteSourceType, Unit, UnitRoute, UnitRouteSegment, UnitShape } from "../../types/project";
 import { createId } from "../../utils/id";
 import { readFileAsDataUrl } from "../../utils/fileIO";
 import { getUnitRouteSegments, resolveUnitFrame, resolveUnitRoutePoint } from "../../utils/interpolation";
 import { compareTime, parseTimelineSeconds, sortedFrames } from "../../utils/time";
-import { ColorField, NumberField, TextField, ToggleField } from "./InspectorFields";
+import { ColorField, NumberField, SelectField, TextField, ToggleField } from "./InspectorFields";
 
 type RouteOption = {
   value: string;
   sourceType: RouteSourceType;
   sourceId: string;
   label: string;
+};
+
+const unitShapeLabels: Record<UnitShape, string> = {
+  rectangle: "四角",
+  pentagon: "五角形",
 };
 
 function firstUnitKeyframeTime(unit: Unit, fallback: string) {
@@ -53,6 +58,7 @@ export function UnitInspector({ id }: { id: string }) {
   const currentX = routePoint?.x ?? keyframe?.x ?? resolvedFrame?.x ?? 0.5;
   const currentY = routePoint?.y ?? keyframe?.y ?? resolvedFrame?.y ?? 0.5;
   const currentSize = keyframe?.size ?? resolvedFrame?.size ?? unit.size;
+  const unitShape = unit.shape ?? "rectangle";
   const routeOptions: RouteOption[] = [
     ...project.lines.map((line) => ({
       value: `line:${line.id}`,
@@ -152,6 +158,7 @@ export function UnitInspector({ id }: { id: string }) {
         </select>
       </label>
       <ToggleField label="ロック" checked={unit.locked} onChange={(value) => updateUnit(unit.id, { locked: value })} />
+      <SelectField label="形状" value={unitShape} options={unitShapeLabels} onChange={(value) => updateUnit(unit.id, { shape: value })} />
 
       <h3>画像コマ</h3>
       <h3>名前表示</h3>
@@ -313,6 +320,7 @@ export function UnitInspector({ id }: { id: string }) {
             <small>
               x {entry.x.toFixed(3)} / y {entry.y.toFixed(3)}
               {entry.size !== undefined ? ` / size ${entry.size.toFixed(2)}` : ""}
+              {unitShape === "pentagon" ? ` / angle ${entry.rotation.toFixed(0)}` : ""}
             </small>
             <button type="button" className="icon-only danger" onClick={() => deleteUnitKeyframe(unit.id, entry.time)}>
               削除
