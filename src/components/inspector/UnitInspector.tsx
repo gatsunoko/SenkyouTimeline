@@ -6,7 +6,7 @@ import { createId } from "../../utils/id";
 import { readFileAsDataUrl } from "../../utils/fileIO";
 import { getUnitRouteSegments, resolveUnitFrame, resolveUnitRoutePoint } from "../../utils/interpolation";
 import { compareTime, parseTimelineSeconds, sortedFrames } from "../../utils/time";
-import { NumberField, TextField, ToggleField } from "./InspectorFields";
+import { ColorField, NumberField, TextField, ToggleField } from "./InspectorFields";
 
 type RouteOption = {
   value: string;
@@ -154,6 +154,11 @@ export function UnitInspector({ id }: { id: string }) {
       <ToggleField label="ロック" checked={unit.locked} onChange={(value) => updateUnit(unit.id, { locked: value })} />
 
       <h3>画像コマ</h3>
+      <h3>名前表示</h3>
+      <ColorField label="名前の文字色" value={unit.nameTextColor ?? "#f5efe3"} onChange={(value) => updateUnit(unit.id, { nameTextColor: value })} />
+      <ToggleField label="名前に背景" checked={unit.nameBackgroundEnabled ?? false} onChange={(value) => updateUnit(unit.id, { nameBackgroundEnabled: value })} />
+      {unit.nameBackgroundEnabled && <ColorField label="名前背景色" value={unit.nameBackgroundColor ?? "#111827"} onChange={(value) => updateUnit(unit.id, { nameBackgroundColor: value })} />}
+
       {unit.iconUrl && (
         <div className="unit-image-preview">
           <img src={unit.iconUrl} alt="" />

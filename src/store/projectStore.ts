@@ -340,16 +340,25 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   for (const asset of normalized.unitAssets) {
     asset.size ||= 1;
     asset.factionId ||= normalized.factions?.[0]?.id ?? "faction_default_a";
+    asset.nameTextColor ||= "#f5efe3";
+    asset.nameBackgroundEnabled = asset.nameBackgroundEnabled ?? false;
+    asset.nameBackgroundColor ||= "#111827";
   }
   normalized.siteAssets ||= [];
   for (const asset of normalized.siteAssets) {
     asset.size ||= 1;
     asset.nameFontSize ||= 14 * asset.size;
+    asset.nameTextColor ||= "#f5efe3";
+    asset.nameBackgroundEnabled = asset.nameBackgroundEnabled ?? false;
+    asset.nameBackgroundColor ||= "#111827";
   }
   for (const site of normalized.sites ?? []) {
     site.size ||= 1;
     site.nameFontSize ||= 14 * site.size;
     site.showName = site.showName ?? true;
+    site.nameTextColor ||= "#f5efe3";
+    site.nameBackgroundEnabled = site.nameBackgroundEnabled ?? false;
+    site.nameBackgroundColor ||= "#111827";
     site.keyframes ||= [];
   }
   for (const arrow of normalized.arrows ?? []) {
@@ -376,6 +385,9 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     line.displayEndTime ||= normalized.timeline.end ?? line.displayStartTime;
   }
   for (const unit of normalized.units ?? []) {
+    unit.nameTextColor ||= "#f5efe3";
+    unit.nameBackgroundEnabled = unit.nameBackgroundEnabled ?? false;
+    unit.nameBackgroundColor ||= "#111827";
     if (unit.route) {
       unit.route = normalizeUnitRoute(normalized, {
         ...unit.route,
@@ -684,6 +696,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         displayStartTime: frame?.time ?? project.timeline.currentTime,
         displayEndTime: project.timeline.end,
         showName: true,
+        nameTextColor: "#f5efe3",
+        nameBackgroundEnabled: false,
+        nameBackgroundColor: "#111827",
         memo: "",
         sourceNote: "",
         keyframes: [
@@ -708,6 +723,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       unit.iconUrl = imageDataUrl;
       unit.assetId = undefined;
       unit.showName = unit.showName ?? true;
+      unit.nameTextColor ||= "#f5efe3";
+      unit.nameBackgroundEnabled = unit.nameBackgroundEnabled ?? false;
+      unit.nameBackgroundColor ||= "#111827";
     }),
 
   registerUnitAsset: (unitId) =>
@@ -723,6 +741,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         imageDataUrl: unit.iconUrl,
         size: currentFrame?.size ?? unit.size,
         factionId: unit.factionId,
+        nameTextColor: unit.nameTextColor ?? "#f5efe3",
+        nameBackgroundEnabled: unit.nameBackgroundEnabled ?? false,
+        nameBackgroundColor: unit.nameBackgroundColor ?? "#111827",
       };
       project.unitAssets.push(asset);
       unit.assetId = asset.id;
@@ -761,6 +782,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         assetId: asset.id,
         iconUrl: asset.imageDataUrl,
         showName: true,
+        nameTextColor: asset.nameTextColor ?? "#f5efe3",
+        nameBackgroundEnabled: asset.nameBackgroundEnabled ?? false,
+        nameBackgroundColor: asset.nameBackgroundColor ?? "#111827",
         memo: "",
         sourceNote: "",
         keyframes: [
@@ -833,6 +857,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         size: 1,
         nameFontSize: 14,
         showName: true,
+        nameTextColor: "#f5efe3",
+        nameBackgroundEnabled: false,
+        nameBackgroundColor: "#111827",
         keyframes: [],
       });
       get().selectObject("site", id);
@@ -847,6 +874,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       site.showName = site.showName ?? true;
       site.size ||= 1;
       site.nameFontSize ||= 14 * site.size;
+      site.nameTextColor ||= "#f5efe3";
+      site.nameBackgroundEnabled = site.nameBackgroundEnabled ?? false;
+      site.nameBackgroundColor ||= "#111827";
     }),
 
   registerSiteAsset: (siteId) =>
@@ -860,6 +890,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         imageDataUrl: site.iconUrl,
         size: site.size ?? 1,
         nameFontSize: site.nameFontSize ?? 14,
+        nameTextColor: site.nameTextColor ?? "#f5efe3",
+        nameBackgroundEnabled: site.nameBackgroundEnabled ?? false,
+        nameBackgroundColor: site.nameBackgroundColor ?? "#111827",
       };
       project.siteAssets.push(asset);
       site.assetId = asset.id;
@@ -893,6 +926,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         assetId: asset.id,
         iconUrl: asset.imageDataUrl,
         showName: true,
+        nameTextColor: asset.nameTextColor ?? "#f5efe3",
+        nameBackgroundEnabled: asset.nameBackgroundEnabled ?? false,
+        nameBackgroundColor: asset.nameBackgroundColor ?? "#111827",
         keyframes: [],
       });
       get().selectObject("site", id);

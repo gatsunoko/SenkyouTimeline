@@ -168,6 +168,9 @@ export interface UnitAsset {
   imageDataUrl: string;
   size: number;
   factionId: string;
+  nameTextColor?: string;
+  nameBackgroundEnabled?: boolean;
+  nameBackgroundColor?: string;
 }
 
 export interface SiteAsset {
@@ -176,6 +179,9 @@ export interface SiteAsset {
   imageDataUrl: string;
   size: number;
   nameFontSize?: number;
+  nameTextColor?: string;
+  nameBackgroundEnabled?: boolean;
+  nameBackgroundColor?: string;
 }
 
 export interface SiteKeyframe {
@@ -226,6 +232,9 @@ export interface Unit {
   displayEndTime?: string;
   assetId?: string;
   showName?: boolean;
+  nameTextColor?: string;
+  nameBackgroundEnabled?: boolean;
+  nameBackgroundColor?: string;
   memo: string;
   sourceNote: string;
   iconUrl?: string;
@@ -246,6 +255,9 @@ export interface Site extends MapPoint {
   nameFontSize?: number;
   assetId?: string;
   showName?: boolean;
+  nameTextColor?: string;
+  nameBackgroundEnabled?: boolean;
+  nameBackgroundColor?: string;
   iconUrl?: string;
   keyframes?: SiteKeyframe[];
 }

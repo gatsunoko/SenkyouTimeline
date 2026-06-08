@@ -4,7 +4,7 @@ import { useProjectStore } from "../../store/projectStore";
 import { readFileAsDataUrl } from "../../utils/fileIO";
 import { resolveSiteFrame } from "../../utils/interpolation";
 import { compareTime } from "../../utils/time";
-import { NumberField, TextAreaField, TextField, ToggleField } from "./InspectorFields";
+import { ColorField, NumberField, TextAreaField, TextField, ToggleField } from "./InspectorFields";
 
 export function SiteInspector({ id }: { id: string }) {
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -43,6 +43,11 @@ export function SiteInspector({ id }: { id: string }) {
       </label>
       <NumberField label="サイズ" value={site.size ?? 1} min={0.3} max={4} step={0.05} onChange={(value) => updateSite(site.id, { size: value })} />
       <NumberField label="名前の文字サイズ" value={site.nameFontSize ?? 14 * (site.size ?? 1)} min={8} max={72} step={1} onChange={(value) => updateSite(site.id, { nameFontSize: value })} />
+      <h3>名前表示</h3>
+      <ColorField label="名前の文字色" value={site.nameTextColor ?? "#f5efe3"} onChange={(value) => updateSite(site.id, { nameTextColor: value })} />
+      <ToggleField label="名前に背景" checked={site.nameBackgroundEnabled ?? false} onChange={(value) => updateSite(site.id, { nameBackgroundEnabled: value })} />
+      {site.nameBackgroundEnabled && <ColorField label="名前背景色" value={site.nameBackgroundColor ?? "#111827"} onChange={(value) => updateSite(site.id, { nameBackgroundColor: value })} />}
+
       <div className="coordinate-grid">
         <NumberField label="x" value={site.x} min={0} max={1} step={0.001} onChange={(value) => updateSite(site.id, { x: value })} />
         <NumberField label="y" value={site.y} min={0} max={1} step={0.001} onChange={(value) => updateSite(site.id, { y: value })} />

@@ -14,6 +14,13 @@ interface SitePieceProps {
   onDragEnd: (x: number, y: number) => void;
 }
 
+function estimateTextWidth(text: string, fontSize: number) {
+  return Array.from(text).reduce((sum, char) => {
+    const wide = /[^\u0020-\u007e]/.test(char);
+    return sum + fontSize * (wide ? 1.02 : 0.58);
+  }, 0);
+}
+
 export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect, onDragEnd }: SitePieceProps) {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
@@ -22,6 +29,7 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
   const nameFontSize = site.nameFontSize ?? 14 * size;
   const hasImage = Boolean(site.iconUrl);
   const showName = site.showName !== false;
+  const nameTextColor = site.nameTextColor ?? "#f5efe3";
 
   useEffect(() => {
     if (!site.iconUrl) {
@@ -36,7 +44,12 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
 
   const width = hasImage ? 68 * size : 56 * size;
   const bodyHeight = hasImage ? 68 * size : 50 * size;
-  const labelHeight = showName ? nameFontSize + 10 : 0;
+  const labelTextWidth = estimateTextWidth(site.name, nameFontSize);
+  const labelWidth = Math.max(24, labelTextWidth + 12);
+  const labelTextWidthForKonva = labelWidth + 2;
+  const labelY = bodyHeight / 2 + 5;
+  const labelBackgroundHeight = nameFontSize + 6;
+  const labelHeight = showName ? labelBackgroundHeight + 2 : 0;
   const totalHeight = bodyHeight + labelHeight;
   const imageScale = image ? Math.max(width / image.naturalWidth, bodyHeight / image.naturalHeight) : 1;
   const imageWidth = image ? image.naturalWidth * imageScale : width;
@@ -83,7 +96,8 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
           <Text text="城" x={-width / 2 + 4} y={-bodyHeight / 2 + 8 * size} width={width - 8} align="center" fontSize={20 * size} fontStyle="bold" fill="#fff7e6" />
         </>
       )}
-      {showName && <Text text={site.name} x={-Math.max(120, width + 36) / 2} y={bodyHeight / 2 + 5} width={Math.max(120, width + 36)} align="center" fontSize={nameFontSize} fill="#f5efe3" ellipsis />}
+      {showName && site.nameBackgroundEnabled && <Rect x={-labelWidth / 2} y={labelY - 2} width={labelWidth} height={labelBackgroundHeight} fill={site.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
+      {showName && <Text text={site.name} x={-labelTextWidthForKonva / 2} y={labelY} width={labelTextWidthForKonva} align="center" fontSize={nameFontSize} fill={nameTextColor} wrap="none" ellipsis />}
     </Group>
   );
 }
