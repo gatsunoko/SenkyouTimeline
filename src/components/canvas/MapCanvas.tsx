@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Image as KonvaImage, Layer, Line, Rect, Stage, Text } from "react-konva";
+import { Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva";
 import type Konva from "konva";
 import { useProjectStore } from "../../store/projectStore";
 import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas } from "../../utils/coordinate";
@@ -489,7 +489,6 @@ export function MapCanvas() {
             <>
               <Rect x={0} y={0} width={mapWidth} height={mapHeight} fill="#192332" listening={false} />
               {gridLines}
-              <Text text={"地図画像なし: 仮グリッド背景"} x={40} y={35} fontSize={28} fill="#7f8da3" listening={false} />
             </>
           )}
 

@@ -16,6 +16,7 @@ export function ArrowInspector({ id }: { id: string }) {
   const selectedArrowPointIndices = useProjectStore((state) => state.selectedArrowPointIndices);
   const updateArrow = useProjectStore((state) => state.updateArrow);
   const updateArrowKeyframe = useProjectStore((state) => state.updateArrowKeyframe);
+  const deleteArrowKeyframe = useProjectStore((state) => state.deleteArrowKeyframe);
   const clearArrowPointSelection = useProjectStore((state) => state.clearArrowPointSelection);
   const arrow = project.arrows.find((entry) => entry.id === id);
   if (!arrow) return null;
@@ -23,6 +24,7 @@ export function ArrowInspector({ id }: { id: string }) {
   const frame = resolveArrowKeyframe(arrow, project.timeline.currentTime, project.timeline.interpolationMode);
   const points = frame?.points ?? [];
   const canDeletePoint = points.length > 2;
+  const keyframes = [...(arrow.keyframes ?? [])].sort((a, b) => compareTime(a.time, b.time));
   const frames = sortedFrames(project.timeline.frames);
   const selectedPoints = selectedArrowPointIndices
     .filter((index) => index >= 0 && index < points.length)
@@ -112,6 +114,19 @@ export function ArrowInspector({ id }: { id: string }) {
                 clearArrowPointSelection();
               }}
             >
+              削除
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <h3>この矢印のキーフレーム</h3>
+      <div className="point-list">
+        {keyframes.map((entry, index) => (
+          <div className="point-row keyframe-row" key={`${arrow.id}-keyframe-${entry.time}-${index}`}>
+            <span>{entry.displayDate || entry.time}</span>
+            <small>{entry.points.length} 点</small>
+            <button type="button" className="icon-only danger" onClick={() => deleteArrowKeyframe(arrow.id, entry.time)}>
               削除
             </button>
           </div>

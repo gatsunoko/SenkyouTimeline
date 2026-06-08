@@ -103,6 +103,7 @@ interface ProjectStore {
   addArrow: (points?: MapPoint[]) => void;
   updateArrow: (id: string, patch: Partial<BattleArrow>) => void;
   updateArrowKeyframe: (arrowId: string, time: string, points: MapPoint[]) => void;
+  deleteArrowKeyframe: (arrowId: string, time: string) => void;
   deleteArrow: (id: string) => void;
   addEvent: (point?: MapPoint) => void;
   updateEvent: (id: string, patch: Partial<BattleEvent>) => void;
@@ -1126,6 +1127,25 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         }
         syncRouteRoot(unit.route);
       }
+    }),
+  deleteArrowKeyframe: (arrowId, time) =>
+    commit(set, get, (project) => {
+      const arrow = project.arrows.find((entry) => entry.id === arrowId);
+      if (!arrow?.keyframes) return;
+      const targetSeconds = parseTimelineSeconds(time);
+      const deletedRoutePoints = resolveArrowRoutePoints(arrow, time, project.timeline.interpolationMode);
+      if (deletedRoutePoints) {
+        for (const unit of project.units) {
+          for (const segment of routeSegmentRefs(unit.route)) {
+            if (segment.sourceType === "arrow" && segment.sourceId === arrowId) {
+              segment.fallbackPoints = deletedRoutePoints.map((point) => ({ ...point }));
+            }
+          }
+          syncRouteRoot(unit.route);
+        }
+      }
+      arrow.keyframes = arrow.keyframes.filter((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) >= 0.05);
+      arrow.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
     }),
   deleteArrow: (id) =>
     commit(set, get, (project) => {
