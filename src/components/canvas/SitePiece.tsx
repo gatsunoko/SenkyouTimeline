@@ -49,6 +49,7 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
   const labelTextWidthForKonva = labelWidth + 2;
   const labelY = bodyHeight / 2 + 5;
   const labelBackgroundHeight = nameFontSize + 6;
+  const labelTextY = labelY - 2 + (labelBackgroundHeight - nameFontSize) / 2 + nameFontSize * 0.06;
   const labelHeight = showName ? labelBackgroundHeight + 2 : 0;
   const totalHeight = bodyHeight + labelHeight;
   const imageScale = image ? Math.max(width / image.naturalWidth, bodyHeight / image.naturalHeight) : 1;
@@ -97,7 +98,7 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
         </>
       )}
       {showName && site.nameBackgroundEnabled && <Rect x={-labelWidth / 2} y={labelY - 2} width={labelWidth} height={labelBackgroundHeight} fill={site.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
-      {showName && <Text text={site.name} x={-labelTextWidthForKonva / 2} y={labelY} width={labelTextWidthForKonva} align="center" fontSize={nameFontSize} fill={nameTextColor} wrap="none" ellipsis />}
+      {showName && <Text text={site.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fill={nameTextColor} wrap="none" ellipsis />}
     </Group>
   );
 }

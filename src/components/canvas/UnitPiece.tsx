@@ -100,6 +100,7 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
   const labelTextWidthForKonva = labelWidth + 2;
   const labelY = bodyHeight / 2 + 4;
   const labelBackgroundHeight = nameFontSize + 6;
+  const labelTextY = labelY - 2 + (labelBackgroundHeight - nameFontSize) / 2 + nameFontSize * 0.06;
   const labelHeight = hasImage && showName ? labelBackgroundHeight + 2 : 0;
   const bodyNameFontSize = 17 * size;
   const bodyNameWidth = Math.min(width - 12, Math.max(24, estimateTextWidth(unit.name, bodyNameFontSize) + 12));
@@ -108,6 +109,8 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
   const totalHeight = bodySelectionSize + labelHeight;
   const bodyNameY = isPentagon ? pointDepth / 2 - bodyNameFontSize / 2 : -bodyHeight / 2 + 11;
   const bodyNameBackgroundY = bodyNameY - 3;
+  const bodyNameBackgroundHeight = bodyNameFontSize + 6;
+  const bodyNameTextY = bodyNameBackgroundY + (bodyNameBackgroundHeight - bodyNameFontSize) / 2 + bodyNameFontSize * 0.06;
   const rotateGuideRadius = bodySelectionSize / 2 + 18;
   const rotationHandleRestPosition = {
     x: Math.sin((currentRotation * Math.PI) / 180) * rotateGuideRadius,
@@ -258,12 +261,12 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
       {hasImage ? (
         <>
           {showName && unit.nameBackgroundEnabled && <Rect x={-labelWidth / 2} y={labelY - 2} width={labelWidth} height={labelBackgroundHeight} fill={unit.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
-          {showName && <Text text={unit.name} x={-labelTextWidthForKonva / 2} y={labelY} width={labelTextWidthForKonva} align="center" fontSize={nameFontSize} fontStyle="bold" fill={nameTextColor} wrap="none" ellipsis />}
+          {showName && <Text text={unit.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontStyle="bold" fill={nameTextColor} wrap="none" ellipsis />}
         </>
       ) : (
         <>
-          {unit.nameBackgroundEnabled && <Rect x={-bodyNameWidth / 2} y={bodyNameBackgroundY} width={bodyNameWidth} height={bodyNameFontSize + 6} fill={unit.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
-          <Text text={unit.name} x={-width / 2 + 8} y={bodyNameY} width={width - 16} align="center" fontSize={17 * size} fontStyle="bold" fill={unit.nameTextColor ?? textColor} ellipsis />
+          {unit.nameBackgroundEnabled && <Rect x={-bodyNameWidth / 2} y={bodyNameBackgroundY} width={bodyNameWidth} height={bodyNameBackgroundHeight} fill={unit.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
+          <Text text={unit.name} x={-width / 2 + 8} y={bodyNameTextY} width={width - 16} height={bodyNameFontSize + 2} align="center" fontSize={bodyNameFontSize} fontStyle="bold" fill={unit.nameTextColor ?? textColor} ellipsis />
         </>
       )}
     </Group>
