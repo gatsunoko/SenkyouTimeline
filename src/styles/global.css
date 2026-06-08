@@ -80,17 +80,19 @@ textarea {
 
 .app-shell {
   display: grid;
-  grid-template-rows: 54px minmax(0, 1fr) 150px;
+  grid-template-rows: 54px minmax(0, 1fr) 104px;
   width: 100%;
   height: 100%;
   background: #0c1016;
 }
 
 .toolbar {
+  position: relative;
+  z-index: 20;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 10px;
+  gap: 10px;
+  padding: 7px 12px;
   border-bottom: 1px solid #263142;
   background: #111822;
   min-width: 0;
@@ -99,45 +101,156 @@ textarea {
 .toolbar button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
   padding: 0 9px;
   white-space: nowrap;
 }
 
-.toolbar-size-label {
-  display: inline-flex;
+.toolbar-tool-group,
+.toolbar-icon-group,
+.toolbar-menu-buttons {
+  display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+}
+
+.toolbar-tool-group {
+  padding: 3px;
+  border: 1px solid #2a3546;
+  border-radius: 8px;
+  background: #0d131c;
+}
+
+.toolbar-tool-button {
+  min-width: 56px;
+  height: 32px;
+  border-color: transparent;
+  background: transparent;
+  color: #c2ccda;
+}
+
+.toolbar-tool-button.is-active,
+.toolbar-menu-buttons button.is-active {
+  border-color: #f0c665;
+  background: #223149;
+  color: #f7e4a6;
+  box-shadow: inset 0 0 0 1px rgba(240, 198, 101, 0.25);
+}
+
+.toolbar-spacer {
+  flex: 1 1 auto;
+  min-width: 8px;
+}
+
+.toolbar-icon-group {
+  padding-right: 2px;
+}
+
+.toolbar-icon-group .icon-only {
+  width: 34px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+}
+
+.toolbar-icon-group .icon-only svg {
+  width: 22px;
+  height: 22px;
+}
+
+.toolbar-menu-buttons {
+  padding-left: 8px;
+  border-left: 1px solid #2b3546;
+}
+
+.toolbar-menu-buttons button {
+  min-height: 32px;
+}
+
+.toolbar-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 12px;
+  display: grid;
+  gap: 9px;
+  width: min(320px, calc(100vw - 24px));
+  padding: 12px;
+  border: 1px solid #344258;
+  border-radius: 8px;
+  background: #101722;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.38);
+}
+
+.toolbar-popover h3 {
+  margin: 0 0 2px;
+  color: #f0d78a;
+  font-size: 13px;
+}
+
+.toolbar-popover button {
+  width: 100%;
+  min-height: 34px;
+  justify-content: flex-start;
+}
+
+.toolbar-field,
+.toolbar-field-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.toolbar-field {
   color: #b8c1d1;
   font-size: 12px;
-  white-space: nowrap;
 }
 
-.toolbar-size-label input {
-  width: 72px;
-  height: 30px;
-  padding: 4px 6px;
+.toolbar-field input {
+  width: 100%;
+  height: 32px;
+  padding: 4px 7px;
 }
 
-.toolbar-divider {
-  width: 1px;
-  height: 28px;
-  background: #334054;
-  margin: 0 2px;
+.toolbar-field-grid {
+  grid-template-columns: 1fr 1fr;
 }
 
-.toolbar-meter {
-  min-width: 44px;
+.toolbar-export-grid,
+.toolbar-scale-row {
+  display: grid;
+  gap: 8px;
+}
+
+.toolbar-export-grid {
+  grid-template-columns: 1fr 1fr;
+}
+
+.toolbar-scale-row {
+  grid-template-columns: 1fr 56px 1fr;
+  align-items: center;
+}
+
+.toolbar-scale-row span {
   color: #c6d0df;
   font-size: 12px;
   text-align: center;
 }
 
+.toolbar-status {
+  display: block;
+  overflow: hidden;
+  color: #f0d78a;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .app-title {
   display: flex;
   flex-direction: column;
-  width: 250px;
-  min-width: 250px;
+  width: 220px;
+  min-width: 180px;
   line-height: 1.15;
 }
 
@@ -390,7 +503,7 @@ textarea {
 
 .timeline-panel {
   display: grid;
-  grid-template-rows: auto 30px 48px;
+  grid-template-rows: 36px 26px 38px;
   border-top: 1px solid #263142;
   background: linear-gradient(180deg, #111a27 0%, #0d141f 100%);
   min-width: 0;
@@ -400,21 +513,27 @@ textarea {
 .timeline-controls {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 5px 10px;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 3px 10px;
   border-bottom: 1px solid #263142;
   min-width: 0;
+  scrollbar-width: thin;
+  scrollbar-color: #52647c transparent;
 }
 
 .timeline-controls strong {
-  min-width: 86px;
+  flex: 0 0 auto;
+  min-width: 76px;
   font-size: 15px;
   color: #ffffff;
 }
 
 .timeline-controls span {
-  min-width: 96px;
+  flex: 0 0 auto;
+  min-width: 94px;
   color: #a7b2c4;
   font-size: 12px;
 }
@@ -422,13 +541,16 @@ textarea {
 .timeline-controls button {
   display: inline-flex;
   align-items: center;
+  flex: 0 0 auto;
   gap: 4px;
+  min-height: 28px;
   padding: 0 8px;
 }
 
 .timeline-controls label {
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
   gap: 5px;
   color: #c7d0de;
   font-size: 13px;
@@ -440,6 +562,7 @@ textarea {
 
 .timeline-controls select {
   width: 70px;
+  height: 28px;
   padding: 4px;
 }
 
@@ -448,7 +571,7 @@ textarea {
   grid-template-columns: 72px 1fr 72px;
   align-items: center;
   gap: 10px;
-  padding: 3px 12px;
+  padding: 2px 12px;
   border-bottom: 1px solid #263142;
   color: #bac4d3;
   font-size: 12px;
@@ -463,9 +586,9 @@ textarea {
   gap: 8px;
   overflow-x: auto;
   overflow-y: hidden;
-  align-items: start;
-  padding: 4px 12px 10px;
-  min-height: 48px;
+  align-items: center;
+  padding: 4px 12px;
+  min-height: 38px;
   scrollbar-gutter: stable;
   scrollbar-color: #6f7f96 #141d2b;
 }
@@ -556,6 +679,51 @@ textarea {
   margin: 8px 0 12px;
 }
 
+.inspector-button-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.route-segment-list {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+
+.route-segment-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #303c4f;
+  border-radius: 6px;
+  background: #0f1621;
+}
+
+.route-segment-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.route-segment-header span {
+  color: #f0d78a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.route-segment-card label {
+  margin-bottom: 0;
+}
+
+.inline-warning {
+  display: block;
+  margin: -2px 0 10px;
+  color: #f0c665;
+  font-size: 12px;
+}
+
 .point-row {
   display: grid;
   grid-template-columns: 48px 1fr 44px;
@@ -589,8 +757,26 @@ textarea {
 }
 
 @media (max-width: 1100px) {
-  .toolbar {
-    overflow-x: auto;
+  .app-title {
+    width: 180px;
+    min-width: 150px;
+  }
+
+  .toolbar-tool-button {
+    min-width: 34px;
+    padding: 0 8px;
+  }
+
+  .toolbar-tool-button span {
+    display: none;
+  }
+
+  .toolbar-menu-buttons button {
+    padding: 0 8px;
+  }
+
+  .toolbar-menu-buttons button span {
+    display: none;
   }
 
   .main-grid {

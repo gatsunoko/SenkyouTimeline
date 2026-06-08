@@ -4,7 +4,9 @@ import type Konva from "konva";
 import { useProjectStore } from "../../store/projectStore";
 import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas } from "../../utils/coordinate";
 import { exportStageToPng } from "../../utils/exportImage";
-import { resolveArrowKeyframe, resolveLineKeyframe, resolveSiteFrame, resolveUnitFrame } from "../../utils/interpolation";
+import { downloadBlob } from "../../utils/fileIO";
+import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveLineKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRoutePoint } from "../../utils/interpolation";
+import { createZip, type ZipEntry } from "../../utils/zip";
 import { compareTime, parseTimelineSeconds } from "../../utils/time";
 import { ArrowShape } from "./ArrowShape";
 import { EventMarker } from "./EventMarker";
@@ -12,6 +14,72 @@ import { LabelShape } from "./LabelShape";
 import { LineShape } from "./LineShape";
 import { SitePiece } from "./SitePiece";
 import { UnitPiece } from "./UnitPiece";
+
+type TimelineExportFormat = "png-sequence" | "mp4";
+type TimelineExportRequest = { format: TimelineExportFormat; fps: number };
+type CanvasStreamTrack = MediaStreamTrack & { requestFrame?: () => void };
+
+const mp4MimeTypes = ["video/mp4", "video/mp4;codecs=avc1.42E01E", "video/mp4;codecs=h264"];
+
+function sleep(milliseconds: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+function waitForPaint() {
+  return new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => resolve());
+    });
+  });
+}
+
+function safeFilename(name: string) {
+  const cleaned = name.trim().replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_");
+  return cleaned || "timeline";
+}
+
+function clampExportFps(fps: number) {
+  if (!Number.isFinite(fps)) return 30;
+  return Math.min(120, Math.max(1, Math.round(fps)));
+}
+
+function buildExportTimes(start: number, end: number, fps: number) {
+  const duration = Math.max(0, end - start);
+  const frameCount = Math.max(1, Math.ceil(duration * fps));
+  return Array.from({ length: frameCount }, (_, index) => Math.min(end, start + index / fps));
+}
+
+function getTimelineExportBounds(project: ReturnType<typeof useProjectStore.getState>["project"]) {
+  const frameSeconds = project.timeline.frames.map((frame) => parseTimelineSeconds(frame.time)).filter(Number.isFinite);
+  const startSeconds = parseTimelineSeconds(project.timeline.start);
+  const endSeconds = parseTimelineSeconds(project.timeline.end);
+  const start = Number.isFinite(startSeconds) ? startSeconds : frameSeconds[0] ?? 0;
+  const end = Number.isFinite(endSeconds) ? endSeconds : frameSeconds[frameSeconds.length - 1] ?? start;
+  return { start, end: Math.max(start, end) };
+}
+
+async function dataUrlToBytes(dataUrl: string) {
+  const response = await fetch(dataUrl);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+function loadDataUrlImage(dataUrl: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new window.Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("画像の読み込みに失敗しました"));
+    image.src = dataUrl;
+  });
+}
+
+function mp4MimeType() {
+  if (typeof MediaRecorder === "undefined") return null;
+  return mp4MimeTypes.find((type) => MediaRecorder.isTypeSupported(type)) ?? null;
+}
+
+function dispatchExportStatus(message: string, busy: boolean) {
+  window.dispatchEvent(new CustomEvent("sengoku-export-status", { detail: { message, busy } }));
+}
 
 export function MapCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -31,6 +99,7 @@ export function MapCanvas() {
   const selected = useProjectStore((state) => state.selected);
   const selectedLinePointIndices = useProjectStore((state) => state.selectedLinePointIndices);
   const selectedArrowPointIndices = useProjectStore((state) => state.selectedArrowPointIndices);
+  const routePreviewUnitId = useProjectStore((state) => state.routePreviewUnitId);
   const tool = useProjectStore((state) => state.tool);
   const drawingPoints = useProjectStore((state) => state.drawingPoints);
   const selectObject = useProjectStore((state) => state.selectObject);
@@ -81,14 +150,109 @@ export function MapCanvas() {
     const exportHandler = () => {
       if (stageRef.current) exportStageToPng(stageRef.current, "sengoku-battle-map.png");
     };
+    const timelineExportHandler = (event: Event) => {
+      const detail = (event as CustomEvent<TimelineExportRequest>).detail;
+      void exportTimeline(detail);
+    };
     const resetHandler = () => {
       setScale(0.58);
       setStagePosition({ x: 40, y: 30 });
     };
+
+    const captureDataUrl = async () => {
+      const stage = stageRef.current;
+      if (!stage) throw new Error("キャンバスが見つかりません");
+      await waitForPaint();
+      return stage.toDataURL({ pixelRatio: 1, mimeType: "image/png" });
+    };
+
+    const exportTimeline = async (request: TimelineExportRequest) => {
+      const stage = stageRef.current;
+      if (!stage) return;
+
+      const fps = clampExportFps(request.fps);
+      const state = useProjectStore.getState();
+      const sourceProject = state.project;
+      const originalTime = sourceProject.timeline.currentTime;
+      const bounds = getTimelineExportBounds(sourceProject);
+      const times = buildExportTimes(bounds.start, bounds.end, fps);
+      const basename = safeFilename(sourceProject.projectName);
+      const pad = Math.max(4, String(times.length).length);
+
+      try {
+        if (request.format === "png-sequence") {
+          const entries: ZipEntry[] = [];
+          for (let index = 0; index < times.length; index += 1) {
+            useProjectStore.getState().setCurrentTime(times[index].toFixed(4));
+            const dataUrl = await captureDataUrl();
+            entries.push({
+              name: `${basename}_${String(index + 1).padStart(pad, "0")}.png`,
+              data: await dataUrlToBytes(dataUrl),
+            });
+            dispatchExportStatus(`PNG書き出し中 ${index + 1}/${times.length}`, true);
+          }
+          dispatchExportStatus("ZIP作成中", true);
+          downloadBlob(createZip(entries), `${basename}_${fps}fps_png_sequence.zip`);
+          dispatchExportStatus(`PNG連番を書き出しました (${times.length}枚)`, false);
+          return;
+        }
+
+        const mimeType = mp4MimeType();
+        if (!mimeType) {
+          dispatchExportStatus("このブラウザはMP4書き出しに対応していません", false);
+          window.alert("このブラウザはMP4書き出しに対応していません。");
+          return;
+        }
+
+        const exportCanvas = document.createElement("canvas");
+        exportCanvas.width = Math.max(1, Math.round(stage.width()));
+        exportCanvas.height = Math.max(1, Math.round(stage.height()));
+        const context = exportCanvas.getContext("2d");
+        if (!context) throw new Error("動画用キャンバスを作成できません");
+
+        const stream = exportCanvas.captureStream(0);
+        const [track] = stream.getVideoTracks() as CanvasStreamTrack[];
+        const chunks: BlobPart[] = [];
+        const recorder = new MediaRecorder(stream, { mimeType });
+        const stopped = new Promise<void>((resolve, reject) => {
+          recorder.onstop = () => resolve();
+          recorder.onerror = () => reject(new Error("MP4書き出しに失敗しました"));
+        });
+        recorder.ondataavailable = (recordedEvent) => {
+          if (recordedEvent.data.size > 0) chunks.push(recordedEvent.data);
+        };
+
+        recorder.start();
+        await sleep(100);
+        for (let index = 0; index < times.length; index += 1) {
+          useProjectStore.getState().setCurrentTime(times[index].toFixed(4));
+          const image = await loadDataUrlImage(await captureDataUrl());
+          context.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
+          context.drawImage(image, 0, 0, exportCanvas.width, exportCanvas.height);
+          track.requestFrame?.();
+          dispatchExportStatus(`MP4書き出し中 ${index + 1}/${times.length}`, true);
+          await sleep(1000 / fps);
+        }
+        recorder.stop();
+        await stopped;
+        track.stop();
+        downloadBlob(new Blob(chunks, { type: mimeType }), `${basename}_${fps}fps.mp4`);
+        dispatchExportStatus("MP4を書き出しました", false);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "書き出しに失敗しました";
+        dispatchExportStatus(message, false);
+        window.alert(message);
+      } finally {
+        useProjectStore.getState().setCurrentTime(originalTime);
+      }
+    };
+
     window.addEventListener("sengoku-export-png", exportHandler);
+    window.addEventListener("sengoku-export-timeline", timelineExportHandler);
     window.addEventListener("sengoku-reset-view", resetHandler);
     return () => {
       window.removeEventListener("sengoku-export-png", exportHandler);
+      window.removeEventListener("sengoku-export-timeline", timelineExportHandler);
       window.removeEventListener("sengoku-reset-view", resetHandler);
     };
   }, []);
@@ -206,6 +370,49 @@ export function MapCanvas() {
     if (selected.type !== type || !selected.id) return items;
     return items.filter((item) => item.id !== selected.id);
   };
+  const routePreviewUnit = routePreviewUnitId ? project.units.find((unit) => unit.id === routePreviewUnitId) : undefined;
+  const activePreviewRoute = routePreviewUnit?.route;
+  const activePreviewRouteSegments = getUnitRouteSegments(activePreviewRoute);
+  const isPreviewRouteSource = (sourceType: "line" | "arrow", sourceId: string) => activePreviewRouteSegments.some((segment) => segment.sourceType === sourceType && segment.sourceId === sourceId);
+  const previewRouteTime = (sourceType: "line" | "arrow", sourceId: string) => {
+    const matchingSegment =
+      activePreviewRouteSegments.find((segment) => segment.sourceType === sourceType && segment.sourceId === sourceId && compareTime(project.timeline.currentTime, segment.startTime) >= 0 && compareTime(project.timeline.currentTime, segment.endTime) <= 0) ??
+      activePreviewRouteSegments.find((segment) => segment.sourceType === sourceType && segment.sourceId === sourceId);
+    if (!matchingSegment) return null;
+    if (compareTime(project.timeline.currentTime, matchingSegment.startTime) < 0) return matchingSegment.startTime;
+    if (compareTime(project.timeline.currentTime, matchingSegment.endTime) > 0) return matchingSegment.endTime;
+    return project.timeline.currentTime;
+  };
+  const shouldRenderLine = (line: (typeof project.lines)[number]) => !line.hideWhenRoute || isPreviewRouteSource("line", line.id);
+  const shouldRenderArrow = (arrow: (typeof project.arrows)[number]) => !arrow.hideWhenRoute || isPreviewRouteSource("arrow", arrow.id);
+  const resolveDisplayUnitFrame = (unit: (typeof project.units)[number]) => {
+    const routePoint = resolveUnitRoutePoint(unit, project.lines, project.arrows, project.timeline.currentTime, project.timeline.interpolationMode);
+    const frame = resolveUnitFrame(unit, project.timeline.currentTime, project.timeline.interpolationMode);
+    if (!frame && !routePoint) return null;
+    if (!frame && routePoint) {
+      const routeRange = getUnitRouteTimeRange(unit.route);
+      const displayStartTime = unit.displayStartTime ?? routeRange?.startTime;
+      const displayEndTime = unit.displayEndTime;
+      if (displayStartTime && compareTime(project.timeline.currentTime, displayStartTime) < 0) return null;
+      if (displayEndTime && compareTime(project.timeline.currentTime, displayEndTime) > 0) return null;
+      return {
+        time: project.timeline.currentTime,
+        displayDate: project.timeline.frames.find((entry) => entry.time === project.timeline.currentTime)?.displayDate ?? project.timeline.currentTime,
+        x: routePoint.x,
+        y: routePoint.y,
+        rotation: 0,
+        size: unit.size,
+        status: unit.status,
+        factionId: unit.factionId,
+        certainty: unit.certainty,
+        sourceNote: unit.sourceNote,
+        effectiveFactionId: unit.factionId,
+        effectiveCertainty: unit.certainty,
+      };
+    }
+    if (!frame) return null;
+    return routePoint ? { ...frame, x: routePoint.x, y: routePoint.y } : frame;
+  };
 
   return (
     <div className="canvas-container" ref={containerRef}>
@@ -253,7 +460,8 @@ export function MapCanvas() {
           )}
 
           {withoutSelected(project.lines, "line").map((line) => {
-            const frame = resolveLineKeyframe(line, project.timeline.currentTime, project.timeline.interpolationMode);
+            if (!shouldRenderLine(line)) return null;
+            const frame = resolveLineKeyframe(line, previewRouteTime("line", line.id) ?? project.timeline.currentTime, project.timeline.interpolationMode);
             if (!frame) return null;
             return (
               <LineShape
@@ -261,6 +469,7 @@ export function MapCanvas() {
                 line={line}
                 frame={frame}
                 selected={selected.type === "line" && selected.id === line.id}
+                preview={isPreviewRouteSource("line", line.id)}
                 selectedPointIndices={selected.type === "line" && selected.id === line.id ? selectedLinePointIndices : []}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
@@ -275,8 +484,10 @@ export function MapCanvas() {
           })}
 
           {withoutSelected(project.arrows, "arrow").map((arrow) => {
-            if (compareTime(arrow.startTime, project.timeline.currentTime) > 0 || compareTime(arrow.endTime, project.timeline.currentTime) < 0) return null;
-            const frame = resolveArrowKeyframe(arrow, project.timeline.currentTime, project.timeline.interpolationMode);
+            if (!shouldRenderArrow(arrow)) return null;
+            const arrowFrameTime = previewRouteTime("arrow", arrow.id) ?? project.timeline.currentTime;
+            if (compareTime(arrow.startTime, arrowFrameTime) > 0 || compareTime(arrow.endTime, arrowFrameTime) < 0) return null;
+            const frame = resolveArrowKeyframe(arrow, arrowFrameTime, project.timeline.interpolationMode);
             if (!frame) return null;
             return (
               <ArrowShape
@@ -284,6 +495,7 @@ export function MapCanvas() {
                 arrow={arrow}
                 frame={frame}
                 selected={selected.type === "arrow" && selected.id === arrow.id}
+                preview={isPreviewRouteSource("arrow", arrow.id)}
                 selectedPointIndices={selected.type === "arrow" && selected.id === arrow.id ? selectedArrowPointIndices : []}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
@@ -328,7 +540,7 @@ export function MapCanvas() {
           })}
 
           {withoutSelected(project.units, "unit").map((unit) => {
-            const frame = resolveUnitFrame(unit, project.timeline.currentTime, project.timeline.interpolationMode);
+            const frame = resolveDisplayUnitFrame(unit);
             if (!frame) return null;
             const faction = project.factions.find((entry) => entry.id === frame.effectiveFactionId);
             return (
@@ -362,7 +574,7 @@ export function MapCanvas() {
             (() => {
               const line = project.lines.find((entry) => entry.id === selected.id);
               if (!line) return null;
-              const frame = resolveLineKeyframe(line, project.timeline.currentTime, project.timeline.interpolationMode);
+              const frame = resolveLineKeyframe(line, previewRouteTime("line", line.id) ?? project.timeline.currentTime, project.timeline.interpolationMode);
               if (!frame) return null;
               return (
                 <LineShape
@@ -370,6 +582,7 @@ export function MapCanvas() {
                   line={line}
                   frame={frame}
                   selected
+                  preview={isPreviewRouteSource("line", line.id)}
                   selectedPointIndices={selectedLinePointIndices}
                   mapWidth={mapWidth}
                   mapHeight={mapHeight}
@@ -386,8 +599,9 @@ export function MapCanvas() {
           {selected.type === "arrow" &&
             (() => {
               const arrow = project.arrows.find((entry) => entry.id === selected.id);
-              if (!arrow || compareTime(arrow.startTime, project.timeline.currentTime) > 0 || compareTime(arrow.endTime, project.timeline.currentTime) < 0) return null;
-              const frame = resolveArrowKeyframe(arrow, project.timeline.currentTime, project.timeline.interpolationMode);
+              const arrowFrameTime = arrow ? previewRouteTime("arrow", arrow.id) ?? project.timeline.currentTime : project.timeline.currentTime;
+              if (!arrow || compareTime(arrow.startTime, arrowFrameTime) > 0 || compareTime(arrow.endTime, arrowFrameTime) < 0) return null;
+              const frame = resolveArrowKeyframe(arrow, arrowFrameTime, project.timeline.interpolationMode);
               if (!frame) return null;
               return (
                 <ArrowShape
@@ -395,6 +609,7 @@ export function MapCanvas() {
                   arrow={arrow}
                   frame={frame}
                   selected
+                  preview={isPreviewRouteSource("arrow", arrow.id)}
                   selectedPointIndices={selectedArrowPointIndices}
                   mapWidth={mapWidth}
                   mapHeight={mapHeight}
@@ -421,7 +636,7 @@ export function MapCanvas() {
             (() => {
               const unit = project.units.find((entry) => entry.id === selected.id);
               if (!unit) return null;
-              const frame = resolveUnitFrame(unit, project.timeline.currentTime, project.timeline.interpolationMode);
+              const frame = resolveDisplayUnitFrame(unit);
               if (!frame) return null;
               const faction = project.factions.find((entry) => entry.id === frame.effectiveFactionId);
               return (

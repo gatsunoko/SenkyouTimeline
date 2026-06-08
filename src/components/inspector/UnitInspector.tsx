@@ -1,14 +1,28 @@
 import { useRef } from "react";
 import { ImagePlus } from "lucide-react";
 import { useProjectStore } from "../../store/projectStore";
-import type { Unit } from "../../types/project";
+import type { RouteDirection, RouteSourceType, Unit, UnitRoute, UnitRouteSegment } from "../../types/project";
+import { createId } from "../../utils/id";
 import { readFileAsDataUrl } from "../../utils/fileIO";
-import { resolveUnitFrame } from "../../utils/interpolation";
+import { getUnitRouteSegments, resolveUnitFrame, resolveUnitRoutePoint } from "../../utils/interpolation";
 import { compareTime, parseTimelineSeconds, sortedFrames } from "../../utils/time";
-import { NumberField, TextAreaField, TextField, ToggleField } from "./InspectorFields";
+import { NumberField, TextField, ToggleField } from "./InspectorFields";
+
+type RouteOption = {
+  value: string;
+  sourceType: RouteSourceType;
+  sourceId: string;
+  label: string;
+};
 
 function firstUnitKeyframeTime(unit: Unit, fallback: string) {
   return [...unit.keyframes].sort((a, b) => compareTime(a.time, b.time))[0]?.time ?? fallback;
+}
+
+function parseRouteOption(value: string): Pick<UnitRoute, "sourceType" | "sourceId"> | null {
+  const [sourceType, sourceId] = value.split(":");
+  if ((sourceType !== "line" && sourceType !== "arrow") || !sourceId) return null;
+  return { sourceType, sourceId };
 }
 
 export function UnitInspector({ id }: { id: string }) {
@@ -20,21 +34,41 @@ export function UnitInspector({ id }: { id: string }) {
   const duplicateUnitFromAsset = useProjectStore((state) => state.duplicateUnitFromAsset);
   const updateUnitKeyframe = useProjectStore((state) => state.updateUnitKeyframe);
   const deleteUnitKeyframe = useProjectStore((state) => state.deleteUnitKeyframe);
+  const setUnitRoute = useProjectStore((state) => state.setUnitRoute);
+  const toggleUnitRoutePreview = useProjectStore((state) => state.toggleUnitRoutePreview);
+  const routePreviewUnitId = useProjectStore((state) => state.routePreviewUnitId);
   const unit = project.units.find((entry) => entry.id === id);
   if (!unit) return null;
 
   const currentSeconds = parseTimelineSeconds(project.timeline.currentTime);
   const keyframe = unit.keyframes.find((entry) => Math.abs(parseTimelineSeconds(entry.time) - currentSeconds) < 0.05);
   const resolvedFrame = resolveUnitFrame(unit, project.timeline.currentTime, project.timeline.interpolationMode);
+  const routePoint = resolveUnitRoutePoint(unit, project.lines, project.arrows, project.timeline.currentTime, project.timeline.interpolationMode);
   const frames = sortedFrames(project.timeline.frames);
   const unitKeyframes = [...unit.keyframes].sort((a, b) => compareTime(a.time, b.time));
   const fallbackStart = firstUnitKeyframeTime(unit, frames[0]?.time ?? project.timeline.currentTime);
   const displayStartTime = unit.displayStartTime ?? fallbackStart;
   const displayEndTime = unit.displayEndTime ?? frames[frames.length - 1]?.time ?? project.timeline.end;
   const linkedAsset = project.unitAssets.find((asset) => asset.id === unit.assetId);
-  const currentX = keyframe?.x ?? resolvedFrame?.x ?? 0.5;
-  const currentY = keyframe?.y ?? resolvedFrame?.y ?? 0.5;
+  const currentX = routePoint?.x ?? keyframe?.x ?? resolvedFrame?.x ?? 0.5;
+  const currentY = routePoint?.y ?? keyframe?.y ?? resolvedFrame?.y ?? 0.5;
   const currentSize = keyframe?.size ?? resolvedFrame?.size ?? unit.size;
+  const routeOptions: RouteOption[] = [
+    ...project.lines.map((line) => ({
+      value: `line:${line.id}`,
+      sourceType: "line" as const,
+      sourceId: line.id,
+      label: `線: ${line.name}`,
+    })),
+    ...project.arrows.map((arrow) => ({
+      value: `arrow:${arrow.id}`,
+      sourceType: "arrow" as const,
+      sourceId: arrow.id,
+      label: `矢印: ${arrow.name}`,
+    })),
+  ];
+  const routeSegments = getUnitRouteSegments(unit.route);
+  const isPreviewingRoute = routePreviewUnitId === unit.id;
 
   const setDisplayStartTime = (value: string) => {
     updateUnit(unit.id, {
@@ -48,6 +82,53 @@ export function UnitInspector({ id }: { id: string }) {
       displayStartTime: compareTime(displayStartTime, value) > 0 ? value : displayStartTime,
       displayEndTime: value,
     });
+  };
+
+  const routeFromSegments = (segments: UnitRouteSegment[]): UnitRoute | undefined => {
+    if (segments.length === 0) return undefined;
+    return { ...segments[0], segments };
+  };
+
+  const setRouteSegments = (segments: UnitRouteSegment[]) => {
+    setUnitRoute(unit.id, routeFromSegments(segments));
+  };
+
+  const nextFrameTimeAfter = (time: string) => frames.find((timelineFrame) => compareTime(timelineFrame.time, time) > 0)?.time ?? project.timeline.end;
+
+  const makeRouteSegment = (source: Pick<UnitRouteSegment, "sourceType" | "sourceId">): UnitRouteSegment => {
+    const previous = routeSegments[routeSegments.length - 1];
+    const startTime = previous?.endTime ?? displayStartTime;
+    const endTime = nextFrameTimeAfter(startTime);
+    return {
+      id: createId("route_segment"),
+      ...source,
+      startTime,
+      endTime: compareTime(startTime, endTime) > 0 ? startTime : endTime,
+      direction: previous?.direction ?? "forward",
+    };
+  };
+
+  const addRouteSegment = () => {
+    const fallbackSource = routeOptions.find((option) => !routeSegments.some((segment) => segment.sourceType === option.sourceType && segment.sourceId === option.sourceId)) ?? routeOptions[0];
+    if (!fallbackSource) return;
+    setRouteSegments([...routeSegments, makeRouteSegment(fallbackSource)]);
+  };
+
+  const updateRouteSegment = (index: number, patch: Partial<UnitRouteSegment>) => {
+    const nextSegments = routeSegments.map((segment, segmentIndex) => {
+      if (segmentIndex !== index) return segment;
+      const nextSegment = { ...segment, ...patch };
+      if (compareTime(nextSegment.startTime, nextSegment.endTime) > 0) {
+        if (patch.startTime !== undefined) nextSegment.endTime = nextSegment.startTime;
+        if (patch.endTime !== undefined) nextSegment.startTime = nextSegment.endTime;
+      }
+      return nextSegment;
+    });
+    setRouteSegments(nextSegments);
+  };
+
+  const removeRouteSegment = (index: number) => {
+    setRouteSegments(routeSegments.filter((_, segmentIndex) => segmentIndex !== index));
   };
 
   const onImageFile = async (file?: File) => {
@@ -127,7 +208,84 @@ export function UnitInspector({ id }: { id: string }) {
         </select>
       </label>
 
-      <TextAreaField label="メモ" value={unit.memo} onChange={(value) => updateUnit(unit.id, { memo: value })} />
+      <h3>移動ルート</h3>
+      <div className="inspector-button-row">
+        <button type="button" onClick={addRouteSegment} disabled={routeOptions.length === 0}>
+          ルートを追加
+        </button>
+        {routeSegments.length > 0 && (
+          <>
+            <button type="button" onClick={() => toggleUnitRoutePreview(unit.id)}>
+              {isPreviewingRoute ? "確認終了" : "ルート確認"}
+            </button>
+            <button type="button" className="danger" onClick={() => setUnitRoute(unit.id, undefined)}>
+              すべて解除
+            </button>
+          </>
+        )}
+      </div>
+      {routeSegments.length > 0 && (
+        <div className="route-segment-list">
+          {routeSegments.map((segment, index) => {
+            const routeValue = `${segment.sourceType}:${segment.sourceId}`;
+            const routeSourceExists = routeOptions.some((option) => option.value === routeValue);
+            return (
+              <div className="route-segment-card" key={segment.id}>
+                <div className="route-segment-header">
+                  <span>ルート {index + 1}</span>
+                  <button type="button" className="icon-only danger" onClick={() => removeRouteSegment(index)}>
+                    削除
+                  </button>
+                </div>
+                {!routeSourceExists && <small className="inline-warning">割り当て先が見つかりません</small>}
+                <label>
+                  線/矢印
+                  <select
+                    value={routeValue}
+                    onChange={(event) => {
+                      const source = parseRouteOption(event.target.value);
+                      if (source) updateRouteSegment(index, source);
+                    }}
+                  >
+                    {routeOptions.map((option) => (
+                      <option value={option.value} key={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  始点到達
+                  <select value={segment.startTime} onChange={(event) => updateRouteSegment(index, { startTime: event.target.value })}>
+                    {frames.map((timelineFrame) => (
+                      <option value={timelineFrame.time} key={timelineFrame.id}>
+                        {timelineFrame.displayDate}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  終点到達
+                  <select value={segment.endTime} onChange={(event) => updateRouteSegment(index, { endTime: event.target.value })}>
+                    {frames.map((timelineFrame) => (
+                      <option value={timelineFrame.time} key={timelineFrame.id}>
+                        {timelineFrame.displayDate}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  方向
+                  <select value={segment.direction} onChange={(event) => updateRouteSegment(index, { direction: event.target.value as RouteDirection })}>
+                    <option value="forward">始点から終点</option>
+                    <option value="reverse">終点から始点</option>
+                  </select>
+                </label>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <h3>現在時間のキーフレーム</h3>
       <div className="coordinate-grid">

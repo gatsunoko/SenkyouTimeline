@@ -16,12 +16,14 @@ import type {
   Unit,
   UnitAsset,
   UnitKeyframe,
+  UnitRoute,
+  UnitRouteSegment,
 } from "../types/project";
 import { clampPoint } from "../utils/coordinate";
 import { createId } from "../utils/id";
-import { formatTimelineLabel, getCurrentFrame, nextFrameTime, parseTimelineSeconds, sortedFrames } from "../utils/time";
+import { compareTime, formatTimelineLabel, getCurrentFrame, nextFrameTime, parseTimelineSeconds, sortedFrames } from "../utils/time";
 import { cloneProject, trimHistory } from "./historyStore";
-import { resolveArrowKeyframe, resolveLineKeyframe, resolveSiteFrame, resolveUnitFrame } from "../utils/interpolation";
+import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveArrowRoutePoints, resolveLineKeyframe, resolveLineRoutePoints, resolveSiteFrame, resolveUnitFrame, resolveUnitRoutePoint } from "../utils/interpolation";
 
 const emptyProject: ProjectData = {
   version: "1.0.0",
@@ -63,6 +65,7 @@ interface ProjectStore {
   selected: SelectionState;
   selectedLinePointIndices: number[];
   selectedArrowPointIndices: number[];
+  routePreviewUnitId: string | null;
   tool: ToolMode;
   drawingPoints: MapPoint[];
   historyPast: ProjectData[];
@@ -80,6 +83,9 @@ interface ProjectStore {
   registerUnitAsset: (unitId: string) => void;
   duplicateUnitFromAsset: (assetId: string) => void;
   updateUnit: (id: string, patch: Partial<Unit>) => void;
+  setUnitRoute: (id: string, route?: UnitRoute) => void;
+  toggleUnitRoutePreview: (id: string) => void;
+  clearRoutePreview: () => void;
   deleteUnit: (id: string) => void;
   addSite: (point?: MapPoint) => void;
   setSiteImage: (siteId: string, imageDataUrl: string) => void;
@@ -134,6 +140,77 @@ function currentFrame(project: ProjectData) {
 
 function firstFactionId(project: ProjectData) {
   return project.factions[0]?.id ?? "faction_default_a";
+}
+
+function routeSegmentRefs(route?: UnitRoute): UnitRouteSegment[] {
+  if (!route) return [];
+  return route.segments && route.segments.length > 0 ? route.segments : [route];
+}
+
+function syncRouteRoot(route?: UnitRoute) {
+  const first = routeSegmentRefs(route)[0];
+  if (!route || !first) return;
+  route.id = first.id;
+  route.sourceType = first.sourceType;
+  route.sourceId = first.sourceId;
+  route.startTime = first.startTime;
+  route.endTime = first.endTime;
+  route.direction = first.direction;
+  route.fallbackPoints = first.fallbackPoints?.map((point) => ({ ...point }));
+}
+
+function routeSnapshotPoints(project: ProjectData, segment: UnitRouteSegment, preferredTime?: string) {
+  const routeTime = preferredTime ?? segment.startTime ?? project.timeline.currentTime;
+  const points =
+    segment.sourceType === "line"
+      ? (() => {
+          const line = project.lines.find((entry) => entry.id === segment.sourceId);
+          return line ? resolveLineRoutePoints(line, routeTime, project.timeline.interpolationMode) : null;
+        })()
+      : (() => {
+          const arrow = project.arrows.find((entry) => entry.id === segment.sourceId);
+          return arrow ? resolveArrowRoutePoints(arrow, routeTime, project.timeline.interpolationMode) : null;
+        })();
+  return points?.map((point) => ({ ...point })) ?? segment.fallbackPoints?.map((point) => ({ ...point }));
+}
+
+function normalizeUnitRoute(project: ProjectData, route: UnitRoute): UnitRoute | undefined {
+  const segments = getUnitRouteSegments(route).map((segment) => {
+    const startTime = segment.startTime || project.timeline.currentTime;
+    const endTime = segment.endTime || startTime;
+    const normalizedSegment: UnitRouteSegment = {
+      ...segment,
+      id: segment.id || createId("route_segment"),
+      startTime,
+      endTime: compareTime(startTime, endTime) > 0 ? startTime : endTime,
+      direction: segment.direction ?? "forward",
+    };
+    normalizedSegment.fallbackPoints = routeSnapshotPoints(project, normalizedSegment, normalizedSegment.startTime);
+    return normalizedSegment;
+  });
+  if (segments.length === 0) return undefined;
+  return { ...segments[0], segments };
+}
+
+function revealRouteSourceIfUnused(project: ProjectData, route?: UnitRoute) {
+  if (!route) return;
+  const sources = new Map<string, UnitRouteSegment>();
+  for (const segment of getUnitRouteSegments(route)) {
+    sources.set(`${segment.sourceType}:${segment.sourceId}`, segment);
+  }
+
+  for (const segment of sources.values()) {
+    const stillUsed = project.units.some((unit) => getUnitRouteSegments(unit.route).some((candidate) => candidate.sourceType === segment.sourceType && candidate.sourceId === segment.sourceId));
+    if (stillUsed) continue;
+
+    if (segment.sourceType === "line") {
+      const line = project.lines.find((entry) => entry.id === segment.sourceId);
+      if (line) line.hideWhenRoute = false;
+    } else {
+      const arrow = project.arrows.find((entry) => entry.id === segment.sourceId);
+      if (arrow) arrow.hideWhenRoute = false;
+    }
+  }
 }
 
 function commit(set: (partial: Partial<ProjectStore>) => void, get: () => ProjectStore, mutator: ProjectMutator) {
@@ -275,6 +352,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   }
   for (const arrow of normalized.arrows ?? []) {
     arrow.curveMode ||= "straight";
+    arrow.hideWhenRoute = arrow.hideWhenRoute ?? false;
     arrow.startTime ||= normalized.timeline.start || normalized.timeline.currentTime || "0";
     arrow.endTime ||= normalized.timeline.end || arrow.startTime;
     if (!arrow.keyframes || arrow.keyframes.length === 0) {
@@ -290,8 +368,19 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   }
   for (const line of normalized.lines ?? []) {
     line.curveMode ||= "straight";
+    line.hideWhenRoute = line.hideWhenRoute ?? false;
     line.displayStartTime ||= line.keyframes?.[0]?.time ?? normalized.timeline.start ?? "0";
     line.displayEndTime ||= normalized.timeline.end ?? line.displayStartTime;
+  }
+  for (const unit of normalized.units ?? []) {
+    if (unit.route) {
+      unit.route = normalizeUnitRoute(normalized, {
+        ...unit.route,
+        startTime: unit.route.startTime || unit.displayStartTime || unit.keyframes?.[0]?.time || normalized.timeline.start || "0",
+        endTime: unit.route.endTime || unit.displayEndTime || normalized.timeline.end || unit.route.startTime || "0",
+        direction: unit.route.direction || "forward",
+      });
+    }
   }
   for (const label of normalized.labels ?? []) {
     label.borderColor ||= "#f0c665";
@@ -308,6 +397,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   selected: { type: null, id: null },
   selectedLinePointIndices: [],
   selectedArrowPointIndices: [],
+  routePreviewUnitId: null,
   tool: "select",
   drawingPoints: [],
   historyPast: [],
@@ -319,6 +409,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       selected: { type: null, id: null },
       selectedLinePointIndices: [],
       selectedArrowPointIndices: [],
+      routePreviewUnitId: null,
       tool: "select",
       drawingPoints: [],
       historyPast: [],
@@ -684,10 +775,43 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }),
 
   updateUnit: (id, patch) => commit(set, get, (project) => applyListPatch(project.units, id, patch)),
+  setUnitRoute: (id, route) =>
+    commit(set, get, (project) => {
+      const unit = project.units.find((entry) => entry.id === id);
+      if (!unit) return;
+      const previousRoute = unit.route ? structuredClone(unit.route) : undefined;
+      if (!route && unit.route && unit.keyframes.length === 0) {
+        const routePoint = resolveUnitRoutePoint(unit, project.lines, project.arrows, project.timeline.currentTime, project.timeline.interpolationMode);
+        if (routePoint) {
+          const frame = ensureTimelineFrame(project, project.timeline.currentTime);
+          unit.keyframes.push({
+            time: frame.time,
+            displayDate: frame.displayDate ?? formatTimelineLabel(frame.time),
+            x: routePoint.x,
+            y: routePoint.y,
+            rotation: 0,
+            size: unit.size,
+            status: unit.status,
+            factionId: unit.factionId,
+            certainty: unit.certainty,
+            sourceNote: unit.sourceNote,
+          });
+        }
+      }
+      unit.route = route ? normalizeUnitRoute(project, route) : undefined;
+      revealRouteSourceIfUnused(project, previousRoute);
+    }),
+  toggleUnitRoutePreview: (id) =>
+    set((state) => ({
+      routePreviewUnitId: state.routePreviewUnitId === id ? null : id,
+    })),
+  clearRoutePreview: () => set({ routePreviewUnitId: null }),
   deleteUnit: (id) =>
     commit(set, get, (project) => {
+      const previousRoute = project.units.find((unit) => unit.id === id)?.route;
       project.units = project.units.filter((unit) => unit.id !== id);
       project.arrows = project.arrows.filter((arrow) => arrow.unitId !== id);
+      revealRouteSourceIfUnused(project, previousRoute);
     }),
 
   addSite: (point = { x: 0.5, y: 0.5 }) =>
@@ -810,6 +934,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         opacity: 0.85,
         dashed: false,
         curveMode: "straight",
+        hideWhenRoute: false,
         locked: false,
         displayStartTime: frame?.time ?? project.timeline.currentTime,
         displayEndTime: project.timeline.end,
@@ -848,16 +973,44 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         });
       }
       line.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+      const routePoints = resolveLineRoutePoints(line, time, project.timeline.interpolationMode) ?? normalizedPoints;
+      for (const unit of project.units) {
+        for (const segment of routeSegmentRefs(unit.route)) {
+          if (segment.sourceType === "line" && segment.sourceId === lineId) {
+            segment.fallbackPoints = routePoints.map((point) => ({ ...point }));
+          }
+        }
+        syncRouteRoot(unit.route);
+      }
     }),
   deleteLineKeyframe: (lineId, time) =>
     commit(set, get, (project) => {
       const line = project.lines.find((entry) => entry.id === lineId);
       if (!line) return;
       const targetSeconds = parseTimelineSeconds(time);
+      const deletedRoutePoints = resolveLineRoutePoints(line, time, project.timeline.interpolationMode);
+      if (deletedRoutePoints) {
+        for (const unit of project.units) {
+          for (const segment of routeSegmentRefs(unit.route)) {
+            if (segment.sourceType === "line" && segment.sourceId === lineId) {
+              segment.fallbackPoints = deletedRoutePoints.map((point) => ({ ...point }));
+            }
+          }
+          syncRouteRoot(unit.route);
+        }
+      }
       line.keyframes = line.keyframes.filter((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) >= 0.05);
       line.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
     }),
-  deleteLine: (id) => commit(set, get, (project) => (project.lines = project.lines.filter((line) => line.id !== id))),
+  deleteLine: (id) =>
+    commit(set, get, (project) => {
+      project.lines = project.lines.filter((line) => line.id !== id);
+      for (const unit of project.units) {
+        if (!unit.route) continue;
+        const segments = routeSegmentRefs(unit.route).filter((segment) => segment.sourceType !== "line" || segment.sourceId !== id);
+        unit.route = segments.length > 0 ? { ...segments[0], segments } : undefined;
+      }
+    }),
 
   addArrow: (points = []) =>
     commit(set, get, (project) => {
@@ -872,6 +1025,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         opacity: 0.85,
         dashed: false,
         curveMode: "straight",
+        hideWhenRoute: false,
         startTime: project.timeline.currentTime,
         endTime: project.timeline.end,
         points,
@@ -919,8 +1073,25 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       }
       arrow.points = normalizedPoints;
       arrow.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+      const routePoints = resolveArrowRoutePoints(arrow, time, project.timeline.interpolationMode) ?? normalizedPoints;
+      for (const unit of project.units) {
+        for (const segment of routeSegmentRefs(unit.route)) {
+          if (segment.sourceType === "arrow" && segment.sourceId === arrowId) {
+            segment.fallbackPoints = routePoints.map((point) => ({ ...point }));
+          }
+        }
+        syncRouteRoot(unit.route);
+      }
     }),
-  deleteArrow: (id) => commit(set, get, (project) => (project.arrows = project.arrows.filter((arrow) => arrow.id !== id))),
+  deleteArrow: (id) =>
+    commit(set, get, (project) => {
+      project.arrows = project.arrows.filter((arrow) => arrow.id !== id);
+      for (const unit of project.units) {
+        if (!unit.route) continue;
+        const segments = routeSegmentRefs(unit.route).filter((segment) => segment.sourceType !== "arrow" || segment.sourceId !== id);
+        unit.route = segments.length > 0 ? { ...segments[0], segments } : undefined;
+      }
+    }),
 
   addEvent: (point = { x: 0.5, y: 0.5 }) =>
     commit(set, get, (project) => {
@@ -1067,12 +1238,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const targetSeconds = parseTimelineSeconds(time);
       unit.keyframes = unit.keyframes.filter((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) >= 0.05);
       unit.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
-      if (unit.keyframes.length === 0) return;
+      const routeRange = getUnitRouteTimeRange(unit.route);
       if (unit.displayStartTime && Math.abs(parseTimelineSeconds(unit.displayStartTime) - targetSeconds) < 0.05) {
-        unit.displayStartTime = unit.keyframes[0].time;
+        unit.displayStartTime = routeRange?.startTime ?? unit.keyframes[0]?.time ?? unit.displayStartTime;
       }
       if (unit.displayEndTime && Math.abs(parseTimelineSeconds(unit.displayEndTime) - targetSeconds) < 0.05) {
-        unit.displayEndTime = unit.keyframes[unit.keyframes.length - 1].time;
+        unit.displayEndTime = routeRange?.endTime ?? unit.keyframes[unit.keyframes.length - 1]?.time ?? unit.displayEndTime;
       }
     }),
 
@@ -1118,15 +1289,40 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 
   deleteSelected: () => {
-    const { selected } = get();
+    const { project, selected, selectedLinePointIndices, selectedArrowPointIndices } = get();
     if (!selected.type || !selected.id) return;
+
+    if (selected.type === "line" && selectedLinePointIndices.length > 0) {
+      const line = project.lines.find((entry) => entry.id === selected.id);
+      const frame = line ? resolveLineKeyframe(line, project.timeline.currentTime, project.timeline.interpolationMode) : null;
+      if (!frame) return;
+      const removeIndices = new Set(selectedLinePointIndices);
+      const nextPoints = frame.points.filter((_, index) => !removeIndices.has(index));
+      if (nextPoints.length < 2) return;
+      get().updateLineKeyframe(selected.id, project.timeline.currentTime, nextPoints);
+      set({ selectedLinePointIndices: [] });
+      return;
+    }
+
+    if (selected.type === "arrow" && selectedArrowPointIndices.length > 0) {
+      const arrow = project.arrows.find((entry) => entry.id === selected.id);
+      const frame = arrow ? resolveArrowKeyframe(arrow, project.timeline.currentTime, project.timeline.interpolationMode) : null;
+      if (!frame) return;
+      const removeIndices = new Set(selectedArrowPointIndices);
+      const nextPoints = frame.points.filter((_, index) => !removeIndices.has(index));
+      if (nextPoints.length < 2) return;
+      get().updateArrowKeyframe(selected.id, project.timeline.currentTime, nextPoints);
+      set({ selectedArrowPointIndices: [] });
+      return;
+    }
+
     if (selected.type === "unit") get().deleteUnit(selected.id);
     if (selected.type === "site") get().deleteSite(selected.id);
     if (selected.type === "line") get().deleteLine(selected.id);
     if (selected.type === "arrow") get().deleteArrow(selected.id);
     if (selected.type === "event") get().deleteEvent(selected.id);
     if (selected.type === "label") get().deleteLabel(selected.id);
-    set({ selected: { type: null, id: null }, selectedLinePointIndices: [], selectedArrowPointIndices: [] });
+    set({ selected: { type: null, id: null }, selectedLinePointIndices: [], selectedArrowPointIndices: [], routePreviewUnitId: null });
   },
 
   undo: () => {
@@ -1140,6 +1336,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       selected: { type: null, id: null },
       selectedLinePointIndices: [],
       selectedArrowPointIndices: [],
+      routePreviewUnitId: null,
     });
   },
 
@@ -1154,6 +1351,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       selected: { type: null, id: null },
       selectedLinePointIndices: [],
       selectedArrowPointIndices: [],
+      routePreviewUnitId: null,
     });
   },
 }));

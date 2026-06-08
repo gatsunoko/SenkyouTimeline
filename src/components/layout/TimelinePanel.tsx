@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Pause, Play, Plus, SkipBack, SkipForward, Trash2 } from "lucide-react";
 import { useProjectStore } from "../../store/projectStore";
+import { getUnitRouteTimeRange, resolveArrowRoutePoints, resolveLineRoutePoints } from "../../utils/interpolation";
 import { formatSeconds, formatTimelineLabel, getTimelineBounds, parseTimelineSeconds, sortedFrames } from "../../utils/time";
 
 export function TimelinePanel() {
@@ -80,11 +81,31 @@ export function TimelinePanel() {
     const replacementStart = nextFrame?.time ?? previousFrame?.time ?? fallbackStart;
     const replacementEnd = previousFrame?.time ?? nextFrame?.time ?? fallbackEnd;
     const isDeletedTime = (time?: string) => Boolean(time && Math.abs(parseTimelineSeconds(time) - deletedSeconds) < 0.05);
+    const updateRouteFallbackPoints = (unit: (typeof next.units)[number]) => {
+      if (!unit.route) return;
+      const segments = unit.route.segments && unit.route.segments.length > 0 ? unit.route.segments : [unit.route];
+      for (const segment of segments) {
+        if (segment.sourceType === "line") {
+          const line = next.lines.find((entry) => entry.id === segment.sourceId);
+          const points = line ? resolveLineRoutePoints(line, activeFrame.time, next.timeline.interpolationMode) : null;
+          segment.fallbackPoints = points?.map((point) => ({ ...point })) ?? segment.fallbackPoints;
+        } else {
+          const arrow = next.arrows.find((entry) => entry.id === segment.sourceId);
+          const points = arrow ? resolveArrowRoutePoints(arrow, activeFrame.time, next.timeline.interpolationMode) : null;
+          segment.fallbackPoints = points?.map((point) => ({ ...point })) ?? segment.fallbackPoints;
+        }
+      }
+      const first = segments[0];
+      Object.assign(unit.route, first);
+      unit.route.segments = segments;
+    };
 
     for (const unit of next.units) {
+      updateRouteFallbackPoints(unit);
+      const routeRange = getUnitRouteTimeRange(unit.route);
       unit.keyframes = unit.keyframes.filter((keyframe) => !isDeletedTime(keyframe.time));
-      if (isDeletedTime(unit.displayStartTime)) unit.displayStartTime = replacementStart;
-      if (isDeletedTime(unit.displayEndTime)) unit.displayEndTime = replacementEnd;
+      if (isDeletedTime(unit.displayStartTime)) unit.displayStartTime = routeRange?.startTime ?? replacementStart;
+      if (isDeletedTime(unit.displayEndTime)) unit.displayEndTime = routeRange?.endTime ?? replacementEnd;
     }
 
     for (const site of next.sites) {

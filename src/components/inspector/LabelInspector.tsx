@@ -1,4 +1,5 @@
 import { useProjectStore } from "../../store/projectStore";
+import { compareTime, sortedFrames } from "../../utils/time";
 import { ColorField, NumberField, TextAreaField, TextField, ToggleField } from "./InspectorFields";
 
 export function LabelInspector({ id }: { id: string }) {
@@ -6,12 +7,49 @@ export function LabelInspector({ id }: { id: string }) {
   const updateLabel = useProjectStore((state) => state.updateLabel);
   const label = project.labels.find((entry) => entry.id === id);
   if (!label) return null;
+
+  const frames = sortedFrames(project.timeline.frames);
+  const displayStartTime = label.startTime ?? frames[0]?.time ?? project.timeline.currentTime;
+  const displayEndTime = label.endTime ?? frames[frames.length - 1]?.time ?? project.timeline.end;
+
+  const setDisplayStartTime = (value: string) => {
+    updateLabel(label.id, {
+      startTime: value,
+      endTime: compareTime(value, displayEndTime) > 0 ? value : displayEndTime,
+    });
+  };
+
+  const setDisplayEndTime = (value: string) => {
+    updateLabel(label.id, {
+      startTime: compareTime(displayStartTime, value) > 0 ? value : displayStartTime,
+      endTime: value,
+    });
+  };
+
   return (
     <aside className="right-inspector">
       <h2>ラベル編集</h2>
       <TextField label="テキスト" value={label.text} onChange={(value) => updateLabel(label.id, { text: value })} />
-      <TextField label="開始時間 秒" value={label.startTime ?? ""} onChange={(value) => updateLabel(label.id, { startTime: value || undefined })} />
-      <TextField label="終了時間 秒" value={label.endTime ?? ""} onChange={(value) => updateLabel(label.id, { endTime: value || undefined })} />
+      <label>
+        開始時間
+        <select value={displayStartTime} onChange={(event) => setDisplayStartTime(event.target.value)}>
+          {frames.map((timelineFrame) => (
+            <option value={timelineFrame.time} key={timelineFrame.id}>
+              {timelineFrame.displayDate}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        終了時間
+        <select value={displayEndTime} onChange={(event) => setDisplayEndTime(event.target.value)}>
+          {frames.map((timelineFrame) => (
+            <option value={timelineFrame.time} key={timelineFrame.id}>
+              {timelineFrame.displayDate}
+            </option>
+          ))}
+        </select>
+      </label>
       <div className="coordinate-grid">
         <NumberField label="x" value={label.x} min={0} max={1} step={0.001} onChange={(value) => updateLabel(label.id, { x: value })} />
         <NumberField label="y" value={label.y} min={0} max={1} step={0.001} onChange={(value) => updateLabel(label.id, { y: value })} />

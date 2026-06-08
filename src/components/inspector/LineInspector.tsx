@@ -71,6 +71,7 @@ export function LineInspector({ id }: { id: string }) {
           <option value="curve">曲線</option>
         </select>
       </label>
+      <ToggleField label="通常は非表示（ルート確認で表示）" checked={line.hideWhenRoute ?? false} onChange={(value) => updateLine(line.id, { hideWhenRoute: value })} />
 
       <h3>表示期間</h3>
       <label>

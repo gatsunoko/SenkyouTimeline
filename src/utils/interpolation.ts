@@ -1,4 +1,4 @@
-import type { ArrowKeyframe, BattleArrow, BattleLine, InterpolationMode, LineKeyframe, Site, SiteKeyframe, Unit, UnitKeyframe } from "../types/project";
+import type { ArrowKeyframe, BattleArrow, BattleLine, InterpolationMode, LineKeyframe, MapPoint, Site, SiteKeyframe, Unit, UnitKeyframe, UnitRoute, UnitRouteSegment } from "../types/project";
 import { compareTime, parseTimelineSeconds } from "./time";
 
 export interface ResolvedUnitFrame extends UnitKeyframe {
@@ -79,6 +79,156 @@ function interpolatePointLists(previousPoints: { x: number; y: number }[], nextP
   }));
 }
 
+function pointOnPolyline(points: MapPoint[], progress: number): MapPoint | null {
+  if (points.length === 0) return null;
+  if (points.length === 1) return { ...points[0] };
+
+  const clampedProgress = Math.min(1, Math.max(0, progress));
+  const segmentLengths = points.slice(1).map((point, index) => distance(points[index], point));
+  const totalLength = segmentLengths.reduce((sum, value) => sum + value, 0);
+  if (totalLength <= 0) return { ...points[0] };
+
+  const targetDistance = totalLength * clampedProgress;
+  let traveled = 0;
+
+  for (let segmentIndex = 0; segmentIndex < segmentLengths.length; segmentIndex += 1) {
+    const segmentLength = segmentLengths[segmentIndex];
+    const nextTraveled = traveled + segmentLength;
+    if (targetDistance <= nextTraveled || segmentIndex === segmentLengths.length - 1) {
+      const start = points[segmentIndex];
+      const end = points[segmentIndex + 1];
+      const t = segmentLength <= 0 ? 0 : (targetDistance - traveled) / segmentLength;
+      return {
+        x: start.x + (end.x - start.x) * t,
+        y: start.y + (end.y - start.y) * t,
+      };
+    }
+    traveled = nextTraveled;
+  }
+
+  return { ...points[points.length - 1] };
+}
+
+function catmullRomPoint(p0: MapPoint, p1: MapPoint, p2: MapPoint, p3: MapPoint, t: number): MapPoint {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return {
+    x: 0.5 * (2 * p1.x + (p2.x - p0.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+    y: 0.5 * (2 * p1.y + (p2.y - p0.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+  };
+}
+
+function sampleCurvePath(points: MapPoint[], samplesPerSegment = 18): MapPoint[] {
+  if (points.length < 3) return points.map((point) => ({ ...point }));
+
+  const sampled: MapPoint[] = [];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const p0 = points[index - 1] ?? points[index];
+    const p1 = points[index];
+    const p2 = points[index + 1];
+    const p3 = points[index + 2] ?? p2;
+
+    for (let sampleIndex = 0; sampleIndex < samplesPerSegment; sampleIndex += 1) {
+      const t = sampleIndex / samplesPerSegment;
+      if (index > 0 || sampleIndex > 0) sampled.push(catmullRomPoint(p0, p1, p2, p3, t));
+      else sampled.push({ ...p1 });
+    }
+  }
+  sampled.push({ ...points[points.length - 1] });
+  return sampled;
+}
+
+function resolveRoutePoints(pointsKeyframes: { time: string; points: MapPoint[] }[], currentTime: string, mode: InterpolationMode): MapPoint[] | null {
+  const keyframes = [...pointsKeyframes].sort((a, b) => compareTime(a.time, b.time));
+  if (keyframes.length === 0) return null;
+
+  const previous = [...keyframes].reverse().find((frame) => compareTime(frame.time, currentTime) <= 0);
+  const next = keyframes.find((frame) => compareTime(frame.time, currentTime) >= 0);
+  const base = previous ?? next;
+  if (!base) return null;
+
+  if (mode !== "linear" || !previous || !next || previous.time === next.time) {
+    return base.points.map((point) => ({ ...point }));
+  }
+
+  const start = parseTimelineSeconds(previous.time);
+  const end = parseTimelineSeconds(next.time);
+  const current = parseTimelineSeconds(currentTime);
+  if (Number.isNaN(start) || Number.isNaN(end) || Number.isNaN(current) || end <= start) {
+    return base.points.map((point) => ({ ...point }));
+  }
+
+  const t = Math.min(1, Math.max(0, (current - start) / (end - start)));
+  return interpolatePointLists(previous.points, next.points, t);
+}
+
+export function resolveLineRoutePoints(line: BattleLine, currentTime: string, mode: InterpolationMode) {
+  const points = resolveRoutePoints(line.keyframes, currentTime, mode);
+  if (!points) return null;
+  return line.curveMode === "curve" ? sampleCurvePath(points) : points;
+}
+
+export function resolveArrowRoutePoints(arrow: BattleArrow, currentTime: string, mode: InterpolationMode) {
+  const keyframes =
+    arrow.keyframes && arrow.keyframes.length > 0
+      ? arrow.keyframes
+      : [
+          {
+            time: arrow.startTime,
+            points: arrow.points,
+          },
+        ];
+  const points = resolveRoutePoints(keyframes, currentTime, mode);
+  if (!points) return null;
+  return arrow.curveMode === "curve" ? sampleCurvePath(points) : points;
+}
+
+export function getUnitRouteSegments(route?: UnitRoute | null): UnitRouteSegment[] {
+  if (!route) return [];
+  const segments = route.segments && route.segments.length > 0 ? route.segments : [route];
+  return segments
+    .filter((segment) => segment.sourceId && (segment.sourceType === "line" || segment.sourceType === "arrow"))
+    .map((segment, index) => ({
+      ...segment,
+      id: segment.id || `route_segment_${index + 1}`,
+      direction: segment.direction ?? "forward",
+    }));
+}
+
+export function getUnitRouteTimeRange(route?: UnitRoute | null) {
+  const segments = getUnitRouteSegments(route);
+  if (segments.length === 0) return null;
+  return {
+    startTime: segments[0].startTime,
+    endTime: segments[segments.length - 1].endTime,
+  };
+}
+
+function resolveRouteSegmentPoints(segment: UnitRouteSegment, lines: BattleLine[], arrows: BattleArrow[], routeTime: string, mode: InterpolationMode) {
+  const routeSourcePoints =
+    segment.sourceType === "line"
+      ? (() => {
+          const line = lines.find((entry) => entry.id === segment.sourceId);
+          return line ? resolveLineRoutePoints(line, routeTime, mode) : null;
+        })()
+      : (() => {
+          const arrow = arrows.find((entry) => entry.id === segment.sourceId);
+          return arrow ? resolveArrowRoutePoints(arrow, routeTime, mode) : null;
+        })();
+  return routeSourcePoints && routeSourcePoints.length > 0 ? routeSourcePoints : segment.fallbackPoints;
+}
+
+function routeSegmentDirectedPoints(segment: UnitRouteSegment, points: MapPoint[]) {
+  return segment.direction === "reverse" ? [...points].reverse() : points;
+}
+
+function routeSegmentEndpoint(segment: UnitRouteSegment, lines: BattleLine[], arrows: BattleArrow[], endpoint: "start" | "end", mode: InterpolationMode): MapPoint | null {
+  const points = resolveRouteSegmentPoints(segment, lines, arrows, endpoint === "start" ? segment.startTime : segment.endTime, mode);
+  if (!points || points.length === 0) return null;
+  const directedPoints = routeSegmentDirectedPoints(segment, points);
+  return { ...(endpoint === "start" ? directedPoints[0] : directedPoints[directedPoints.length - 1]) };
+}
+
 export function resolveUnitFrame(unit: Unit, currentTime: string, mode: InterpolationMode): ResolvedUnitFrame | null {
   const keyframes = orderedUnitKeyframes(unit);
   if (keyframes.length === 0) return null;
@@ -123,6 +273,48 @@ export function resolveUnitFrame(unit: Unit, currentTime: string, mode: Interpol
     effectiveFactionId: factionFrame?.factionId ?? unit.factionId,
     effectiveCertainty: certaintyFrame?.certainty ?? unit.certainty,
   };
+}
+
+export function resolveUnitRoutePoint(unit: Unit, lines: BattleLine[], arrows: BattleArrow[], currentTime: string, mode: InterpolationMode): MapPoint | null {
+  if (!unit.route) return null;
+
+  const currentSeconds = parseTimelineSeconds(currentTime);
+  if (Number.isNaN(currentSeconds)) return null;
+
+  const segments = getUnitRouteSegments(unit.route);
+  let previousEndpoint: { point: MapPoint; seconds: number } | null = null;
+
+  for (const segment of segments) {
+    const startSeconds = parseTimelineSeconds(segment.startTime);
+    const endSeconds = Math.max(startSeconds, parseTimelineSeconds(segment.endTime));
+    if (Number.isNaN(startSeconds) || Number.isNaN(endSeconds)) continue;
+
+    if (currentSeconds < startSeconds) {
+      if (!previousEndpoint || currentSeconds < previousEndpoint.seconds) return null;
+      const nextStartPoint = routeSegmentEndpoint(segment, lines, arrows, "start", mode);
+      if (!nextStartPoint) return previousEndpoint.point;
+      if (startSeconds <= previousEndpoint.seconds) return nextStartPoint;
+      const progress = (currentSeconds - previousEndpoint.seconds) / (startSeconds - previousEndpoint.seconds);
+      return {
+        x: previousEndpoint.point.x + (nextStartPoint.x - previousEndpoint.point.x) * progress,
+        y: previousEndpoint.point.y + (nextStartPoint.y - previousEndpoint.point.y) * progress,
+      };
+    }
+
+    if (currentSeconds <= endSeconds) {
+      const routeTime = currentSeconds > endSeconds ? segment.endTime : currentTime;
+      const effectiveRoutePoints = resolveRouteSegmentPoints(segment, lines, arrows, routeTime, mode);
+      if (!effectiveRoutePoints || effectiveRoutePoints.length === 0) return previousEndpoint?.point ?? null;
+      const routePoints = routeSegmentDirectedPoints(segment, effectiveRoutePoints);
+      const progress = endSeconds <= startSeconds ? 1 : (currentSeconds - startSeconds) / (endSeconds - startSeconds);
+      return pointOnPolyline(routePoints, progress);
+    }
+
+    const endPoint = routeSegmentEndpoint(segment, lines, arrows, "end", mode);
+    if (endPoint) previousEndpoint = { point: endPoint, seconds: endSeconds };
+  }
+
+  return previousEndpoint?.point ?? null;
 }
 
 export function resolveSiteFrame(site: Site, currentTime: string): ResolvedSiteFrame {

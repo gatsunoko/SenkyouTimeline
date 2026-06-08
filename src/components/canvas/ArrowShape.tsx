@@ -11,12 +11,13 @@ interface ArrowShapeProps {
   mapWidth: number;
   mapHeight: number;
   onSelect: () => void;
+  preview?: boolean;
   selectedPointIndices?: number[];
   onPointSelect?: (pointIndex: number) => void;
   onPointDragEnd?: (pointIndex: number, x: number, y: number) => void;
 }
 
-export function ArrowShape({ arrow, frame, selected, selectedPointIndices = [], mapWidth, mapHeight, onSelect, onPointSelect, onPointDragEnd }: ArrowShapeProps) {
+export function ArrowShape({ arrow, frame, selected, preview = false, selectedPointIndices = [], mapWidth, mapHeight, onSelect, onPointSelect, onPointDragEnd }: ArrowShapeProps) {
   const [dragPoints, setDragPoints] = useState<MapPoint[] | null>(null);
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const activePoints = dragPoints ?? frame.points;
@@ -45,12 +46,12 @@ export function ArrowShape({ arrow, frame, selected, selectedPointIndices = [], 
       />
       <Arrow
         points={pointsToCanvas(activePoints, mapWidth, mapHeight)}
-        stroke={selected ? "#f4d06f" : arrow.color}
-        fill={selected ? "#f4d06f" : arrow.color}
-        strokeWidth={selected ? arrow.width + 2 : arrow.width}
+        stroke={selected ? "#f4d06f" : preview ? "#f0c665" : arrow.color}
+        fill={selected ? "#f4d06f" : preview ? "#f0c665" : arrow.color}
+        strokeWidth={selected ? arrow.width + 2 : preview ? arrow.width + 2 : arrow.width}
         pointerLength={20}
         pointerWidth={18}
-        opacity={arrow.opacity}
+        opacity={preview ? Math.max(0.9, arrow.opacity) : arrow.opacity}
         dash={arrow.dashed ? [15, 10] : undefined}
         lineCap="round"
         lineJoin="round"

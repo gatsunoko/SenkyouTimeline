@@ -85,6 +85,8 @@ export type LineType =
   | "other";
 
 export type LineCurveMode = "straight" | "curve";
+export type RouteSourceType = "line" | "arrow";
+export type RouteDirection = "forward" | "reverse";
 
 export type ArrowType =
   | "advance"
@@ -192,6 +194,20 @@ export interface UnitKeyframe extends MapPoint {
   sourceNote?: string;
 }
 
+export interface UnitRouteSegment {
+  id: string;
+  sourceType: RouteSourceType;
+  sourceId: string;
+  startTime: string;
+  endTime: string;
+  direction: RouteDirection;
+  fallbackPoints?: MapPoint[];
+}
+
+export interface UnitRoute extends UnitRouteSegment {
+  segments?: UnitRouteSegment[];
+}
+
 export interface Unit {
   id: string;
   name: string;
@@ -212,6 +228,7 @@ export interface Unit {
   memo: string;
   sourceNote: string;
   iconUrl?: string;
+  route?: UnitRoute;
   keyframes: UnitKeyframe[];
 }
 
@@ -255,6 +272,7 @@ export interface BattleLine {
   opacity: number;
   dashed: boolean;
   curveMode?: LineCurveMode;
+  hideWhenRoute?: boolean;
   locked: boolean;
   displayStartTime?: string;
   displayEndTime?: string;
@@ -275,6 +293,7 @@ export interface BattleArrow {
   opacity: number;
   dashed: boolean;
   curveMode?: LineCurveMode;
+  hideWhenRoute?: boolean;
   startTime: string;
   endTime: string;
   points: MapPoint[];

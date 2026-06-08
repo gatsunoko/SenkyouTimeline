@@ -12,12 +12,13 @@ interface LineShapeProps {
   mapWidth: number;
   mapHeight: number;
   onSelect: () => void;
+  preview?: boolean;
   selectedPointIndices?: number[];
   onPointSelect?: (pointIndex: number) => void;
   onPointDragEnd?: (pointIndex: number, x: number, y: number) => void;
 }
 
-export function LineShape({ line, frame, selected, selectedPointIndices = [], mapWidth, mapHeight, onSelect, onPointSelect, onPointDragEnd }: LineShapeProps) {
+export function LineShape({ line, frame, selected, preview = false, selectedPointIndices = [], mapWidth, mapHeight, onSelect, onPointSelect, onPointDragEnd }: LineShapeProps) {
   const [dragPoints, setDragPoints] = useState<MapPoint[] | null>(null);
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const activePoints = dragPoints ?? frame.points;
@@ -43,9 +44,9 @@ export function LineShape({ line, frame, selected, selectedPointIndices = [], ma
       />
       <Line
         points={pointsToCanvas(activePoints, mapWidth, mapHeight)}
-        stroke={selected ? "#f4d06f" : line.color}
-        strokeWidth={selected ? line.width + 3 : line.width}
-        opacity={line.opacity}
+        stroke={selected ? "#f4d06f" : preview ? "#f0c665" : line.color}
+        strokeWidth={selected ? line.width + 3 : preview ? line.width + 2 : line.width}
+        opacity={preview ? Math.max(0.9, line.opacity) : line.opacity}
         dash={line.dashed ? [16, 10] : undefined}
         lineCap="round"
         lineJoin="round"
