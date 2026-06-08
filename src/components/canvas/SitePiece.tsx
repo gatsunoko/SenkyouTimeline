@@ -19,6 +19,7 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const position = relativeToCanvas(site, mapWidth, mapHeight);
   const size = site.size ?? 1;
+  const nameFontSize = site.nameFontSize ?? 14 * size;
   const hasImage = Boolean(site.iconUrl);
   const showName = site.showName !== false;
 
@@ -35,7 +36,7 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
 
   const width = hasImage ? 68 * size : 56 * size;
   const bodyHeight = hasImage ? 68 * size : 50 * size;
-  const labelHeight = showName ? 24 * size : 0;
+  const labelHeight = showName ? nameFontSize + 10 : 0;
   const totalHeight = bodyHeight + labelHeight;
   const imageScale = image ? Math.max(width / image.naturalWidth, bodyHeight / image.naturalHeight) : 1;
   const imageWidth = image ? image.naturalWidth * imageScale : width;
@@ -45,7 +46,7 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
     <Group
       x={position.x}
       y={position.y}
-      opacity={0.94}
+      opacity={hasImage ? 1 : 0.94}
       draggable={!site.locked}
       onClick={onSelect}
       onTap={onSelect}
@@ -71,6 +72,7 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
               context.roundRect(-width / 2, -bodyHeight / 2, width, bodyHeight, 8);
             }}
           >
+            <Rect x={-width / 2} y={-bodyHeight / 2} width={width} height={bodyHeight} fill={color} listening={false} />
             {image && <KonvaImage image={image} x={-imageWidth / 2} y={-imageHeight / 2} width={imageWidth} height={imageHeight} />}
           </Group>
           <Rect x={-width / 2} y={-bodyHeight / 2} width={width} height={bodyHeight} stroke={color} strokeWidth={3} cornerRadius={8} shadowBlur={8} shadowColor="#000" shadowOpacity={0.28} />
@@ -81,7 +83,7 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
           <Text text="城" x={-width / 2 + 4} y={-bodyHeight / 2 + 8 * size} width={width - 8} align="center" fontSize={20 * size} fontStyle="bold" fill="#fff7e6" />
         </>
       )}
-      {showName && <Text text={site.name} x={-Math.max(120, width + 36) / 2} y={bodyHeight / 2 + 5} width={Math.max(120, width + 36)} align="center" fontSize={14 * size} fill="#f5efe3" ellipsis />}
+      {showName && <Text text={site.name} x={-Math.max(120, width + 36) / 2} y={bodyHeight / 2 + 5} width={Math.max(120, width + 36)} align="center" fontSize={nameFontSize} fill="#f5efe3" ellipsis />}
     </Group>
   );
 }

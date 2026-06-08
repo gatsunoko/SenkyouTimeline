@@ -42,6 +42,7 @@ export function SiteInspector({ id }: { id: string }) {
         </select>
       </label>
       <NumberField label="サイズ" value={site.size ?? 1} min={0.3} max={4} step={0.05} onChange={(value) => updateSite(site.id, { size: value })} />
+      <NumberField label="名前の文字サイズ" value={site.nameFontSize ?? 14 * (site.size ?? 1)} min={8} max={72} step={1} onChange={(value) => updateSite(site.id, { nameFontSize: value })} />
       <div className="coordinate-grid">
         <NumberField label="x" value={site.x} min={0} max={1} step={0.001} onChange={(value) => updateSite(site.id, { x: value })} />
         <NumberField label="y" value={site.y} min={0} max={1} step={0.001} onChange={(value) => updateSite(site.id, { y: value })} />

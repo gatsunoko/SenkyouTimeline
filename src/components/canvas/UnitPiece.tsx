@@ -58,7 +58,7 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
       x={position.x}
       y={position.y}
       draggable={!unit.locked}
-      opacity={0.96}
+      opacity={hasImage ? 1 : 0.96}
       onClick={onSelect}
       onTap={onSelect}
       onMouseDown={updateDragButton}
@@ -83,6 +83,7 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
               context.roundRect(-width / 2, -bodyHeight / 2, width, bodyHeight, 8);
             }}
           >
+            <Rect x={-width / 2} y={-bodyHeight / 2} width={width} height={bodyHeight} fill={color} listening={false} />
             {image && <KonvaImage image={image} x={-imageWidth / 2} y={-imageHeight / 2} width={imageWidth} height={imageHeight} />}
           </Group>
           <Rect x={-width / 2} y={-bodyHeight / 2} width={width} height={bodyHeight} stroke={color} strokeWidth={3} cornerRadius={8} shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />

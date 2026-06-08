@@ -22,6 +22,7 @@ export function ArrowShape({ arrow, frame, selected, preview = false, selectedPo
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const activePoints = dragPoints ?? frame.points;
   const tension = arrow.curveMode === "curve" ? 0.45 : 0;
+  const arrowHeadSize = arrow.arrowHeadSize ?? 1;
 
   useEffect(() => {
     setDragPoints(null);
@@ -35,8 +36,8 @@ export function ArrowShape({ arrow, frame, selected, preview = false, selectedPo
         stroke="rgba(255,255,255,0.01)"
         fill="rgba(255,255,255,0.01)"
         strokeWidth={Math.max(20, arrow.width + 16)}
-        pointerLength={26}
-        pointerWidth={24}
+        pointerLength={Math.max(26, 20 * arrowHeadSize + 6)}
+        pointerWidth={Math.max(24, 18 * arrowHeadSize + 6)}
         opacity={0.01}
         lineCap="round"
         lineJoin="round"
@@ -49,8 +50,8 @@ export function ArrowShape({ arrow, frame, selected, preview = false, selectedPo
         stroke={selected ? "#f4d06f" : preview ? "#f0c665" : arrow.color}
         fill={selected ? "#f4d06f" : preview ? "#f0c665" : arrow.color}
         strokeWidth={selected ? arrow.width + 2 : preview ? arrow.width + 2 : arrow.width}
-        pointerLength={20}
-        pointerWidth={18}
+        pointerLength={20 * arrowHeadSize}
+        pointerWidth={18 * arrowHeadSize}
         opacity={preview ? Math.max(0.9, arrow.opacity) : arrow.opacity}
         dash={arrow.dashed ? [15, 10] : undefined}
         lineCap="round"

@@ -3,8 +3,7 @@ import { Image as KonvaImage, Layer, Line, Rect, Stage, Text } from "react-konva
 import type Konva from "konva";
 import { useProjectStore } from "../../store/projectStore";
 import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas } from "../../utils/coordinate";
-import { exportStageToPng } from "../../utils/exportImage";
-import { downloadBlob } from "../../utils/fileIO";
+import { downloadBlob, downloadDataUrl } from "../../utils/fileIO";
 import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveLineKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRoutePoint } from "../../utils/interpolation";
 import { createZip, type ZipEntry } from "../../utils/zip";
 import { compareTime, parseTimelineSeconds } from "../../utils/time";
@@ -67,7 +66,7 @@ function loadDataUrlImage(dataUrl: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new window.Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("画像の読み込みに失敗しました"));
+    image.onerror = () => reject(new Error("\u753b\u50cf\u306e\u8aad\u307f\u8fbc\u307f\u306b\u5931\u6557\u3057\u307e\u3057\u305f"));
     image.src = dataUrl;
   });
 }
@@ -148,7 +147,16 @@ export function MapCanvas() {
 
   useEffect(() => {
     const exportHandler = () => {
-      if (stageRef.current) exportStageToPng(stageRef.current, "sengoku-battle-map.png");
+      const sourceProject = useProjectStore.getState().project;
+      const exportWidth = Math.max(1, Math.round(sourceProject.map.width ?? MAP_WIDTH));
+      const exportHeight = Math.max(1, Math.round(sourceProject.map.height ?? MAP_HEIGHT));
+      void captureDataUrl(exportWidth, exportHeight)
+        .then((dataUrl) => downloadDataUrl(dataUrl, "sengoku-battle-map.png"))
+        .catch((error) => {
+          const message = error instanceof Error ? error.message : "\u66f8\u304d\u51fa\u3057\u306b\u5931\u6557\u3057\u307e\u3057\u305f";
+          dispatchExportStatus(message, false);
+          window.alert(message);
+        });
     };
     const timelineExportHandler = (event: Event) => {
       const detail = (event as CustomEvent<TimelineExportRequest>).detail;
@@ -159,11 +167,35 @@ export function MapCanvas() {
       setStagePosition({ x: 40, y: 30 });
     };
 
-    const captureDataUrl = async () => {
+    const captureDataUrl = async (width: number, height: number) => {
       const stage = stageRef.current;
-      if (!stage) throw new Error("キャンバスが見つかりません");
+      if (!stage) throw new Error("\u30ad\u30e3\u30f3\u30d0\u30b9\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093");
       await waitForPaint();
-      return stage.toDataURL({ pixelRatio: 1, mimeType: "image/png" });
+      const original = {
+        width: stage.width(),
+        height: stage.height(),
+        x: stage.x(),
+        y: stage.y(),
+        scaleX: stage.scaleX(),
+        scaleY: stage.scaleY(),
+      };
+      try {
+        stage.width(width);
+        stage.height(height);
+        stage.x(0);
+        stage.y(0);
+        stage.scale({ x: 1, y: 1 });
+        stage.batchDraw();
+        await waitForPaint();
+        return stage.toDataURL({ x: 0, y: 0, width, height, pixelRatio: 1, mimeType: "image/png" });
+      } finally {
+        stage.width(original.width);
+        stage.height(original.height);
+        stage.x(original.x);
+        stage.y(original.y);
+        stage.scale({ x: original.scaleX, y: original.scaleY });
+        stage.batchDraw();
+      }
     };
 
     const exportTimeline = async (request: TimelineExportRequest) => {
@@ -174,6 +206,8 @@ export function MapCanvas() {
       const state = useProjectStore.getState();
       const sourceProject = state.project;
       const originalTime = sourceProject.timeline.currentTime;
+      const exportWidth = Math.max(1, Math.round(sourceProject.map.width ?? MAP_WIDTH));
+      const exportHeight = Math.max(1, Math.round(sourceProject.map.height ?? MAP_HEIGHT));
       const bounds = getTimelineExportBounds(sourceProject);
       const times = buildExportTimes(bounds.start, bounds.end, fps);
       const basename = safeFilename(sourceProject.projectName);
@@ -184,31 +218,31 @@ export function MapCanvas() {
           const entries: ZipEntry[] = [];
           for (let index = 0; index < times.length; index += 1) {
             useProjectStore.getState().setCurrentTime(times[index].toFixed(4));
-            const dataUrl = await captureDataUrl();
+            const dataUrl = await captureDataUrl(exportWidth, exportHeight);
             entries.push({
               name: `${basename}_${String(index + 1).padStart(pad, "0")}.png`,
               data: await dataUrlToBytes(dataUrl),
             });
-            dispatchExportStatus(`PNG書き出し中 ${index + 1}/${times.length}`, true);
+            dispatchExportStatus(`PNG\u66f8\u304d\u51fa\u3057\u4e2d ${index + 1}/${times.length}`, true);
           }
-          dispatchExportStatus("ZIP作成中", true);
+          dispatchExportStatus("ZIP\u4f5c\u6210\u4e2d", true);
           downloadBlob(createZip(entries), `${basename}_${fps}fps_png_sequence.zip`);
-          dispatchExportStatus(`PNG連番を書き出しました (${times.length}枚)`, false);
+          dispatchExportStatus(`PNG\u9023\u756a\u3092\u66f8\u304d\u51fa\u3057\u307e\u3057\u305f (${times.length}\u679a)`, false);
           return;
         }
 
         const mimeType = mp4MimeType();
         if (!mimeType) {
-          dispatchExportStatus("このブラウザはMP4書き出しに対応していません", false);
-          window.alert("このブラウザはMP4書き出しに対応していません。");
+          dispatchExportStatus("\u3053\u306e\u30d6\u30e9\u30a6\u30b6\u306fMP4\u66f8\u304d\u51fa\u3057\u306b\u5bfe\u5fdc\u3057\u3066\u3044\u307e\u305b\u3093", false);
+          window.alert("\u3053\u306e\u30d6\u30e9\u30a6\u30b6\u306fMP4\u66f8\u304d\u51fa\u3057\u306b\u5bfe\u5fdc\u3057\u3066\u3044\u307e\u305b\u3093\u3002");
           return;
         }
 
         const exportCanvas = document.createElement("canvas");
-        exportCanvas.width = Math.max(1, Math.round(stage.width()));
-        exportCanvas.height = Math.max(1, Math.round(stage.height()));
+        exportCanvas.width = exportWidth;
+        exportCanvas.height = exportHeight;
         const context = exportCanvas.getContext("2d");
-        if (!context) throw new Error("動画用キャンバスを作成できません");
+        if (!context) throw new Error("\u52d5\u753b\u7528\u30ad\u30e3\u30f3\u30d0\u30b9\u3092\u4f5c\u6210\u3067\u304d\u307e\u305b\u3093");
 
         const stream = exportCanvas.captureStream(0);
         const [track] = stream.getVideoTracks() as CanvasStreamTrack[];
@@ -216,7 +250,7 @@ export function MapCanvas() {
         const recorder = new MediaRecorder(stream, { mimeType });
         const stopped = new Promise<void>((resolve, reject) => {
           recorder.onstop = () => resolve();
-          recorder.onerror = () => reject(new Error("MP4書き出しに失敗しました"));
+          recorder.onerror = () => reject(new Error("MP4\u66f8\u304d\u51fa\u3057\u306b\u5931\u6557\u3057\u307e\u3057\u305f"));
         });
         recorder.ondataavailable = (recordedEvent) => {
           if (recordedEvent.data.size > 0) chunks.push(recordedEvent.data);
@@ -226,20 +260,20 @@ export function MapCanvas() {
         await sleep(100);
         for (let index = 0; index < times.length; index += 1) {
           useProjectStore.getState().setCurrentTime(times[index].toFixed(4));
-          const image = await loadDataUrlImage(await captureDataUrl());
+          const image = await loadDataUrlImage(await captureDataUrl(exportWidth, exportHeight));
           context.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
           context.drawImage(image, 0, 0, exportCanvas.width, exportCanvas.height);
           track.requestFrame?.();
-          dispatchExportStatus(`MP4書き出し中 ${index + 1}/${times.length}`, true);
+          dispatchExportStatus(`MP4\u66f8\u304d\u51fa\u3057\u4e2d ${index + 1}/${times.length}`, true);
           await sleep(1000 / fps);
         }
         recorder.stop();
         await stopped;
         track.stop();
         downloadBlob(new Blob(chunks, { type: mimeType }), `${basename}_${fps}fps.mp4`);
-        dispatchExportStatus("MP4を書き出しました", false);
+        dispatchExportStatus("MP4\u3092\u66f8\u304d\u51fa\u3057\u307e\u3057\u305f", false);
       } catch (error) {
-        const message = error instanceof Error ? error.message : "書き出しに失敗しました";
+        const message = error instanceof Error ? error.message : "\u66f8\u304d\u51fa\u3057\u306b\u5931\u6557\u3057\u307e\u3057\u305f";
         dispatchExportStatus(message, false);
         window.alert(message);
       } finally {
@@ -455,7 +489,7 @@ export function MapCanvas() {
             <>
               <Rect x={0} y={0} width={mapWidth} height={mapHeight} fill="#192332" listening={false} />
               {gridLines}
-              <Text text="地図画像なし: 仮グリッド背景" x={40} y={35} fontSize={28} fill="#7f8da3" listening={false} />
+              <Text text={"地図画像なし: 仮グリッド背景"} x={40} y={35} fontSize={28} fill="#7f8da3" listening={false} />
             </>
           )}
 
@@ -670,7 +704,7 @@ export function MapCanvas() {
         </Layer>
       </Stage>
       <div className="canvas-hint">
-        {tool === "drawLine" || tool === "drawArrow" ? "クリックで点を追加 / Enterで確定 / Escでキャンセル" : "ホイールでズーム / Space+ドラッグでパン / コマをドラッグでキーフレーム更新"}
+        {tool === "drawLine" || tool === "drawArrow" ? "\u30af\u30ea\u30c3\u30af\u3067\u70b9\u3092\u8ffd\u52a0 / Enter\u3067\u78ba\u5b9a / Esc\u3067\u30ad\u30e3\u30f3\u30bb\u30eb" : "\u30db\u30a4\u30fc\u30eb\u3067\u30ba\u30fc\u30e0 / Space+\u30c9\u30e9\u30c3\u30b0\u3067\u30d1\u30f3 / \u30b3\u30de\u3092\u30c9\u30e9\u30c3\u30b0\u3067\u30ad\u30fc\u30d5\u30ec\u30fc\u30e0\u66f4\u65b0"}
       </div>
     </div>
   );

@@ -175,6 +175,7 @@ export interface SiteAsset {
   name: string;
   imageDataUrl: string;
   size: number;
+  nameFontSize?: number;
 }
 
 export interface SiteKeyframe {
@@ -242,6 +243,7 @@ export interface Site extends MapPoint {
   sourceNote: string;
   locked: boolean;
   size?: number;
+  nameFontSize?: number;
   assetId?: string;
   showName?: boolean;
   iconUrl?: string;
@@ -290,6 +292,7 @@ export interface BattleArrow {
   unitId?: string;
   color: string;
   width: number;
+  arrowHeadSize?: number;
   opacity: number;
   dashed: boolean;
   curveMode?: LineCurveMode;

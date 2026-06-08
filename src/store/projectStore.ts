@@ -344,15 +344,18 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   normalized.siteAssets ||= [];
   for (const asset of normalized.siteAssets) {
     asset.size ||= 1;
+    asset.nameFontSize ||= 14 * asset.size;
   }
   for (const site of normalized.sites ?? []) {
     site.size ||= 1;
+    site.nameFontSize ||= 14 * site.size;
     site.showName = site.showName ?? true;
     site.keyframes ||= [];
   }
   for (const arrow of normalized.arrows ?? []) {
     arrow.curveMode ||= "straight";
     arrow.hideWhenRoute = arrow.hideWhenRoute ?? false;
+    arrow.arrowHeadSize ||= 1;
     arrow.startTime ||= normalized.timeline.start || normalized.timeline.currentTime || "0";
     arrow.endTime ||= normalized.timeline.end || arrow.startTime;
     if (!arrow.keyframes || arrow.keyframes.length === 0) {
@@ -828,6 +831,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         sourceNote: "",
         locked: false,
         size: 1,
+        nameFontSize: 14,
         showName: true,
         keyframes: [],
       });
@@ -842,6 +846,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       site.assetId = undefined;
       site.showName = site.showName ?? true;
       site.size ||= 1;
+      site.nameFontSize ||= 14 * site.size;
     }),
 
   registerSiteAsset: (siteId) =>
@@ -854,6 +859,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         name: site.name.trim() || "画像拠点",
         imageDataUrl: site.iconUrl,
         size: site.size ?? 1,
+        nameFontSize: site.nameFontSize ?? 14,
       };
       project.siteAssets.push(asset);
       site.assetId = asset.id;
@@ -883,6 +889,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         sourceNote: "",
         locked: false,
         size: asset.size ?? 1,
+        nameFontSize: asset.nameFontSize ?? 14,
         assetId: asset.id,
         iconUrl: asset.imageDataUrl,
         showName: true,
@@ -1022,6 +1029,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         factionId: firstFactionId(project),
         color: "#f46f5e",
         width: 5,
+        arrowHeadSize: 1,
         opacity: 0.85,
         dashed: false,
         curveMode: "straight",
