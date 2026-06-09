@@ -14,9 +14,10 @@ import { LineShape } from "./LineShape";
 import { SitePiece } from "./SitePiece";
 import { UnitPiece } from "./UnitPiece";
 
-type TimelineExportFormat = "png-sequence" | "mp4";
+type TimelineExportFormat = "png-sequence" | "jpeg-sequence" | "mp4";
 type TimelineExportRequest = { format: TimelineExportFormat; fps: number };
 type ExportViewport = { x: number; y: number; width: number; height: number; outputWidth: number; outputHeight: number };
+type StillImageExportFormat = "png" | "jpeg";
 
 const mp4MimeTypes = ["video/mp4", "video/mp4;codecs=avc1.42E01E", "video/mp4;codecs=h264"];
 
@@ -162,11 +163,12 @@ export function MapCanvas() {
   }, [drawingPoints.length]);
 
   useEffect(() => {
-    const exportHandler = () => {
+    const exportStillImage = (format: StillImageExportFormat) => {
       const sourceProject = useProjectStore.getState().project;
       const viewport = resolveExportViewport(sourceProject);
-      void captureDataUrl(viewport)
-        .then((dataUrl) => downloadDataUrl(dataUrl, "sengoku-battle-map.png"))
+      const isJpeg = format === "jpeg";
+      void captureDataUrl(viewport, isJpeg ? "image/jpeg" : "image/png", isJpeg ? 0.85 : undefined)
+        .then((dataUrl) => downloadDataUrl(dataUrl, isJpeg ? "sengoku-battle-map.jpg" : "sengoku-battle-map.png"))
         .catch((error) => {
           const message = error instanceof Error ? error.message : "\u66f8\u304d\u51fa\u3057\u306b\u5931\u6557\u3057\u307e\u3057\u305f";
           dispatchExportStatus(message, false);
@@ -174,6 +176,8 @@ export function MapCanvas() {
         })
         .finally(() => setExportViewport(null));
     };
+    const exportPngHandler = () => exportStillImage("png");
+    const exportJpegHandler = () => exportStillImage("jpeg");
     const timelineExportHandler = (event: Event) => {
       const detail = (event as CustomEvent<TimelineExportRequest>).detail;
       void exportTimeline(detail);
@@ -183,13 +187,13 @@ export function MapCanvas() {
       setStagePosition({ x: 40, y: 30 });
     };
 
-    const captureDataUrl = async (viewport: ExportViewport) => {
+    const captureDataUrl = async (viewport: ExportViewport, mimeType = "image/png", quality?: number) => {
       const stage = stageRef.current;
       if (!stage) throw new Error("\u30ad\u30e3\u30f3\u30d0\u30b9\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093");
       setExportViewport(viewport);
       await waitForPaint();
       stage.batchDraw();
-      return stage.toDataURL({ x: 0, y: 0, width: viewport.outputWidth, height: viewport.outputHeight, pixelRatio: 1, mimeType: "image/png" });
+      return stage.toDataURL({ x: 0, y: 0, width: viewport.outputWidth, height: viewport.outputHeight, pixelRatio: 1, mimeType, quality });
     };
 
     const exportTimeline = async (request: TimelineExportRequest) => {
@@ -209,20 +213,25 @@ export function MapCanvas() {
       const pad = Math.max(4, String(times.length).length);
 
       try {
-        if (request.format === "png-sequence") {
+        if (request.format === "png-sequence" || request.format === "jpeg-sequence") {
+          const isJpegSequence = request.format === "jpeg-sequence";
+          const imageLabel = isJpegSequence ? "JPEG" : "PNG";
+          const extension = isJpegSequence ? "jpg" : "png";
+          const mimeType = isJpegSequence ? "image/jpeg" : "image/png";
+          const quality = isJpegSequence ? 0.85 : undefined;
           const entries: ZipEntry[] = [];
           for (let index = 0; index < times.length; index += 1) {
             useProjectStore.getState().setCurrentTime(times[index].toFixed(4));
-            const dataUrl = await captureDataUrl(resolveExportViewport(useProjectStore.getState().project));
+            const dataUrl = await captureDataUrl(resolveExportViewport(useProjectStore.getState().project), mimeType, quality);
             entries.push({
-              name: `${basename}_${String(index + 1).padStart(pad, "0")}.png`,
+              name: `${basename}_${String(index + 1).padStart(pad, "0")}.${extension}`,
               data: await dataUrlToBytes(dataUrl),
             });
-            dispatchExportStatus(`PNG\u66f8\u304d\u51fa\u3057\u4e2d ${index + 1}/${times.length}`, true);
+            dispatchExportStatus(`${imageLabel}\u66f8\u304d\u51fa\u3057\u4e2d ${index + 1}/${times.length}`, true);
           }
           dispatchExportStatus("ZIP\u4f5c\u6210\u4e2d", true);
-          downloadBlob(createZip(entries), `${basename}_${fps}fps_png_sequence.zip`);
-          dispatchExportStatus(`PNG\u9023\u756a\u3092\u66f8\u304d\u51fa\u3057\u307e\u3057\u305f (${times.length}\u679a)`, false);
+          downloadBlob(createZip(entries), `${basename}_${fps}fps_${isJpegSequence ? "jpeg" : "png"}_sequence.zip`);
+          dispatchExportStatus(`${imageLabel}\u9023\u756a\u3092\u66f8\u304d\u51fa\u3057\u307e\u3057\u305f (${times.length}\u679a)`, false);
           return;
         }
 
@@ -298,11 +307,13 @@ export function MapCanvas() {
       }
     };
 
-    window.addEventListener("sengoku-export-png", exportHandler);
+    window.addEventListener("sengoku-export-png", exportPngHandler);
+    window.addEventListener("sengoku-export-jpeg", exportJpegHandler);
     window.addEventListener("sengoku-export-timeline", timelineExportHandler);
     window.addEventListener("sengoku-reset-view", resetHandler);
     return () => {
-      window.removeEventListener("sengoku-export-png", exportHandler);
+      window.removeEventListener("sengoku-export-png", exportPngHandler);
+      window.removeEventListener("sengoku-export-jpeg", exportJpegHandler);
       window.removeEventListener("sengoku-export-timeline", timelineExportHandler);
       window.removeEventListener("sengoku-reset-view", resetHandler);
     };

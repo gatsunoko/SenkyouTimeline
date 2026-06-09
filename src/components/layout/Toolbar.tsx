@@ -127,11 +127,11 @@ export function Toolbar() {
     return Number.isFinite(fps) ? Math.min(120, Math.max(1, Math.round(fps))) : 30;
   };
 
-  const startTimelineExport = (format: "png-sequence" | "mp4") => {
+  const startTimelineExport = (format: "png-sequence" | "jpeg-sequence" | "mp4") => {
     const fps = exportFps();
     setExportFpsDraft(String(fps));
     setExportBusy(true);
-    setExportStatus(format === "png-sequence" ? "PNG書き出し準備中" : "MP4書き出し準備中");
+    setExportStatus(format === "png-sequence" ? "PNG書き出し準備中" : format === "jpeg-sequence" ? "JPEG書き出し準備中" : "MP4書き出し準備中");
     window.dispatchEvent(new CustomEvent("sengoku-export-timeline", { detail: { format, fps } }));
   };
 
@@ -228,6 +228,10 @@ export function Toolbar() {
             <Download size={17} />
             現在表示をPNG
           </button>
+          <button type="button" onClick={() => window.dispatchEvent(new Event("sengoku-export-jpeg"))} title="現在表示をJPEG出力">
+            <Download size={17} />
+            現在表示をJPEG
+          </button>
           <label className="toolbar-field">
             FPS
             <input
@@ -244,6 +248,10 @@ export function Toolbar() {
             <button type="button" onClick={() => startTimelineExport("png-sequence")} disabled={exportBusy} title="タイムラインを連番PNG ZIPとして書き出し">
               <Download size={17} />
               PNG連番
+            </button>
+            <button type="button" onClick={() => startTimelineExport("jpeg-sequence")} disabled={exportBusy} title="タイムラインを連番JPEG ZIPとして書き出し">
+              <Download size={17} />
+              JPEG連番
             </button>
             <button type="button" onClick={() => startTimelineExport("mp4")} disabled={exportBusy} title="タイムラインをMP4動画として書き出し">
               <Download size={17} />
