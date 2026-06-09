@@ -13,13 +13,14 @@ export function NumberField({ label, value, onChange, min, max, step = 1 }: { la
   const [draft, setDraft] = useState(String(value));
   const [editing, setEditing] = useState(false);
   const skipCommitRef = useRef(false);
+  const textInputRef = useRef(false);
 
   useEffect(() => {
     if (!editing) setDraft(String(value));
   }, [editing, value]);
 
-  const commit = () => {
-    const parsed = Number(draft);
+  const commitValue = (raw: string) => {
+    const parsed = Number(raw);
     if (!Number.isFinite(parsed)) {
       setDraft(String(value));
       return;
@@ -27,6 +28,10 @@ export function NumberField({ label, value, onChange, min, max, step = 1 }: { la
     const clamped = Math.min(max ?? parsed, Math.max(min ?? parsed, parsed));
     setDraft(String(clamped));
     if (clamped !== value) onChange(clamped);
+  };
+
+  const commit = () => {
+    commitValue(draft);
   };
 
   return (
@@ -39,7 +44,12 @@ export function NumberField({ label, value, onChange, min, max, step = 1 }: { la
         max={max}
         step={step}
         onFocus={() => setEditing(true)}
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => {
+          const nextDraft = event.target.value;
+          setDraft(nextDraft);
+          if (!textInputRef.current) commitValue(nextDraft);
+          textInputRef.current = false;
+        }}
         onBlur={() => {
           if (skipCommitRef.current) {
             skipCommitRef.current = false;
@@ -50,6 +60,14 @@ export function NumberField({ label, value, onChange, min, max, step = 1 }: { la
           setEditing(false);
         }}
         onKeyDown={(event) => {
+          const editsText =
+            event.key.length === 1 ||
+            event.key === "Backspace" ||
+            event.key === "Delete" ||
+            event.key === "Cut" ||
+            event.key === "Paste";
+          textInputRef.current = editsText;
+          if (event.key === "ArrowUp" || event.key === "ArrowDown") textInputRef.current = false;
           if (event.key === "Enter") event.currentTarget.blur();
           if (event.key === "Escape") {
             skipCommitRef.current = true;
