@@ -277,8 +277,13 @@ function commit(set: (partial: Partial<ProjectStore>) => void, get: () => Projec
   const next = cloneProject(previous);
   mutator(next);
   normalizeProjectTiming(next);
+  cleanupEmptyTimelineFrames(next);
+  normalizeTimelineFrames(next);
+  const currentSelected = get().selected;
+  const selected = currentSelected.type === "frame" && currentSelected.id && !next.timeline.frames.some((frame) => frame.id === currentSelected.id) ? { type: null, id: null } : currentSelected;
   set({
     project: next,
+    selected,
     historyPast: trimHistory([...get().historyPast, previous]),
     historyFuture: [],
   });
@@ -291,6 +296,47 @@ function applyListPatch<T extends { id: string }>(items: T[], id: string, patch:
 
 function isSameTime(a: string, b: string) {
   return Math.abs(parseTimelineSeconds(a) - parseTimelineSeconds(b)) < 0.05;
+}
+
+function hasObjectKeyAtTime(project: ProjectData, time: string) {
+  return (
+    project.units.some((unit) => unit.keyframes.some((keyframe) => isSameTime(keyframe.time, time))) ||
+    project.sites.some((site) => (site.keyframes ?? []).some((keyframe) => isSameTime(keyframe.time, time))) ||
+    project.lines.some((line) => line.keyframes.some((keyframe) => isSameTime(keyframe.time, time))) ||
+    project.arrows.some((arrow) => (arrow.keyframes ?? []).some((keyframe) => isSameTime(keyframe.time, time))) ||
+    (project.map.exportCamera?.keyframes ?? []).some((keyframe) => isSameTime(keyframe.time, time))
+  );
+}
+
+function cleanupEmptyTimelineFrames(project: ProjectData) {
+  if (project.timeline.frames.length <= 1) return;
+  const originalFrames = sortedFrames(project.timeline.frames);
+  const keyedFrames = originalFrames.filter((frame) => hasObjectKeyAtTime(project, frame.time));
+  if (keyedFrames.length === originalFrames.length) return;
+
+  const currentSeconds = parseTimelineSeconds(project.timeline.currentTime);
+  const fallbackFrame =
+    originalFrames.reduce((nearest, frame) => {
+      const nearestDistance = Math.abs(parseTimelineSeconds(nearest.time) - currentSeconds);
+      const frameDistance = Math.abs(parseTimelineSeconds(frame.time) - currentSeconds);
+      return frameDistance < nearestDistance ? frame : nearest;
+    }, originalFrames[0]) ?? originalFrames[0];
+  const nextFrames = keyedFrames.length > 0 ? keyedFrames : [fallbackFrame];
+  project.timeline.frames = nextFrames.map((frame, index) => ({ ...frame, order: index + 1 }));
+
+  if (!project.timeline.frames.some((frame) => isSameTime(frame.time, project.timeline.currentTime))) {
+    const nextCurrent =
+      project.timeline.frames.reduce((nearest, frame) => {
+        const nearestDistance = Math.abs(parseTimelineSeconds(nearest.time) - currentSeconds);
+        const frameDistance = Math.abs(parseTimelineSeconds(frame.time) - currentSeconds);
+        return frameDistance < nearestDistance ? frame : nearest;
+      }, project.timeline.frames[0]) ?? project.timeline.frames[0];
+    project.timeline.currentTime = nextCurrent.time;
+  }
+
+  const frameSeconds = project.timeline.frames.map((frame) => parseTimelineSeconds(frame.time));
+  project.timeline.start = Math.min(...frameSeconds).toFixed(1);
+  project.timeline.end = Math.max(...frameSeconds).toFixed(1);
 }
 
 function normalizeTimedEntries<T extends TimedEntry>(entries: T[] | undefined): T[] {
@@ -649,7 +695,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       }
     });
 
-    if (createdFrameId && (selectedBefore.type === "frame" || selectedBefore.type === null)) {
+    if (createdFrameId && get().project.timeline.frames.some((frame) => frame.id === createdFrameId) && (selectedBefore.type === "frame" || selectedBefore.type === null)) {
       get().selectObject("frame", createdFrameId);
     }
   },

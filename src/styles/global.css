@@ -736,10 +736,24 @@ textarea {
   grid-template-columns: 72px 1fr 44px;
 }
 
+.frame-key-target {
+  grid-template-columns: 54px 1fr auto;
+  width: 100%;
+  text-align: left;
+}
+
 .point-row span {
   color: #f0d78a;
   font-size: 12px;
   font-weight: 700;
+}
+
+.point-row strong {
+  overflow: hidden;
+  color: #e8edf5;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .point-row small {
