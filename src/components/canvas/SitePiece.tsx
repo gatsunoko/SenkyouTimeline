@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Group, Image as KonvaImage, Rect, Text } from "react-konva";
 import type { Site } from "../../types/project";
 import { relativeToCanvas } from "../../utils/coordinate";
+import { getCachedImage, loadCachedImage } from "../../utils/imageCache";
 import { usePrimaryButtonDrag } from "./usePrimaryButtonDrag";
 
 interface SitePieceProps {
@@ -22,7 +23,7 @@ function estimateTextWidth(text: string, fontSize: number) {
 }
 
 export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect, onDragEnd }: SitePieceProps) {
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const [image, setImage] = useState<HTMLImageElement | null>(() => getCachedImage(site.iconUrl));
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const position = relativeToCanvas(site, mapWidth, mapHeight);
   const size = site.size ?? 1;
@@ -36,10 +37,22 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
       setImage(null);
       return;
     }
-    const nextImage = new window.Image();
-    nextImage.onload = () => setImage(nextImage);
-    nextImage.onerror = () => setImage(null);
-    nextImage.src = site.iconUrl;
+    const cached = getCachedImage(site.iconUrl);
+    if (cached) {
+      setImage(cached);
+      return;
+    }
+    let cancelled = false;
+    loadCachedImage(site.iconUrl)
+      .then((nextImage) => {
+        if (!cancelled) setImage(nextImage);
+      })
+      .catch(() => {
+        if (!cancelled) setImage(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [site.iconUrl]);
 
   const width = hasImage ? 68 * size : 56 * size;

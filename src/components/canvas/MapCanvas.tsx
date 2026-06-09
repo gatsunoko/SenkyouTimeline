@@ -5,6 +5,7 @@ import { useProjectStore } from "../../store/projectStore";
 import type { Site, Unit } from "../../types/project";
 import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas } from "../../utils/coordinate";
 import { downloadBlob, downloadDataUrl } from "../../utils/fileIO";
+import { loadCachedImage } from "../../utils/imageCache";
 import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveCameraFrame, resolveLineKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRouteApproachPoint, resolveUnitRoutePoint } from "../../utils/interpolation";
 import { createZip, type ZipEntry } from "../../utils/zip";
 import { compareTime, parseTimelineSeconds } from "../../utils/time";
@@ -58,6 +59,18 @@ function getTimelineExportBounds(project: ReturnType<typeof useProjectStore.getS
 async function dataUrlToBytes(dataUrl: string) {
   const response = await fetch(dataUrl);
   return new Uint8Array(await response.arrayBuffer());
+}
+
+async function preloadProjectImages(project: ReturnType<typeof useProjectStore.getState>["project"]) {
+  const sources = new Set<string>();
+  if (project.map.imageDataUrl) sources.add(project.map.imageDataUrl);
+  for (const site of project.sites) {
+    if (site.iconUrl) sources.add(site.iconUrl);
+  }
+  for (const unit of project.units) {
+    if (unit.iconUrl) sources.add(unit.iconUrl);
+  }
+  await Promise.all([...sources].map((src) => loadCachedImage(src).catch(() => null)));
 }
 
 function mp4MimeType() {
@@ -195,6 +208,7 @@ export function MapCanvas() {
     const captureDataUrl = async (viewport: ExportViewport, mimeType = "image/png", quality?: number) => {
       const stage = stageRef.current;
       if (!stage) throw new Error("\u30ad\u30e3\u30f3\u30d0\u30b9\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093");
+      await preloadProjectImages(useProjectStore.getState().project);
       setExportViewport(viewport);
       await waitForPaint();
       stage.batchDraw();
@@ -268,6 +282,7 @@ export function MapCanvas() {
         const durationSeconds = Math.max(1 / fps, bounds.end - bounds.start);
         let animationFrameId: number | null = null;
         try {
+          await preloadProjectImages(useProjectStore.getState().project);
           useProjectStore.getState().setCurrentTime(bounds.start.toFixed(4));
           setExportViewport(resolveExportViewport(useProjectStore.getState().project));
           await waitForPaint();

@@ -4,6 +4,7 @@ import { Circle, Group, Image as KonvaImage, Line, Rect, Text } from "react-konv
 import type { Unit } from "../../types/project";
 import type { ResolvedUnitFrame } from "../../utils/interpolation";
 import { relativeToCanvas } from "../../utils/coordinate";
+import { getCachedImage, loadCachedImage } from "../../utils/imageCache";
 import { usePrimaryButtonDrag } from "./usePrimaryButtonDrag";
 
 interface UnitPieceProps {
@@ -48,7 +49,7 @@ function shortestAngleDelta(from: number, to: number) {
 }
 
 export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, onSelect, onDragEnd, onRotateEnd }: UnitPieceProps) {
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const [image, setImage] = useState<HTMLImageElement | null>(() => getCachedImage(unit.iconUrl));
   const [rotationPreview, setRotationPreview] = useState<number | null>(null);
   const [rotationHandlePreview, setRotationHandlePreview] = useState<{ x: number; y: number } | null>(null);
   const rootGroupRef = useRef<Konva.Group>(null);
@@ -69,10 +70,22 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
       setImage(null);
       return;
     }
-    const nextImage = new window.Image();
-    nextImage.onload = () => setImage(nextImage);
-    nextImage.onerror = () => setImage(null);
-    nextImage.src = unit.iconUrl;
+    const cached = getCachedImage(unit.iconUrl);
+    if (cached) {
+      setImage(cached);
+      return;
+    }
+    let cancelled = false;
+    loadCachedImage(unit.iconUrl)
+      .then((nextImage) => {
+        if (!cancelled) setImage(nextImage);
+      })
+      .catch(() => {
+        if (!cancelled) setImage(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [unit.iconUrl]);
 
   const width = hasImage ? 68 * size : 92 * size;
