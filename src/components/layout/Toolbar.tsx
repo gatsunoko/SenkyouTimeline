@@ -23,7 +23,9 @@ import { downloadJson, readFileAsDataUrl, readJsonFile } from "../../utils/fileI
 
 type ToolbarMenu = "file" | "export" | "canvas" | null;
 
-const toolButtons: { tool: ToolMode; label: string; compactLabel: string; icon: LucideIcon }[] = [
+type PrimaryToolMode = Exclude<ToolMode, "mapImageEdit">;
+
+const toolButtons: { tool: PrimaryToolMode; label: string; compactLabel: string; icon: LucideIcon }[] = [
   { tool: "select", label: "選択", compactLabel: "選択", icon: MousePointer2 },
   { tool: "addUnit", label: "コマ追加", compactLabel: "コマ", icon: Flag },
   { tool: "addSite", label: "城追加", compactLabel: "城", icon: Castle },
@@ -96,6 +98,7 @@ export function Toolbar() {
     const dataUrl = await readFileAsDataUrl(file);
     const naturalSize = await readImageDimensions(dataUrl).catch(() => undefined);
     setMapImage(dataUrl, naturalSize);
+    setTool("mapImageEdit");
     selectObject("mapImage", "mapImage");
     setActiveMenu(null);
   };
@@ -115,6 +118,12 @@ export function Toolbar() {
 
   const toggleMenu = (menu: Exclude<ToolbarMenu, null>) => {
     setActiveMenu((current) => (current === menu ? null : menu));
+  };
+
+  const editMapImage = () => {
+    setTool("mapImageEdit");
+    selectObject("mapImage", "mapImage");
+    setActiveMenu(null);
   };
 
   return (
@@ -165,10 +174,6 @@ export function Toolbar() {
       {activeMenu === "file" && (
         <div className="toolbar-popover toolbar-popover-file">
           <h3>ファイル</h3>
-          <button type="button" onClick={() => imageInputRef.current?.click()} title="地図画像読み込み">
-            <ImagePlus size={17} />
-            地図画像を読み込む
-          </button>
           <button type="button" onClick={() => jsonInputRef.current?.click()} title="プロジェクトJSON読み込み">
             <FileUp size={17} />
             JSONを読み込む
@@ -216,14 +221,18 @@ export function Toolbar() {
       {activeMenu === "canvas" && (
         <div className="toolbar-popover toolbar-popover-canvas">
           <h3>キャンバス</h3>
+          <button type="button" onClick={() => imageInputRef.current?.click()} title="地図画像読み込み">
+            <ImagePlus size={17} />
+            地図画像を読み込む
+          </button>
           <button type="button" onClick={() => selectObject("camera", "exportCamera")} title="書き出しカメラを選択">
             <Camera size={17} />
             書き出しカメラ
           </button>
           {project.map.imageDataUrl && (
-            <button type="button" onClick={() => selectObject("mapImage", "mapImage")} title="地図画像を選択">
+            <button type="button" onClick={editMapImage} title="地図画像の位置とサイズを編集">
               <ImagePlus size={17} />
-              地図画像
+              地図画像編集
             </button>
           )}
         </div>

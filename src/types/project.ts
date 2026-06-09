@@ -121,7 +121,7 @@ export type EventType =
   | "other";
 
 export type SelectableType = "faction" | "unit" | "site" | "line" | "arrow" | "event" | "label" | "frame" | "camera" | "mapImage";
-export type ToolMode = "select" | "addUnit" | "addSite" | "drawLine" | "drawArrow" | "addLabel";
+export type ToolMode = "select" | "addUnit" | "addSite" | "drawLine" | "drawArrow" | "addLabel" | "mapImageEdit";
 
 export interface MapPoint {
   x: number;

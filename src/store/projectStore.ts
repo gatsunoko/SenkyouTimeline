@@ -172,6 +172,29 @@ function fitImageToMap(project: ProjectData, naturalWidth: number, naturalHeight
   return { imageX: (mapWidth - imageWidth) / 2, imageY: 0, imageWidth, imageHeight };
 }
 
+function getMapImageAspect(map: ProjectData["map"]) {
+  const naturalAspect =
+    map.imageNaturalWidth && map.imageNaturalHeight && map.imageNaturalWidth > 0 && map.imageNaturalHeight > 0
+      ? map.imageNaturalWidth / map.imageNaturalHeight
+      : null;
+  if (naturalAspect && Number.isFinite(naturalAspect) && naturalAspect > 0) return naturalAspect;
+  const placedAspect = map.imageWidth && map.imageHeight && map.imageWidth > 0 && map.imageHeight > 0 ? map.imageWidth / map.imageHeight : null;
+  if (placedAspect && Number.isFinite(placedAspect) && placedAspect > 0) return placedAspect;
+  return 16 / 9;
+}
+
+function resizeMapImageWithAspect(map: ProjectData["map"], size: number, source: "width" | "height" = "width") {
+  const aspect = getMapImageAspect(map);
+  if (source === "height") {
+    const imageHeight = clampPixelValue(size, map.imageHeight ?? map.height ?? 900, 16, 20000);
+    const imageWidth = clampPixelValue(imageHeight * aspect, map.imageWidth ?? map.width ?? 1600, 16, 20000);
+    return { imageWidth, imageHeight: clampPixelValue(imageWidth / aspect, imageHeight, 16, 20000) };
+  }
+  const imageWidth = clampPixelValue(size, map.imageWidth ?? map.width ?? 1600, 16, 20000);
+  const imageHeight = clampPixelValue(imageWidth / aspect, map.imageHeight ?? map.height ?? 900, 16, 20000);
+  return { imageWidth: clampPixelValue(imageHeight * aspect, imageWidth, 16, 20000), imageHeight };
+}
+
 function normalizeExportCamera(project: ProjectData) {
   const width = clampPixelValue(project.map.exportCamera?.width ?? project.map.outputWidth, 1920, 64, 7680);
   const height = clampPixelValue(project.map.exportCamera?.height ?? project.map.outputHeight, 1080, 64, 4320);
@@ -450,6 +473,8 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   normalizeExportCamera(normalized);
   if (normalized.map.imageDataUrl && normalized.map.imageNaturalWidth && normalized.map.imageNaturalHeight && (normalized.map.imageWidth === undefined || normalized.map.imageHeight === undefined)) {
     Object.assign(normalized.map, fitImageToMap(normalized, normalized.map.imageNaturalWidth, normalized.map.imageNaturalHeight));
+  } else if (normalized.map.imageDataUrl && normalized.map.imageWidth !== undefined) {
+    Object.assign(normalized.map, resizeMapImageWithAspect(normalized.map, normalized.map.imageWidth, "width"));
   }
   normalized.unitAssets ||= [];
   for (const asset of normalized.unitAssets) {
@@ -1340,6 +1365,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   selectObject: (type, id) =>
     set((state) => ({
+      tool: state.tool === "mapImageEdit" && type !== "mapImage" ? "select" : state.tool,
       selected: { type, id },
       selectedLinePointIndices: type === "line" && id === state.selected.id ? state.selectedLinePointIndices : [],
       selectedArrowPointIndices: type === "arrow" && id === state.selected.id ? state.selectedArrowPointIndices : [],
@@ -1469,8 +1495,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       if (!project.map.imageDataUrl) return;
       if (patch.imageX !== undefined) project.map.imageX = clampPixelValue(patch.imageX, project.map.imageX ?? 0, -20000, 20000);
       if (patch.imageY !== undefined) project.map.imageY = clampPixelValue(patch.imageY, project.map.imageY ?? 0, -20000, 20000);
-      if (patch.imageWidth !== undefined) project.map.imageWidth = clampPixelValue(patch.imageWidth, project.map.imageWidth ?? project.map.width ?? 1600, 16, 20000);
-      if (patch.imageHeight !== undefined) project.map.imageHeight = clampPixelValue(patch.imageHeight, project.map.imageHeight ?? project.map.height ?? 900, 16, 20000);
+      if (patch.imageWidth !== undefined) Object.assign(project.map, resizeMapImageWithAspect(project.map, patch.imageWidth, "width"));
+      else if (patch.imageHeight !== undefined) Object.assign(project.map, resizeMapImageWithAspect(project.map, patch.imageHeight, "height"));
     }),
 
   updateExportCamera: (patch) =>
@@ -1515,7 +1541,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   exportProject: () => cloneProject(get().project),
   importProject: (project) => get().loadProject(project),
 
-  setTool: (tool) => set({ tool, drawingPoints: tool === "drawLine" || tool === "drawArrow" ? get().drawingPoints : [] }),
+  setTool: (tool) =>
+    set((state) => ({
+      tool,
+      drawingPoints: tool === "drawLine" || tool === "drawArrow" ? state.drawingPoints : [],
+      selected: tool !== "mapImageEdit" && state.selected.type === "mapImage" ? { type: null, id: null } : state.selected,
+    })),
   setDrawingPoints: (points) => set({ drawingPoints: points }),
   addDrawingPoint: (point) => set({ drawingPoints: [...get().drawingPoints, clampPoint(point)] }),
   cancelDrawing: () => set({ drawingPoints: [], tool: "select" }),

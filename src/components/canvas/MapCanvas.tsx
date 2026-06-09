@@ -102,6 +102,7 @@ export function MapCanvas() {
   const [mapImageResizePreview, setMapImageResizePreview] = useState<{ width: number; height: number } | null>(null);
   const [cameraDragPreview, setCameraDragPreview] = useState<{ x: number; y: number } | null>(null);
   const middlePanRef = useRef<{ active: boolean; x: number; y: number }>({ active: false, x: 0, y: 0 });
+  const mapImageResizeStartRef = useRef<{ width: number; height: number } | null>(null);
   const [mapImage, setMapImage] = useState<HTMLImageElement | null>(null);
 
   const project = useProjectStore((state) => state.project);
@@ -392,6 +393,8 @@ export function MapCanvas() {
       addLabel(point);
     } else if (tool === "drawLine" || tool === "drawArrow") {
       addDrawingPoint(point);
+    } else if (tool === "mapImageEdit") {
+      if (project.map.imageDataUrl) selectObject("mapImage", "mapImage");
     } else {
       clearSelection();
     }
@@ -415,11 +418,13 @@ export function MapCanvas() {
       imageAspect > canvasAspect
         ? { x: 0, y: (mapHeight - mapWidth / imageAspect) / 2, width: mapWidth, height: mapWidth / imageAspect }
         : { x: (mapWidth - mapHeight * imageAspect) / 2, y: 0, width: mapHeight * imageAspect, height: mapHeight };
+    const imageWidth = mapImageResizePreview?.width ?? project.map.imageWidth ?? fallback.width;
+    const imageHeight = imageWidth / imageAspect;
     return {
       x: project.map.imageX ?? fallback.x,
       y: project.map.imageY ?? fallback.y,
-      width: mapImageResizePreview?.width ?? project.map.imageWidth ?? fallback.width,
-      height: mapImageResizePreview?.height ?? project.map.imageHeight ?? fallback.height,
+      width: imageWidth,
+      height: imageHeight,
     };
   })();
   const gridPadding = 320;
@@ -436,6 +441,7 @@ export function MapCanvas() {
     return items.filter((item) => item.id !== selected.id);
   };
   const isSelected = (type: typeof selected.type, id: string) => !exportViewport && selected.type === type && selected.id === id;
+  const isMapImageEditing = !exportViewport && tool === "mapImageEdit" && selected.type === "mapImage" && selected.id === "mapImage";
   const cameraHandleOffset = { x: -40, y: -36 };
   const routePreviewUnit = routePreviewUnitId ? project.units.find((unit) => unit.id === routePreviewUnitId) : undefined;
   const activePreviewRoute = routePreviewUnit?.route;
@@ -522,14 +528,14 @@ export function MapCanvas() {
             <Group
               x={mapImageRect.x}
               y={mapImageRect.y}
-              draggable={!exportViewport && tool === "select" && !spacePressed}
+              draggable={isMapImageEditing && !spacePressed}
               onClick={(event) => {
-                if (tool !== "select") return;
+                if (tool !== "mapImageEdit") return;
                 event.cancelBubble = true;
                 selectObject("mapImage", "mapImage");
               }}
               onTap={(event) => {
-                if (tool !== "select") return;
+                if (tool !== "mapImageEdit") return;
                 event.cancelBubble = true;
                 selectObject("mapImage", "mapImage");
               }}
@@ -537,7 +543,7 @@ export function MapCanvas() {
                 updateMapImagePlacement({ imageX: event.target.x(), imageY: event.target.y() });
               }}
             >
-              <KonvaImage image={mapImage} width={mapImageRect.width} height={mapImageRect.height} opacity={0.95} listening={!exportViewport && tool === "select"} />
+              <KonvaImage image={mapImage} width={mapImageRect.width} height={mapImageRect.height} opacity={0.95} listening={isMapImageEditing} />
             </Group>
           )}
 
@@ -751,7 +757,7 @@ export function MapCanvas() {
               if (!label || (label.startTime && compareTime(label.startTime, project.timeline.currentTime) > 0) || (label.endTime && compareTime(label.endTime, project.timeline.currentTime) < 0)) return null;
               return <LabelShape key={`${label.id}-selected-front`} label={label} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />;
             })()}
-          {!exportViewport && selected.type === "mapImage" && mapImageRect && (
+          {isMapImageEditing && mapImageRect && (
             <Group x={mapImageRect.x} y={mapImageRect.y}>
               <Rect x={0} y={0} width={mapImageRect.width} height={mapImageRect.height} stroke="#f4d06f" strokeWidth={2} dash={[8, 6]} listening={false} />
               <Circle
@@ -764,20 +770,34 @@ export function MapCanvas() {
                 draggable
                 onMouseDown={(event) => {
                   event.cancelBubble = true;
+                  mapImageResizeStartRef.current = { width: mapImageRect.width, height: mapImageRect.height };
+                }}
+                onDragStart={(event) => {
+                  event.cancelBubble = true;
+                  mapImageResizeStartRef.current = { width: mapImageRect.width, height: mapImageRect.height };
                 }}
                 onDragMove={(event) => {
                   event.cancelBubble = true;
+                  const startSize = mapImageResizeStartRef.current ?? { width: mapImageRect.width, height: mapImageRect.height };
+                  const diagonal = Math.hypot(startSize.width, startSize.height);
+                  const nextScale = diagonal > 0 ? Math.max(16 / Math.max(startSize.width, startSize.height), Math.hypot(event.target.x(), event.target.y()) / diagonal) : 1;
+                  const width = Math.max(16, startSize.width * nextScale);
+                  const height = Math.max(16, startSize.height * nextScale);
+                  event.target.position({ x: width, y: height });
                   setMapImageResizePreview({
-                    width: Math.max(16, event.target.x()),
-                    height: Math.max(16, event.target.y()),
+                    width,
+                    height,
                   });
                 }}
                 onDragEnd={(event) => {
                   event.cancelBubble = true;
-                  const width = Math.max(16, event.target.x());
-                  const height = Math.max(16, event.target.y());
+                  const startSize = mapImageResizeStartRef.current ?? { width: mapImageRect.width, height: mapImageRect.height };
+                  const diagonal = Math.hypot(startSize.width, startSize.height);
+                  const nextScale = diagonal > 0 ? Math.max(16 / Math.max(startSize.width, startSize.height), Math.hypot(event.target.x(), event.target.y()) / diagonal) : 1;
+                  const width = Math.max(16, startSize.width * nextScale);
                   setMapImageResizePreview(null);
-                  updateMapImagePlacement({ imageWidth: width, imageHeight: height });
+                  mapImageResizeStartRef.current = null;
+                  updateMapImagePlacement({ imageWidth: width });
                 }}
               />
             </Group>

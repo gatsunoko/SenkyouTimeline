@@ -8,7 +8,6 @@ export function MapImageInspector() {
   const x = map.imageX ?? 0;
   const y = map.imageY ?? 0;
   const width = map.imageWidth ?? map.width ?? 1600;
-  const height = map.imageHeight ?? map.height ?? 900;
 
   return (
     <aside className="right-inspector">
@@ -19,8 +18,7 @@ export function MapImageInspector() {
         <>
           <NumberField label="X" value={Math.round(x)} step={10} onChange={(value) => updateMapImagePlacement({ imageX: value })} />
           <NumberField label="Y" value={Math.round(y)} step={10} onChange={(value) => updateMapImagePlacement({ imageY: value })} />
-          <NumberField label="W" value={Math.round(width)} min={16} max={20000} step={10} onChange={(value) => updateMapImagePlacement({ imageWidth: value })} />
-          <NumberField label="H" value={Math.round(height)} min={16} max={20000} step={10} onChange={(value) => updateMapImagePlacement({ imageHeight: value })} />
+          <NumberField label="サイズ" value={Math.round(width)} min={16} max={20000} step={10} onChange={(value) => updateMapImagePlacement({ imageWidth: value })} />
         </>
       )}
     </aside>
