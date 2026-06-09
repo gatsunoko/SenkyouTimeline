@@ -178,7 +178,6 @@ export interface Timeline {
 export interface Faction {
   id: string;
   name: string;
-  shortName: string;
   color: string;
   type: FactionType;
   memo: string;
@@ -243,7 +242,6 @@ export interface UnitRoute extends UnitRouteSegment {
 export interface Unit {
   id: string;
   name: string;
-  shortName: string;
   factionId: string;
   unitType: UnitType;
   commander: string;

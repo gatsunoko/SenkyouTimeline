@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Castle, Copy, Flag, Lock, PanelLeftClose, Plus, Unlock } from "lucide-react";
+import { Castle, Copy, Flag, Lock, PanelLeftClose, Plus, Trash2, Unlock } from "lucide-react";
 import { factionTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
 
@@ -12,8 +12,10 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const addFaction = useProjectStore((state) => state.addFaction);
   const addUnit = useProjectStore((state) => state.addUnit);
   const duplicateUnitFromAsset = useProjectStore((state) => state.duplicateUnitFromAsset);
+  const deleteUnitAsset = useProjectStore((state) => state.deleteUnitAsset);
   const addSite = useProjectStore((state) => state.addSite);
   const duplicateSiteFromAsset = useProjectStore((state) => state.duplicateSiteFromAsset);
+  const deleteSiteAsset = useProjectStore((state) => state.deleteSiteAsset);
   const selectObject = useProjectStore((state) => state.selectObject);
   const updateFaction = useProjectStore((state) => state.updateFaction);
   const updateUnit = useProjectStore((state) => state.updateUnit);
@@ -99,8 +101,22 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
               <div className="sidebar-subheading">登録アセット</div>
               {project.unitAssets.map((asset) => {
                 const faction = project.factions.find((entry) => entry.id === asset.factionId);
+                const assetName = asset.name.trim() || "（名前なし）";
                 return (
-                  <button className="list-row asset-row" type="button" key={asset.id} onClick={() => duplicateUnitFromAsset(asset.id)}>
+                  <div
+                    className="list-row asset-row asset-row-clickable"
+                    role="button"
+                    tabIndex={0}
+                    key={asset.id}
+                    onClick={() => duplicateUnitFromAsset(asset.id)}
+                    onKeyDown={(event) => {
+                      if (event.target !== event.currentTarget) return;
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        duplicateUnitFromAsset(asset.id);
+                      }
+                    }}
+                  >
                     {asset.imageDataUrl ? (
                       <img className="asset-thumb" src={asset.imageDataUrl} alt="" />
                     ) : (
@@ -109,11 +125,22 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                       </span>
                     )}
                     <span>
-                      <strong>{asset.name}</strong>
+                      <strong>{assetName}</strong>
                       <small>クリックで複製</small>
                     </span>
                     <Copy size={16} />
-                  </button>
+                    <button
+                      className="icon-only danger"
+                      type="button"
+                      title="アセットを削除"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        deleteUnitAsset(asset.id);
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 );
               })}
             </>
@@ -146,16 +173,43 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
           {project.siteAssets.length > 0 && (
             <>
               <div className="sidebar-subheading">登録アセット</div>
-              {project.siteAssets.map((asset) => (
-                <button className="list-row asset-row" type="button" key={asset.id} onClick={() => duplicateSiteFromAsset(asset.id)}>
-                  <img className="asset-thumb" src={asset.imageDataUrl} alt="" />
-                  <span>
-                    <strong>{asset.name}</strong>
-                    <small>クリックで複製</small>
-                  </span>
-                  <Copy size={16} />
-                </button>
-              ))}
+              {project.siteAssets.map((asset) => {
+                const assetName = asset.name.trim() || "（名前なし）";
+                return (
+                  <div
+                    className="list-row asset-row asset-row-clickable"
+                    role="button"
+                    tabIndex={0}
+                    key={asset.id}
+                    onClick={() => duplicateSiteFromAsset(asset.id)}
+                    onKeyDown={(event) => {
+                      if (event.target !== event.currentTarget) return;
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        duplicateSiteFromAsset(asset.id);
+                      }
+                    }}
+                  >
+                    <img className="asset-thumb" src={asset.imageDataUrl} alt="" />
+                    <span>
+                      <strong>{assetName}</strong>
+                      <small>クリックで複製</small>
+                    </span>
+                    <Copy size={16} />
+                    <button
+                      className="icon-only danger"
+                      type="button"
+                      title="アセットを削除"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        deleteSiteAsset(asset.id);
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                );
+              })}
             </>
           )}
         </section>

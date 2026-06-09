@@ -5,7 +5,9 @@ export function sortedFrames(frames: TimelineFrame[]) {
 }
 
 export function getCurrentFrame(frames: TimelineFrame[], time: string) {
-  return sortedFrames(frames).find((frame) => frame.time === time) ?? sortedFrames(frames)[0];
+  const ordered = sortedFrames(frames);
+  const currentSeconds = parseTimelineSeconds(time);
+  return ordered.find((frame) => Math.abs(parseTimelineSeconds(frame.time) - currentSeconds) < 0.05) ?? ordered[0];
 }
 
 export function parseTimelineSeconds(time: string): number {

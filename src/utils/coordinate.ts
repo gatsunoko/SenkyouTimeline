@@ -5,8 +5,8 @@ export const MAP_HEIGHT = 900;
 
 export function clampPoint(point: MapPoint): MapPoint {
   return {
-    x: Math.min(1, Math.max(0, point.x)),
-    y: Math.min(1, Math.max(0, point.y)),
+    x: Number.isFinite(point.x) ? point.x : 0,
+    y: Number.isFinite(point.y) ? point.y : 0,
   };
 }
 

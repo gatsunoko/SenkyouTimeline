@@ -24,8 +24,8 @@ export const sampleProjects: ProjectData[] = [
     unitAssets: [],
     siteAssets: [],
     factions: [
-      { id: "blue", name: "青軍", shortName: "青", color: "#2f7ed8", type: "alliance", memo: "" },
-      { id: "red", name: "赤軍", shortName: "赤", color: "#c3423f", type: "daimyo", memo: "" },
+      { id: "blue", name: "青軍", color: "#2f7ed8", type: "alliance", memo: "" },
+      { id: "red", name: "赤軍", color: "#c3423f", type: "daimyo", memo: "" },
     ],
     sites: [
       {
@@ -48,7 +48,6 @@ export const sampleProjects: ProjectData[] = [
       {
         id: "blue_unit",
         name: "青軍本隊",
-        shortName: "青",
         factionId: "blue",
         unitType: "busho",
         commander: "",
@@ -70,7 +69,6 @@ export const sampleProjects: ProjectData[] = [
       {
         id: "red_unit",
         name: "赤軍本隊",
-        shortName: "赤",
         factionId: "red",
         unitType: "busho",
         commander: "",

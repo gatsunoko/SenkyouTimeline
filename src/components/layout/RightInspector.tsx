@@ -28,10 +28,6 @@ export function RightInspector() {
           <input value={faction.name} onChange={(event) => updateFaction(faction.id, { name: event.target.value })} />
         </label>
         <label>
-          短縮名
-          <input value={faction.shortName} onChange={(event) => updateFaction(faction.id, { shortName: event.target.value })} />
-        </label>
-        <label>
           色
           <input type="color" value={faction.color} onChange={(event) => updateFaction(faction.id, { color: event.target.value })} />
         </label>

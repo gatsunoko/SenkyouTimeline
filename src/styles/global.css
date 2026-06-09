@@ -435,7 +435,25 @@ textarea {
 }
 
 .asset-row {
-  grid-template-columns: 28px 1fr auto;
+  grid-template-columns: 28px 1fr auto auto;
+}
+
+.asset-row-clickable {
+  border: 1px solid #364153;
+  border-radius: 6px;
+  background: #172030;
+  color: #f3efe4;
+  cursor: pointer;
+}
+
+.asset-row-clickable:hover {
+  background: #223048;
+  border-color: #55647a;
+}
+
+.asset-row-clickable:focus-visible {
+  outline: 2px solid #82a7d9;
+  outline-offset: 2px;
 }
 
 .asset-thumb {

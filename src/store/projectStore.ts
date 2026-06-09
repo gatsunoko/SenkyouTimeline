@@ -48,8 +48,8 @@ const emptyProject: ProjectData = {
   unitAssets: [],
   siteAssets: [],
   factions: [
-    { id: "faction_default_a", name: "織田・徳川連合", shortName: "織徳", color: "#2f7ed8", type: "alliance", memo: "" },
-    { id: "faction_default_b", name: "武田家", shortName: "武田", color: "#c3423f", type: "daimyo", memo: "" },
+    { id: "faction_default_a", name: "織田・徳川連合", color: "#2f7ed8", type: "alliance", memo: "" },
+    { id: "faction_default_b", name: "武田家", color: "#c3423f", type: "daimyo", memo: "" },
   ],
   sites: [],
   units: [],
@@ -64,9 +64,10 @@ function createBlankProject(): ProjectData {
     ...cloneProject(emptyProject),
     timeline: {
       ...emptyProject.timeline,
-      end: "0",
-      currentTime: "0",
-      frames: [{ id: createId("frame"), time: "0", displayDate: "00:00.0", order: 1, memo: "" }],
+      start: "0.0",
+      end: "0.0",
+      currentTime: "0.0",
+      frames: [{ id: createId("frame"), time: "0.0", displayDate: "00:00.0", order: 1, memo: "" }],
     },
     map: {
       outputWidth: 1920,
@@ -75,7 +76,7 @@ function createBlankProject(): ProjectData {
         width: 1920,
         height: 1080,
         scale: 1,
-        keyframes: [{ time: "0", displayDate: "00:00.0", x: 0, y: 0, scale: 1 }],
+        keyframes: [{ time: "0.0", displayDate: "00:00.0", x: 0, y: 0, scale: 1 }],
       },
     },
     unitAssets: [],
@@ -116,6 +117,7 @@ interface ProjectStore {
   clearUnitImage: (unitId: string) => void;
   registerUnitAsset: (unitId: string) => void;
   duplicateUnitFromAsset: (assetId: string) => void;
+  deleteUnitAsset: (assetId: string) => void;
   updateUnit: (id: string, patch: Partial<Unit>) => void;
   setUnitRoute: (id: string, route?: UnitRoute) => void;
   toggleUnitRoutePreview: (id: string) => void;
@@ -126,6 +128,7 @@ interface ProjectStore {
   clearSiteImage: (siteId: string) => void;
   registerSiteAsset: (siteId: string) => void;
   duplicateSiteFromAsset: (assetId: string) => void;
+  deleteSiteAsset: (assetId: string) => void;
   updateSite: (id: string, patch: Partial<Site>) => void;
   updateSiteKeyframe: (siteId: string, time: string, patch: { factionId: string }) => void;
   deleteSiteKeyframe: (siteId: string, time: string) => void;
@@ -229,6 +232,13 @@ function resizeMapImageWithAspect(map: ProjectData["map"], size: number, source:
   const imageWidth = clampPixelValue(size, map.imageWidth ?? map.width ?? 1600, 16, 20000);
   const imageHeight = clampPixelValue(imageWidth / aspect, map.imageHeight ?? map.height ?? 900, 16, 20000);
   return { imageWidth: clampPixelValue(imageHeight * aspect, imageWidth, 16, 20000), imageHeight };
+}
+
+function removeLegacyAbbrevName(entry: unknown) {
+  const legacyKey = ["short", "Name"].join("");
+  if (entry && typeof entry === "object" && legacyKey in entry) {
+    delete (entry as Record<string, unknown>)[legacyKey];
+  }
 }
 
 function normalizeExportCamera(project: ProjectData) {
@@ -515,8 +525,14 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   } else if (normalized.map.imageDataUrl && normalized.map.imageWidth !== undefined) {
     Object.assign(normalized.map, resizeMapImageWithAspect(normalized.map, normalized.map.imageWidth, "width"));
   }
+  normalized.factions ||= [];
+  for (const faction of normalized.factions) {
+    removeLegacyAbbrevName(faction);
+  }
   normalized.unitAssets ||= [];
   for (const asset of normalized.unitAssets) {
+    removeLegacyAbbrevName(asset);
+    asset.name ??= "コマ";
     asset.size ||= 1;
     asset.factionId ||= normalized.factions?.[0]?.id ?? "faction_default_a";
     asset.shape = asset.shape === "pentagon" ? "pentagon" : "rectangle";
@@ -528,6 +544,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   }
   normalized.siteAssets ||= [];
   for (const asset of normalized.siteAssets) {
+    asset.name ??= "画像拠点";
     asset.size ||= 1;
     asset.nameFontSize ||= 14 * asset.size;
     asset.nameTextColor ||= "#f5efe3";
@@ -567,6 +584,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     line.displayEndTime ||= normalized.timeline.end ?? line.displayStartTime;
   }
   for (const unit of normalized.units ?? []) {
+    removeLegacyAbbrevName(unit);
     unit.nameTextColor ||= "#f5efe3";
     unit.nameBackgroundEnabled = unit.nameBackgroundEnabled ?? false;
     unit.nameBackgroundColor ||= "#111827";
@@ -583,7 +601,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     label.borderColor ||= "#f0c665";
   }
   normalizeProjectTiming(normalized);
-  normalized.timeline.currentTime = normalized.timeline.currentTime || normalized.timeline.frames[0]?.time || "";
+  normalized.timeline.currentTime = getCurrentFrame(normalized.timeline.frames, normalized.timeline.currentTime)?.time ?? normalized.timeline.frames[0]?.time ?? normalized.timeline.currentTime ?? "";
   normalized.timeline.start ||= "0";
   normalized.timeline.end ||= normalized.timeline.frames[normalized.timeline.frames.length - 1]?.time || "10";
   return normalized;
@@ -863,7 +881,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       project.factions.push({
         id,
         name: "新規陣営",
-        shortName: "新軍",
         color: "#8cbf72",
         type: "daimyo",
         memo: "",
@@ -880,7 +897,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const unit: Unit = {
         id,
         name: "新規軍勢",
-        shortName: "軍勢",
         factionId: firstFactionId(project),
         unitType: "busho",
         commander: "",
@@ -939,11 +955,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       project.unitAssets ||= [];
       const unit = project.units.find((entry) => entry.id === unitId);
       if (!unit) return;
-      const name = unit.name.trim() || "コマ";
       const currentFrame = resolveUnitFrame(unit, project.timeline.currentTime, project.timeline.interpolationMode);
       const asset: UnitAsset = {
         id: createId("unit_asset"),
-        name,
+        name: unit.name,
         size: currentFrame?.size ?? unit.size,
         factionId: currentFrame?.effectiveFactionId ?? unit.factionId,
         shape: unit.shape ?? "rectangle",
@@ -976,7 +991,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       project.units.push({
         id,
         name: asset.name,
-        shortName: asset.name,
         factionId: project.factions.some((faction) => faction.id === asset.factionId) ? asset.factionId : firstFactionId(project),
         unitType: "busho",
         commander: "",
@@ -1009,6 +1023,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         ],
       });
       get().selectObject("unit", id);
+    }),
+
+  deleteUnitAsset: (assetId) =>
+    commit(set, get, (project) => {
+      project.unitAssets = (project.unitAssets ?? []).filter((asset) => asset.id !== assetId);
+      for (const unit of project.units) {
+        if (unit.assetId === assetId) unit.assetId = undefined;
+      }
     }),
 
   updateUnit: (id, patch) => commit(set, get, (project) => applyListPatch(project.units, id, patch)),
@@ -1150,6 +1172,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         keyframes: [],
       });
       get().selectObject("site", id);
+    }),
+
+  deleteSiteAsset: (assetId) =>
+    commit(set, get, (project) => {
+      project.siteAssets = (project.siteAssets ?? []).filter((asset) => asset.id !== assetId);
+      for (const site of project.sites) {
+        if (site.assetId === assetId) site.assetId = undefined;
+      }
     }),
 
   updateSite: (id, patch) => commit(set, get, (project) => applyListPatch(project.sites, id, patch)),
