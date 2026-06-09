@@ -806,15 +806,9 @@ export function MapCanvas() {
                 )}
               </Group>
               {selected.type === "camera" && (
-                <Rect
+                <Group
                   x={cameraFrame.x}
                   y={cameraFrame.y}
-                  width={cameraFrame.width}
-                  height={cameraFrame.height}
-                  stroke="#f4d06f"
-                  strokeWidth={24}
-                  opacity={0.01}
-                  hitStrokeWidth={32}
                   draggable={tool === "select" && !spacePressed}
                   onClick={(event) => {
                     event.cancelBubble = true;
@@ -841,7 +835,12 @@ export function MapCanvas() {
                     setCameraDragPreview(null);
                     updateCameraKeyframe(project.timeline.currentTime, { x: nextX, y: nextY });
                   }}
-                />
+                >
+                  <Line points={[0, 0, cameraFrame.width, 0]} stroke="#f4d06f" strokeWidth={24} opacity={0.01} hitStrokeWidth={32} />
+                  <Line points={[cameraFrame.width, 0, cameraFrame.width, cameraFrame.height]} stroke="#f4d06f" strokeWidth={24} opacity={0.01} hitStrokeWidth={32} />
+                  <Line points={[cameraFrame.width, cameraFrame.height, 0, cameraFrame.height]} stroke="#f4d06f" strokeWidth={24} opacity={0.01} hitStrokeWidth={32} />
+                  <Line points={[0, cameraFrame.height, 0, 0]} stroke="#f4d06f" strokeWidth={24} opacity={0.01} hitStrokeWidth={32} />
+                </Group>
               )}
               <Group
                 x={cameraFrame.x + cameraHandleOffset.x}
