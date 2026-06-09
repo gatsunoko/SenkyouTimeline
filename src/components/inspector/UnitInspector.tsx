@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { ImagePlus } from "lucide-react";
+import { ImagePlus, Trash2 } from "lucide-react";
 import { useProjectStore } from "../../store/projectStore";
 import type { RouteDirection, RouteSourceType, Unit, UnitRoute, UnitRouteSegment, UnitShape } from "../../types/project";
 import { createId } from "../../utils/id";
@@ -35,6 +35,7 @@ export function UnitInspector({ id }: { id: string }) {
   const project = useProjectStore((state) => state.project);
   const updateUnit = useProjectStore((state) => state.updateUnit);
   const setUnitImage = useProjectStore((state) => state.setUnitImage);
+  const clearUnitImage = useProjectStore((state) => state.clearUnitImage);
   const registerUnitAsset = useProjectStore((state) => state.registerUnitAsset);
   const duplicateUnitFromAsset = useProjectStore((state) => state.duplicateUnitFromAsset);
   const updateUnitKeyframe = useProjectStore((state) => state.updateUnitKeyframe);
@@ -176,6 +177,12 @@ export function UnitInspector({ id }: { id: string }) {
         <ImagePlus size={16} />
         画像をアップロード
       </button>
+      {unit.iconUrl && (
+        <button type="button" className="danger" onClick={() => clearUnitImage(unit.id)}>
+          <Trash2 size={16} />
+          画像を削除
+        </button>
+      )}
       <input
         ref={imageInputRef}
         type="file"

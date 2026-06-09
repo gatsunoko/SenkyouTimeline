@@ -82,6 +82,7 @@ interface ProjectStore {
   updateFaction: (id: string, patch: Partial<Faction>) => void;
   addUnit: (point?: MapPoint) => void;
   setUnitImage: (unitId: string, imageDataUrl: string) => void;
+  clearUnitImage: (unitId: string) => void;
   registerUnitAsset: (unitId: string) => void;
   duplicateUnitFromAsset: (assetId: string) => void;
   updateUnit: (id: string, patch: Partial<Unit>) => void;
@@ -91,6 +92,7 @@ interface ProjectStore {
   deleteUnit: (id: string) => void;
   addSite: (point?: MapPoint) => void;
   setSiteImage: (siteId: string, imageDataUrl: string) => void;
+  clearSiteImage: (siteId: string) => void;
   registerSiteAsset: (siteId: string) => void;
   duplicateSiteFromAsset: (assetId: string) => void;
   updateSite: (id: string, patch: Partial<Site>) => void;
@@ -845,6 +847,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       unit.nameBackgroundColor ||= "#111827";
     }),
 
+  clearUnitImage: (unitId) =>
+    commit(set, get, (project) => {
+      const unit = project.units.find((entry) => entry.id === unitId);
+      if (!unit) return;
+      unit.iconUrl = undefined;
+      unit.assetId = undefined;
+    }),
+
   registerUnitAsset: (unitId) =>
     commit(set, get, (project) => {
       project.unitAssets ||= [];
@@ -998,6 +1008,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       site.nameTextColor ||= "#f5efe3";
       site.nameBackgroundEnabled = site.nameBackgroundEnabled ?? false;
       site.nameBackgroundColor ||= "#111827";
+    }),
+
+  clearSiteImage: (siteId) =>
+    commit(set, get, (project) => {
+      const site = project.sites.find((entry) => entry.id === siteId);
+      if (!site) return;
+      site.iconUrl = undefined;
+      site.assetId = undefined;
     }),
 
   registerSiteAsset: (siteId) =>

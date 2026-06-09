@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { ImagePlus } from "lucide-react";
+import { ImagePlus, Trash2 } from "lucide-react";
 import { useProjectStore } from "../../store/projectStore";
 import { readFileAsDataUrl } from "../../utils/fileIO";
 import { resolveSiteFrame } from "../../utils/interpolation";
@@ -13,6 +13,7 @@ export function SiteInspector({ id }: { id: string }) {
   const updateSiteKeyframe = useProjectStore((state) => state.updateSiteKeyframe);
   const deleteSiteKeyframe = useProjectStore((state) => state.deleteSiteKeyframe);
   const setSiteImage = useProjectStore((state) => state.setSiteImage);
+  const clearSiteImage = useProjectStore((state) => state.clearSiteImage);
   const registerSiteAsset = useProjectStore((state) => state.registerSiteAsset);
   const duplicateSiteFromAsset = useProjectStore((state) => state.duplicateSiteFromAsset);
   const site = project.sites.find((entry) => entry.id === id);
@@ -84,6 +85,12 @@ export function SiteInspector({ id }: { id: string }) {
         <ImagePlus size={16} />
         画像をアップロード
       </button>
+      {site.iconUrl && (
+        <button type="button" className="danger" onClick={() => clearSiteImage(site.id)}>
+          <Trash2 size={16} />
+          画像を削除
+        </button>
+      )}
       <input
         ref={imageInputRef}
         type="file"
