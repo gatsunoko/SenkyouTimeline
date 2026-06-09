@@ -1,4 +1,4 @@
-import type { ChangeEvent, ReactNode } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 
 export function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
@@ -10,10 +10,54 @@ export function TextField({ label, value, onChange }: { label: string; value: st
 }
 
 export function NumberField({ label, value, onChange, min, max, step = 1 }: { label: string; value: number; onChange: (value: number) => void; min?: number; max?: number; step?: number }) {
+  const [draft, setDraft] = useState(String(value));
+  const [editing, setEditing] = useState(false);
+  const skipCommitRef = useRef(false);
+
+  useEffect(() => {
+    if (!editing) setDraft(String(value));
+  }, [editing, value]);
+
+  const commit = () => {
+    const parsed = Number(draft);
+    if (!Number.isFinite(parsed)) {
+      setDraft(String(value));
+      return;
+    }
+    const clamped = Math.min(max ?? parsed, Math.max(min ?? parsed, parsed));
+    setDraft(String(clamped));
+    if (clamped !== value) onChange(clamped);
+  };
+
   return (
     <label>
       {label}
-      <input type="number" value={value} min={min} max={max} step={step} onChange={(event) => onChange(Number(event.target.value))} />
+      <input
+        type="number"
+        value={draft}
+        min={min}
+        max={max}
+        step={step}
+        onFocus={() => setEditing(true)}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => {
+          if (skipCommitRef.current) {
+            skipCommitRef.current = false;
+            setDraft(String(value));
+          } else {
+            commit();
+          }
+          setEditing(false);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+          if (event.key === "Escape") {
+            skipCommitRef.current = true;
+            setDraft(String(value));
+            event.currentTarget.blur();
+          }
+        }}
+      />
     </label>
   );
 }

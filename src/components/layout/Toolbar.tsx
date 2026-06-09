@@ -1,16 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowDownToLine,
+  Camera,
   Castle,
   Download,
   FileDown,
   FileUp,
   Flag,
   ImagePlus,
-  Minus,
   MousePointer2,
   PencilLine,
-  Plus,
   Redo2,
   RotateCcw,
   Settings2,
@@ -20,7 +19,6 @@ import {
 } from "lucide-react";
 import { useProjectStore } from "../../store/projectStore";
 import type { ProjectData, ToolMode } from "../../types/project";
-import { MAP_HEIGHT, MAP_WIDTH } from "../../utils/coordinate";
 import { downloadJson, readFileAsDataUrl, readJsonFile } from "../../utils/fileIO";
 
 type ToolbarMenu = "file" | "export" | "canvas" | null;
@@ -34,34 +32,32 @@ const toolButtons: { tool: ToolMode; label: string; compactLabel: string; icon: 
   { tool: "addLabel", label: "ラベル追加", compactLabel: "ラベル", icon: Tags },
 ];
 
+function readImageDimensions(dataUrl: string) {
+  return new Promise<{ width: number; height: number }>((resolve, reject) => {
+    const image = new window.Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => reject(new Error("地図画像のサイズを取得できませんでした"));
+    image.src = dataUrl;
+  });
+}
+
 export function Toolbar() {
   const project = useProjectStore((state) => state.project);
   const tool = useProjectStore((state) => state.tool);
   const importProject = useProjectStore((state) => state.importProject);
   const exportProject = useProjectStore((state) => state.exportProject);
   const setMapImage = useProjectStore((state) => state.setMapImage);
-  const setMapSize = useProjectStore((state) => state.setMapSize);
-  const setMapAreaScale = useProjectStore((state) => state.setMapAreaScale);
+  const selectObject = useProjectStore((state) => state.selectObject);
   const setTool = useProjectStore((state) => state.setTool);
   const undo = useProjectStore((state) => state.undo);
   const redo = useProjectStore((state) => state.redo);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const mapWidth = Math.round(project.map.width ?? MAP_WIDTH);
-  const mapHeight = Math.round(project.map.height ?? MAP_HEIGHT);
-  const mapAreaScale = mapWidth / MAP_WIDTH;
-  const [mapWidthDraft, setMapWidthDraft] = useState(String(mapWidth));
-  const [mapHeightDraft, setMapHeightDraft] = useState(String(mapHeight));
   const [exportFpsDraft, setExportFpsDraft] = useState("30");
   const [exportStatus, setExportStatus] = useState("");
   const [exportBusy, setExportBusy] = useState(false);
   const [activeMenu, setActiveMenu] = useState<ToolbarMenu>(null);
-
-  useEffect(() => {
-    setMapWidthDraft(String(mapWidth));
-    setMapHeightDraft(String(mapHeight));
-  }, [mapWidth, mapHeight]);
 
   useEffect(() => {
     const onExportStatus = (event: Event) => {
@@ -97,19 +93,11 @@ export function Toolbar() {
 
   const onImageFile = async (file?: File) => {
     if (!file) return;
-    setMapImage(await readFileAsDataUrl(file));
+    const dataUrl = await readFileAsDataUrl(file);
+    const naturalSize = await readImageDimensions(dataUrl).catch(() => undefined);
+    setMapImage(dataUrl, naturalSize);
+    selectObject("mapImage", "mapImage");
     setActiveMenu(null);
-  };
-
-  const commitMapSizeDraft = () => {
-    const nextWidth = Number(mapWidthDraft);
-    const nextHeight = Number(mapHeightDraft);
-    if (!Number.isFinite(nextWidth) || !Number.isFinite(nextHeight)) {
-      setMapWidthDraft(String(mapWidth));
-      setMapHeightDraft(String(mapHeight));
-      return;
-    }
-    setMapSize(nextWidth, nextHeight);
   };
 
   const exportFps = () => {
@@ -228,49 +216,16 @@ export function Toolbar() {
       {activeMenu === "canvas" && (
         <div className="toolbar-popover toolbar-popover-canvas">
           <h3>キャンバス</h3>
-          <div className="toolbar-field-grid">
-            <label className="toolbar-field">
-              W
-              <input
-                type="number"
-                min={320}
-                max={6000}
-                step={10}
-                value={mapWidthDraft}
-                onChange={(event) => setMapWidthDraft(event.target.value)}
-                onBlur={commitMapSizeDraft}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") event.currentTarget.blur();
-                }}
-              />
-            </label>
-            <label className="toolbar-field">
-              H
-              <input
-                type="number"
-                min={180}
-                max={6000}
-                step={10}
-                value={mapHeightDraft}
-                onChange={(event) => setMapHeightDraft(event.target.value)}
-                onBlur={commitMapSizeDraft}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") event.currentTarget.blur();
-                }}
-              />
-            </label>
-          </div>
-          <div className="toolbar-scale-row">
-            <button type="button" onClick={() => setMapAreaScale(mapAreaScale - 0.25)} title="配置範囲を縮小">
-              <Minus size={17} />
-              縮小
+          <button type="button" onClick={() => selectObject("camera", "exportCamera")} title="書き出しカメラを選択">
+            <Camera size={17} />
+            書き出しカメラ
+          </button>
+          {project.map.imageDataUrl && (
+            <button type="button" onClick={() => selectObject("mapImage", "mapImage")} title="地図画像を選択">
+              <ImagePlus size={17} />
+              地図画像
             </button>
-            <span>{Math.round(mapAreaScale * 100)}%</span>
-            <button type="button" onClick={() => setMapAreaScale(mapAreaScale + 0.25)} title="配置範囲を拡大">
-              <Plus size={17} />
-              拡大
-            </button>
-          </div>
+          )}
         </div>
       )}
 

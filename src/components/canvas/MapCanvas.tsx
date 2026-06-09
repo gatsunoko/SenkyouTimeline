@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva";
+import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva";
 import type Konva from "konva";
 import { useProjectStore } from "../../store/projectStore";
 import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas } from "../../utils/coordinate";
 import { downloadBlob, downloadDataUrl } from "../../utils/fileIO";
-import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveLineKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRoutePoint } from "../../utils/interpolation";
+import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveCameraFrame, resolveLineKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRoutePoint } from "../../utils/interpolation";
 import { createZip, type ZipEntry } from "../../utils/zip";
 import { compareTime, parseTimelineSeconds } from "../../utils/time";
 import { ArrowShape } from "./ArrowShape";
@@ -16,6 +16,7 @@ import { UnitPiece } from "./UnitPiece";
 
 type TimelineExportFormat = "png-sequence" | "mp4";
 type TimelineExportRequest = { format: TimelineExportFormat; fps: number };
+type ExportViewport = { x: number; y: number; width: number; height: number };
 
 const mp4MimeTypes = ["video/mp4", "video/mp4;codecs=avc1.42E01E", "video/mp4;codecs=h264"];
 
@@ -66,6 +67,21 @@ function dispatchExportStatus(message: string, busy: boolean) {
   window.dispatchEvent(new CustomEvent("sengoku-export-status", { detail: { message, busy } }));
 }
 
+function resolveExportViewport(project: ReturnType<typeof useProjectStore.getState>["project"]): ExportViewport {
+  const camera = project.map.exportCamera ?? {
+    width: project.map.outputWidth || 1920,
+    height: project.map.outputHeight || 1080,
+    keyframes: [{ time: project.timeline.currentTime, displayDate: project.timeline.currentTime, x: 0, y: 0 }],
+  };
+  const frame = resolveCameraFrame(camera, project.timeline.currentTime, project.timeline.interpolationMode);
+  return {
+    x: frame.x,
+    y: frame.y,
+    width: Math.max(1, Math.round(frame.width)),
+    height: Math.max(1, Math.round(frame.height)),
+  };
+}
+
 function drawStageLayerToCanvas(stage: Konva.Stage, context: CanvasRenderingContext2D, width: number, height: number) {
   const sourceCanvas = stage.getLayers()[0]?.getCanvas()._canvas;
   if (!sourceCanvas) throw new Error("動画用キャンバスを取得できません");
@@ -79,10 +95,12 @@ export function MapCanvas() {
   const [size, setSize] = useState({ width: 900, height: 560 });
   const [stagePosition, setStagePosition] = useState({ x: 40, y: 30 });
   const [scale, setScale] = useState(0.58);
-  const [exportViewport, setExportViewport] = useState<{ width: number; height: number } | null>(null);
+  const [exportViewport, setExportViewport] = useState<ExportViewport | null>(null);
   const [spacePressed, setSpacePressed] = useState(false);
   const [middlePanning, setMiddlePanning] = useState(false);
   const [previewPoint, setPreviewPoint] = useState<{ x: number; y: number } | null>(null);
+  const [mapImageResizePreview, setMapImageResizePreview] = useState<{ width: number; height: number } | null>(null);
+  const [cameraDragPreview, setCameraDragPreview] = useState<{ x: number; y: number } | null>(null);
   const middlePanRef = useRef<{ active: boolean; x: number; y: number }>({ active: false, x: 0, y: 0 });
   const [mapImage, setMapImage] = useState<HTMLImageElement | null>(null);
 
@@ -104,6 +122,8 @@ export function MapCanvas() {
   const updateLineKeyframe = useProjectStore((state) => state.updateLineKeyframe);
   const updateArrowKeyframe = useProjectStore((state) => state.updateArrowKeyframe);
   const updateLabel = useProjectStore((state) => state.updateLabel);
+  const updateMapImagePlacement = useProjectStore((state) => state.updateMapImagePlacement);
+  const updateCameraKeyframe = useProjectStore((state) => state.updateCameraKeyframe);
   const addUnit = useProjectStore((state) => state.addUnit);
   const addSite = useProjectStore((state) => state.addSite);
   const addLabel = useProjectStore((state) => state.addLabel);
@@ -142,15 +162,15 @@ export function MapCanvas() {
   useEffect(() => {
     const exportHandler = () => {
       const sourceProject = useProjectStore.getState().project;
-      const exportWidth = Math.max(1, Math.round(sourceProject.map.width ?? MAP_WIDTH));
-      const exportHeight = Math.max(1, Math.round(sourceProject.map.height ?? MAP_HEIGHT));
-      void captureDataUrl(exportWidth, exportHeight)
+      const viewport = resolveExportViewport(sourceProject);
+      void captureDataUrl(viewport)
         .then((dataUrl) => downloadDataUrl(dataUrl, "sengoku-battle-map.png"))
         .catch((error) => {
           const message = error instanceof Error ? error.message : "\u66f8\u304d\u51fa\u3057\u306b\u5931\u6557\u3057\u307e\u3057\u305f";
           dispatchExportStatus(message, false);
           window.alert(message);
-        });
+        })
+        .finally(() => setExportViewport(null));
     };
     const timelineExportHandler = (event: Event) => {
       const detail = (event as CustomEvent<TimelineExportRequest>).detail;
@@ -161,35 +181,13 @@ export function MapCanvas() {
       setStagePosition({ x: 40, y: 30 });
     };
 
-    const captureDataUrl = async (width: number, height: number) => {
+    const captureDataUrl = async (viewport: ExportViewport) => {
       const stage = stageRef.current;
       if (!stage) throw new Error("\u30ad\u30e3\u30f3\u30d0\u30b9\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093");
+      setExportViewport(viewport);
       await waitForPaint();
-      const original = {
-        width: stage.width(),
-        height: stage.height(),
-        x: stage.x(),
-        y: stage.y(),
-        scaleX: stage.scaleX(),
-        scaleY: stage.scaleY(),
-      };
-      try {
-        stage.width(width);
-        stage.height(height);
-        stage.x(0);
-        stage.y(0);
-        stage.scale({ x: 1, y: 1 });
-        stage.batchDraw();
-        await waitForPaint();
-        return stage.toDataURL({ x: 0, y: 0, width, height, pixelRatio: 1, mimeType: "image/png" });
-      } finally {
-        stage.width(original.width);
-        stage.height(original.height);
-        stage.x(original.x);
-        stage.y(original.y);
-        stage.scale({ x: original.scaleX, y: original.scaleY });
-        stage.batchDraw();
-      }
+      stage.batchDraw();
+      return stage.toDataURL({ x: 0, y: 0, width: viewport.width, height: viewport.height, pixelRatio: 1, mimeType: "image/png" });
     };
 
     const exportTimeline = async (request: TimelineExportRequest) => {
@@ -200,8 +198,9 @@ export function MapCanvas() {
       const state = useProjectStore.getState();
       const sourceProject = state.project;
       const originalTime = sourceProject.timeline.currentTime;
-      const exportWidth = Math.max(1, Math.round(sourceProject.map.width ?? MAP_WIDTH));
-      const exportHeight = Math.max(1, Math.round(sourceProject.map.height ?? MAP_HEIGHT));
+      const firstViewport = resolveExportViewport(sourceProject);
+      const exportWidth = firstViewport.width;
+      const exportHeight = firstViewport.height;
       const bounds = getTimelineExportBounds(sourceProject);
       const times = buildExportTimes(bounds.start, bounds.end, fps);
       const basename = safeFilename(sourceProject.projectName);
@@ -212,7 +211,7 @@ export function MapCanvas() {
           const entries: ZipEntry[] = [];
           for (let index = 0; index < times.length; index += 1) {
             useProjectStore.getState().setCurrentTime(times[index].toFixed(4));
-            const dataUrl = await captureDataUrl(exportWidth, exportHeight);
+            const dataUrl = await captureDataUrl(resolveExportViewport(useProjectStore.getState().project));
             entries.push({
               name: `${basename}_${String(index + 1).padStart(pad, "0")}.png`,
               data: await dataUrlToBytes(dataUrl),
@@ -253,18 +252,20 @@ export function MapCanvas() {
         const durationSeconds = Math.max(1 / fps, bounds.end - bounds.start);
         let animationFrameId: number | null = null;
         try {
-          setExportViewport({ width: exportWidth, height: exportHeight });
           useProjectStore.getState().setCurrentTime(bounds.start.toFixed(4));
+          setExportViewport(resolveExportViewport(useProjectStore.getState().project));
           await waitForPaint();
           drawStageLayerToCanvas(stage, context, exportWidth, exportHeight);
 
           recorder.start();
           const startedAt = performance.now();
           await new Promise<void>((resolve) => {
-            const tick = (now: number) => {
+            const tick = async (now: number) => {
               const elapsedSeconds = Math.min(durationSeconds, (now - startedAt) / 1000);
-              drawStageLayerToCanvas(stage, context, exportWidth, exportHeight);
               useProjectStore.getState().setCurrentTime((bounds.start + elapsedSeconds).toFixed(4));
+              setExportViewport(resolveExportViewport(useProjectStore.getState().project));
+              await waitForPaint();
+              drawStageLayerToCanvas(stage, context, exportWidth, exportHeight);
               const progress = Math.min(100, Math.round((elapsedSeconds / durationSeconds) * 100));
               dispatchExportStatus(`MP4\u66f8\u304d\u51fa\u3057\u4e2d ${progress}%`, true);
               if (elapsedSeconds >= durationSeconds) {
@@ -272,9 +273,9 @@ export function MapCanvas() {
                 resolve();
                 return;
               }
-              animationFrameId = window.requestAnimationFrame(tick);
+              animationFrameId = window.requestAnimationFrame((time) => void tick(time));
             };
-            animationFrameId = window.requestAnimationFrame(tick);
+            animationFrameId = window.requestAnimationFrame((time) => void tick(time));
           });
           recorder.stop();
           await stopped;
@@ -291,6 +292,7 @@ export function MapCanvas() {
         window.alert(message);
       } finally {
         useProjectStore.getState().setCurrentTime(originalTime);
+        setExportViewport(null);
       }
     };
 
@@ -395,28 +397,46 @@ export function MapCanvas() {
     }
   };
 
-  const gridLines = [];
-  for (let x = 0; x <= mapWidth; x += 80) gridLines.push(<Line key={`x${x}`} points={[x, 0, x, mapHeight]} stroke="#273241" strokeWidth={1} listening={false} />);
-  for (let y = 0; y <= mapHeight; y += 80) gridLines.push(<Line key={`y${y}`} points={[0, y, mapWidth, y]} stroke="#273241" strokeWidth={1} listening={false} />);
+  const resolvedCameraFrame = resolveExportViewport(project);
+  const cameraFrame = cameraDragPreview ? { ...resolvedCameraFrame, ...cameraDragPreview } : resolvedCameraFrame;
+  const viewportWorld = exportViewport ?? {
+    x: -stagePosition.x / scale,
+    y: -stagePosition.y / scale,
+    width: size.width / scale,
+    height: size.height / scale,
+  };
+  const contentOffset = exportViewport ? { x: -exportViewport.x, y: -exportViewport.y } : { x: 0, y: 0 };
 
   const mapImageRect = (() => {
     if (!mapImage?.naturalWidth || !mapImage.naturalHeight) return null;
     const imageAspect = mapImage.naturalWidth / mapImage.naturalHeight;
     const canvasAspect = mapWidth / mapHeight;
-    if (imageAspect > canvasAspect) {
-      const width = mapWidth;
-      const height = mapWidth / imageAspect;
-      return { x: 0, y: (mapHeight - height) / 2, width, height };
-    }
-    const height = mapHeight;
-    const width = mapHeight * imageAspect;
-    return { x: (mapWidth - width) / 2, y: 0, width, height };
+    const fallback =
+      imageAspect > canvasAspect
+        ? { x: 0, y: (mapHeight - mapWidth / imageAspect) / 2, width: mapWidth, height: mapWidth / imageAspect }
+        : { x: (mapWidth - mapHeight * imageAspect) / 2, y: 0, width: mapHeight * imageAspect, height: mapHeight };
+    return {
+      x: project.map.imageX ?? fallback.x,
+      y: project.map.imageY ?? fallback.y,
+      width: mapImageResizePreview?.width ?? project.map.imageWidth ?? fallback.width,
+      height: mapImageResizePreview?.height ?? project.map.imageHeight ?? fallback.height,
+    };
   })();
+  const gridPadding = 320;
+  const gridLeft = Math.floor((Math.min(viewportWorld.x, 0, cameraFrame.x, mapImageRect?.x ?? 0) - gridPadding) / 80) * 80;
+  const gridTop = Math.floor((Math.min(viewportWorld.y, 0, cameraFrame.y, mapImageRect?.y ?? 0) - gridPadding) / 80) * 80;
+  const gridRight = Math.ceil((Math.max(viewportWorld.x + viewportWorld.width, mapWidth, cameraFrame.x + cameraFrame.width, mapImageRect ? mapImageRect.x + mapImageRect.width : 0) + gridPadding) / 80) * 80;
+  const gridBottom = Math.ceil((Math.max(viewportWorld.y + viewportWorld.height, mapHeight, cameraFrame.y + cameraFrame.height, mapImageRect ? mapImageRect.y + mapImageRect.height : 0) + gridPadding) / 80) * 80;
+  const gridLines = [];
+  for (let x = gridLeft; x <= gridRight; x += 80) gridLines.push(<Line key={`x${x}`} points={[x, gridTop, x, gridBottom]} stroke="#273241" strokeWidth={1} listening={false} />);
+  for (let y = gridTop; y <= gridBottom; y += 80) gridLines.push(<Line key={`y${y}`} points={[gridLeft, y, gridRight, y]} stroke="#273241" strokeWidth={1} listening={false} />);
 
   const withoutSelected = <T extends { id: string }>(items: T[], type: typeof selected.type) => {
-    if (selected.type !== type || !selected.id) return items;
+    if (exportViewport || selected.type !== type || !selected.id) return items;
     return items.filter((item) => item.id !== selected.id);
   };
+  const isSelected = (type: typeof selected.type, id: string) => !exportViewport && selected.type === type && selected.id === id;
+  const cameraHandleOffset = { x: -40, y: -36 };
   const routePreviewUnit = routePreviewUnitId ? project.units.find((unit) => unit.id === routePreviewUnitId) : undefined;
   const activePreviewRoute = routePreviewUnit?.route;
   const activePreviewRouteSegments = getUnitRouteSegments(activePreviewRoute);
@@ -495,14 +515,30 @@ export function MapCanvas() {
         }}
       >
         <Layer>
-          <Rect x={0} y={0} width={mapWidth} height={mapHeight} fill="#16202b" stroke="#465061" strokeWidth={2} listening={false} />
-          {mapImage && mapImageRect ? (
-            <KonvaImage image={mapImage} x={mapImageRect.x} y={mapImageRect.y} width={mapImageRect.width} height={mapImageRect.height} opacity={0.95} listening={false} />
-          ) : (
-            <>
-              <Rect x={0} y={0} width={mapWidth} height={mapHeight} fill="#192332" listening={false} />
-              {gridLines}
-            </>
+          <Group x={contentOffset.x} y={contentOffset.y}>
+          <Rect x={gridLeft} y={gridTop} width={gridRight - gridLeft} height={gridBottom - gridTop} fill="#16202b" listening={false} />
+          {gridLines}
+          {mapImage && mapImageRect && (
+            <Group
+              x={mapImageRect.x}
+              y={mapImageRect.y}
+              draggable={!exportViewport && tool === "select" && !spacePressed}
+              onClick={(event) => {
+                if (tool !== "select") return;
+                event.cancelBubble = true;
+                selectObject("mapImage", "mapImage");
+              }}
+              onTap={(event) => {
+                if (tool !== "select") return;
+                event.cancelBubble = true;
+                selectObject("mapImage", "mapImage");
+              }}
+              onDragEnd={(event) => {
+                updateMapImagePlacement({ imageX: event.target.x(), imageY: event.target.y() });
+              }}
+            >
+              <KonvaImage image={mapImage} width={mapImageRect.width} height={mapImageRect.height} opacity={0.95} listening={!exportViewport && tool === "select"} />
+            </Group>
           )}
 
           {withoutSelected(project.lines, "line").map((line) => {
@@ -514,9 +550,9 @@ export function MapCanvas() {
                 key={line.id}
                 line={line}
                 frame={frame}
-                selected={selected.type === "line" && selected.id === line.id}
+                selected={isSelected("line", line.id)}
                 preview={isPreviewRouteSource("line", line.id)}
-                selectedPointIndices={selected.type === "line" && selected.id === line.id ? selectedLinePointIndices : []}
+                selectedPointIndices={isSelected("line", line.id) ? selectedLinePointIndices : []}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
                 onSelect={() => selectObject("line", line.id)}
@@ -540,9 +576,9 @@ export function MapCanvas() {
                 key={arrow.id}
                 arrow={arrow}
                 frame={frame}
-                selected={selected.type === "arrow" && selected.id === arrow.id}
+                selected={isSelected("arrow", arrow.id)}
                 preview={isPreviewRouteSource("arrow", arrow.id)}
-                selectedPointIndices={selected.type === "arrow" && selected.id === arrow.id ? selectedArrowPointIndices : []}
+                selectedPointIndices={isSelected("arrow", arrow.id) ? selectedArrowPointIndices : []}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
                 onSelect={() => selectObject("arrow", arrow.id)}
@@ -582,7 +618,7 @@ export function MapCanvas() {
           {withoutSelected(project.sites, "site").map((site) => {
             const siteFrame = resolveSiteFrame(site, project.timeline.currentTime);
             const faction = project.factions.find((entry) => entry.id === siteFrame.effectiveFactionId);
-            return <SitePiece key={site.id} site={site} color={faction?.color ?? "#8a96a8"} selected={selected.type === "site" && selected.id === site.id} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
+            return <SitePiece key={site.id} site={site} color={faction?.color ?? "#8a96a8"} selected={isSelected("site", site.id)} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
           })}
 
           {withoutSelected(project.units, "unit").map((unit) => {
@@ -595,7 +631,7 @@ export function MapCanvas() {
                 unit={unit}
                 frame={frame}
                 color={faction?.color ?? "#8a96a8"}
-                selected={selected.type === "unit" && selected.id === unit.id}
+                selected={isSelected("unit", unit.id)}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
                 onSelect={() => selectObject("unit", unit.id)}
@@ -608,16 +644,16 @@ export function MapCanvas() {
           {withoutSelected(project.events, "event")
             .filter((event) => Math.abs(parseTimelineSeconds(event.time) - parseTimelineSeconds(project.timeline.currentTime)) < 0.25)
             .map((event) => (
-              <EventMarker key={event.id} event={event} selected={selected.type === "event" && selected.id === event.id} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("event", event.id)} />
+              <EventMarker key={event.id} event={event} selected={isSelected("event", event.id)} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("event", event.id)} />
             ))}
 
           {withoutSelected(project.labels, "label")
             .filter((label) => (!label.startTime || compareTime(label.startTime, project.timeline.currentTime) <= 0) && (!label.endTime || compareTime(label.endTime, project.timeline.currentTime) >= 0))
             .map((label) => (
-              <LabelShape key={label.id} label={label} selected={selected.type === "label" && selected.id === label.id} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />
+              <LabelShape key={label.id} label={label} selected={isSelected("label", label.id)} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />
             ))}
 
-          {selected.type === "line" &&
+          {!exportViewport && selected.type === "line" &&
             (() => {
               const line = project.lines.find((entry) => entry.id === selected.id);
               if (!line) return null;
@@ -643,7 +679,7 @@ export function MapCanvas() {
               );
             })()}
 
-          {selected.type === "arrow" &&
+          {!exportViewport && selected.type === "arrow" &&
             (() => {
               const arrow = project.arrows.find((entry) => entry.id === selected.id);
               const arrowFrameTime = arrow ? previewRouteTime("arrow", arrow.id) ?? project.timeline.currentTime : project.timeline.currentTime;
@@ -670,7 +706,7 @@ export function MapCanvas() {
               );
             })()}
 
-          {selected.type === "site" &&
+          {!exportViewport && selected.type === "site" &&
             (() => {
               const site = project.sites.find((entry) => entry.id === selected.id);
               if (!site) return null;
@@ -679,7 +715,7 @@ export function MapCanvas() {
               return <SitePiece key={`${site.id}-selected-front`} site={site} color={faction?.color ?? "#8a96a8"} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
             })()}
 
-          {selected.type === "unit" &&
+          {!exportViewport && selected.type === "unit" &&
             (() => {
               const unit = project.units.find((entry) => entry.id === selected.id);
               if (!unit) return null;
@@ -702,19 +738,151 @@ export function MapCanvas() {
               );
             })()}
 
-          {selected.type === "event" &&
+          {!exportViewport && selected.type === "event" &&
             (() => {
               const event = project.events.find((entry) => entry.id === selected.id);
               if (!event || Math.abs(parseTimelineSeconds(event.time) - parseTimelineSeconds(project.timeline.currentTime)) >= 0.25) return null;
               return <EventMarker key={`${event.id}-selected-front`} event={event} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("event", event.id)} />;
             })()}
 
-          {selected.type === "label" &&
+          {!exportViewport && selected.type === "label" &&
             (() => {
               const label = project.labels.find((entry) => entry.id === selected.id);
               if (!label || (label.startTime && compareTime(label.startTime, project.timeline.currentTime) > 0) || (label.endTime && compareTime(label.endTime, project.timeline.currentTime) < 0)) return null;
               return <LabelShape key={`${label.id}-selected-front`} label={label} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />;
             })()}
+          {!exportViewport && selected.type === "mapImage" && mapImageRect && (
+            <Group x={mapImageRect.x} y={mapImageRect.y}>
+              <Rect x={0} y={0} width={mapImageRect.width} height={mapImageRect.height} stroke="#f4d06f" strokeWidth={2} dash={[8, 6]} listening={false} />
+              <Circle
+                x={mapImageRect.width}
+                y={mapImageRect.height}
+                radius={8}
+                fill="#f4d06f"
+                stroke="#1b1f29"
+                strokeWidth={2}
+                draggable
+                onMouseDown={(event) => {
+                  event.cancelBubble = true;
+                }}
+                onDragMove={(event) => {
+                  event.cancelBubble = true;
+                  setMapImageResizePreview({
+                    width: Math.max(16, event.target.x()),
+                    height: Math.max(16, event.target.y()),
+                  });
+                }}
+                onDragEnd={(event) => {
+                  event.cancelBubble = true;
+                  const width = Math.max(16, event.target.x());
+                  const height = Math.max(16, event.target.y());
+                  setMapImageResizePreview(null);
+                  updateMapImagePlacement({ imageWidth: width, imageHeight: height });
+                }}
+              />
+            </Group>
+          )}
+          {!exportViewport && (
+            <Group>
+              <Group x={cameraFrame.x} y={cameraFrame.y} listening={false}>
+                <Rect
+                  x={0}
+                  y={0}
+                  width={cameraFrame.width}
+                  height={cameraFrame.height}
+                  stroke={selected.type === "camera" ? "#f4d06f" : "#f8fafc"}
+                  strokeWidth={selected.type === "camera" ? 3 : 2}
+                  dash={[14, 8]}
+                  opacity={selected.type === "camera" ? 1 : 0.65}
+                  listening={false}
+                />
+                {selected.type === "camera" && (
+                  <>
+                    <Line points={[0, 0, 42, 0, 0, 0, 0, 42]} stroke="#f4d06f" strokeWidth={4} listening={false} />
+                    <Line points={[cameraFrame.width, 0, cameraFrame.width - 42, 0, cameraFrame.width, 0, cameraFrame.width, 42]} stroke="#f4d06f" strokeWidth={4} listening={false} />
+                    <Line points={[0, cameraFrame.height, 42, cameraFrame.height, 0, cameraFrame.height, 0, cameraFrame.height - 42]} stroke="#f4d06f" strokeWidth={4} listening={false} />
+                    <Line points={[cameraFrame.width, cameraFrame.height, cameraFrame.width - 42, cameraFrame.height, cameraFrame.width, cameraFrame.height, cameraFrame.width, cameraFrame.height - 42]} stroke="#f4d06f" strokeWidth={4} listening={false} />
+                  </>
+                )}
+              </Group>
+              {selected.type === "camera" && (
+                <Rect
+                  x={cameraFrame.x}
+                  y={cameraFrame.y}
+                  width={cameraFrame.width}
+                  height={cameraFrame.height}
+                  stroke="#f4d06f"
+                  strokeWidth={24}
+                  opacity={0.01}
+                  hitStrokeWidth={32}
+                  draggable={tool === "select" && !spacePressed}
+                  onClick={(event) => {
+                    event.cancelBubble = true;
+                  }}
+                  onTap={(event) => {
+                    event.cancelBubble = true;
+                  }}
+                  onDragStart={(event) => {
+                    event.cancelBubble = true;
+                    setCameraDragPreview({ x: resolvedCameraFrame.x, y: resolvedCameraFrame.y });
+                  }}
+                  onDragMove={(event) => {
+                    event.cancelBubble = true;
+                    setCameraDragPreview({
+                      x: event.target.x(),
+                      y: event.target.y(),
+                    });
+                  }}
+                  onDragEnd={(event) => {
+                    event.cancelBubble = true;
+                    const nextX = event.target.x();
+                    const nextY = event.target.y();
+                    event.target.position({ x: nextX, y: nextY });
+                    setCameraDragPreview(null);
+                    updateCameraKeyframe(project.timeline.currentTime, { x: nextX, y: nextY });
+                  }}
+                />
+              )}
+              <Group
+                x={cameraFrame.x + cameraHandleOffset.x}
+                y={cameraFrame.y + cameraHandleOffset.y}
+                draggable={tool === "select" && !spacePressed}
+                onClick={(event) => {
+                  event.cancelBubble = true;
+                  selectObject("camera", "exportCamera");
+                }}
+                onTap={(event) => {
+                  event.cancelBubble = true;
+                  selectObject("camera", "exportCamera");
+                }}
+                onDragStart={(event) => {
+                  event.cancelBubble = true;
+                  selectObject("camera", "exportCamera");
+                  setCameraDragPreview({ x: resolvedCameraFrame.x, y: resolvedCameraFrame.y });
+                }}
+                onDragMove={(event) => {
+                  event.cancelBubble = true;
+                  setCameraDragPreview({
+                    x: event.target.x() - cameraHandleOffset.x,
+                    y: event.target.y() - cameraHandleOffset.y,
+                  });
+                }}
+                onDragEnd={(event) => {
+                  event.cancelBubble = true;
+                  const nextX = event.target.x() - cameraHandleOffset.x;
+                  const nextY = event.target.y() - cameraHandleOffset.y;
+                  event.target.position({ x: nextX + cameraHandleOffset.x, y: nextY + cameraHandleOffset.y });
+                  setCameraDragPreview(null);
+                  updateCameraKeyframe(project.timeline.currentTime, { x: nextX, y: nextY });
+                }}
+              >
+                <Rect x={0} y={8} width={30} height={20} fill={selected.type === "camera" ? "#f4d06f" : "#f8fafc"} stroke="#1b1f29" strokeWidth={2} cornerRadius={4} />
+                <Rect x={6} y={3} width={10} height={7} fill={selected.type === "camera" ? "#f4d06f" : "#f8fafc"} stroke="#1b1f29" strokeWidth={2} cornerRadius={2} />
+                <Circle x={15} y={18} radius={6} fill="#1b1f29" stroke={selected.type === "camera" ? "#f4d06f" : "#f8fafc"} strokeWidth={2} />
+              </Group>
+            </Group>
+          )}
+          </Group>
         </Layer>
       </Stage>
       <div className="canvas-hint">

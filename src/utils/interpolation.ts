@@ -1,4 +1,4 @@
-import type { ArrowKeyframe, BattleArrow, BattleLine, InterpolationMode, LineKeyframe, MapPoint, Site, SiteKeyframe, Unit, UnitKeyframe, UnitRoute, UnitRouteSegment } from "../types/project";
+import type { ArrowKeyframe, BattleArrow, BattleLine, CameraKeyframe, ExportCamera, InterpolationMode, LineKeyframe, MapPoint, Site, SiteKeyframe, Unit, UnitKeyframe, UnitRoute, UnitRouteSegment } from "../types/project";
 import { compareTime, parseTimelineSeconds } from "./time";
 
 export interface ResolvedUnitFrame extends UnitKeyframe {
@@ -10,8 +10,17 @@ export interface ResolvedSiteFrame extends SiteKeyframe {
   effectiveFactionId: string;
 }
 
+export interface ResolvedCameraFrame extends CameraKeyframe {
+  width: number;
+  height: number;
+}
+
 function orderedUnitKeyframes(unit: Unit) {
   return [...unit.keyframes].sort((a, b) => compareTime(a.time, b.time));
+}
+
+function orderedCameraKeyframes(camera: ExportCamera) {
+  return [...camera.keyframes].sort((a, b) => compareTime(a.time, b.time));
 }
 
 function resolveUnitSize(unit: Unit, keyframes: UnitKeyframe[], currentTime: string, mode: InterpolationMode) {
@@ -202,6 +211,37 @@ export function getUnitRouteTimeRange(route?: UnitRoute | null) {
     startTime: segments[0].startTime,
     endTime: segments[segments.length - 1].endTime,
   };
+}
+
+export function resolveCameraFrame(camera: ExportCamera, currentTime: string, mode: InterpolationMode): ResolvedCameraFrame {
+  const keyframes = orderedCameraKeyframes(camera);
+  const fallback = keyframes[0] ?? { time: currentTime, displayDate: currentTime, x: 0, y: 0 };
+  const width = Math.max(1, Math.round(camera.width));
+  const height = Math.max(1, Math.round(camera.height));
+  if (keyframes.length === 0) return { ...fallback, width, height };
+
+  const previous = [...keyframes].reverse().find((frame) => compareTime(frame.time, currentTime) <= 0);
+  const next = keyframes.find((frame) => compareTime(frame.time, currentTime) >= 0);
+  const base = previous ?? next ?? fallback;
+
+  if (mode === "linear" && previous && next && previous.time !== next.time) {
+    const start = parseTimelineSeconds(previous.time);
+    const end = parseTimelineSeconds(next.time);
+    const current = parseTimelineSeconds(currentTime);
+    if (!Number.isNaN(start) && !Number.isNaN(end) && !Number.isNaN(current) && end > start) {
+      const t = Math.min(1, Math.max(0, (current - start) / (end - start)));
+      return {
+        time: currentTime,
+        displayDate: base.displayDate,
+        x: previous.x + (next.x - previous.x) * t,
+        y: previous.y + (next.y - previous.y) * t,
+        width,
+        height,
+      };
+    }
+  }
+
+  return { ...base, width, height };
 }
 
 function resolveRouteSegmentPoints(segment: UnitRouteSegment, lines: BattleLine[], arrows: BattleArrow[], routeTime: string, mode: InterpolationMode) {

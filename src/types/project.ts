@@ -120,7 +120,7 @@ export type EventType =
   | "peace"
   | "other";
 
-export type SelectableType = "faction" | "unit" | "site" | "line" | "arrow" | "event" | "label" | "frame";
+export type SelectableType = "faction" | "unit" | "site" | "line" | "arrow" | "event" | "label" | "frame" | "camera" | "mapImage";
 export type ToolMode = "select" | "addUnit" | "addSite" | "drawLine" | "drawArrow" | "addLabel";
 
 export interface MapPoint {
@@ -128,13 +128,31 @@ export interface MapPoint {
   y: number;
 }
 
+export interface CameraKeyframe extends MapPoint {
+  time: string;
+  displayDate: string;
+}
+
+export interface ExportCamera {
+  width: number;
+  height: number;
+  keyframes: CameraKeyframe[];
+}
+
 export interface ProjectMap {
   imageDataUrl?: string;
   imagePath?: string;
+  imageX?: number;
+  imageY?: number;
+  imageWidth?: number;
+  imageHeight?: number;
+  imageNaturalWidth?: number;
+  imageNaturalHeight?: number;
   width?: number;
   height?: number;
   outputWidth: number;
   outputHeight: number;
+  exportCamera?: ExportCamera;
 }
 
 export interface TimelineFrame {

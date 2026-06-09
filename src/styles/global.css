@@ -195,8 +195,7 @@ textarea {
   justify-content: flex-start;
 }
 
-.toolbar-field,
-.toolbar-field-grid {
+.toolbar-field {
   display: grid;
   gap: 6px;
 }
@@ -212,29 +211,13 @@ textarea {
   padding: 4px 7px;
 }
 
-.toolbar-field-grid {
-  grid-template-columns: 1fr 1fr;
-}
-
-.toolbar-export-grid,
-.toolbar-scale-row {
+.toolbar-export-grid {
   display: grid;
   gap: 8px;
 }
 
 .toolbar-export-grid {
   grid-template-columns: 1fr 1fr;
-}
-
-.toolbar-scale-row {
-  grid-template-columns: 1fr 56px 1fr;
-  align-items: center;
-}
-
-.toolbar-scale-row span {
-  color: #c6d0df;
-  font-size: 12px;
-  text-align: center;
 }
 
 .toolbar-status {
@@ -729,6 +712,13 @@ textarea {
   margin: -2px 0 10px;
   color: #f0c665;
   font-size: 12px;
+}
+
+.inspector-note {
+  margin: 0;
+  color: #aeb9c8;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .point-row {
