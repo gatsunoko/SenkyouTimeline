@@ -161,15 +161,3 @@ export const eventTypeLabels: Record<EventType, string> = {
   other: "その他",
 };
 
-export const statusMarks = [
-  "包囲中",
-  "落城",
-  "降伏",
-  "焼き討ち",
-  "撤退",
-  "壊滅",
-  "寝返り",
-  "援軍到着",
-  "進軍中",
-  "待機中",
-] as const;

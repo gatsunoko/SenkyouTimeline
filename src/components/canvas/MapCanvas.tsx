@@ -99,7 +99,6 @@ export function MapCanvas() {
   const [scale, setScale] = useState(0.58);
   const [exportViewport, setExportViewport] = useState<ExportViewport | null>(null);
   const [spacePressed, setSpacePressed] = useState(false);
-  const [middlePanning, setMiddlePanning] = useState(false);
   const [previewPoint, setPreviewPoint] = useState<{ x: number; y: number } | null>(null);
   const [mapImageResizePreview, setMapImageResizePreview] = useState<{ width: number; height: number } | null>(null);
   const [cameraDragPreview, setCameraDragPreview] = useState<{ x: number; y: number } | null>(null);
@@ -362,7 +361,6 @@ export function MapCanvas() {
 
   const stopMiddlePan = () => {
     middlePanRef.current.active = false;
-    setMiddlePanning(false);
   };
 
   const onWheel = (event: Konva.KonvaEventObject<WheelEvent>) => {
@@ -511,7 +509,6 @@ export function MapCanvas() {
           if (event.evt.button === 1) {
             event.evt.preventDefault();
             middlePanRef.current = { active: true, x: event.evt.clientX, y: event.evt.clientY };
-            setMiddlePanning(true);
           }
         }}
         onMouseUp={stopMiddlePan}

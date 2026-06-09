@@ -105,7 +105,6 @@ interface ProjectStore {
   historyFuture: ProjectData[];
   createNewProject: () => void;
   loadProject: (project: ProjectData) => void;
-  loadSample: (index: number) => void;
   setCurrentTime: (time: string) => void;
   moveFrame: (direction: 1 | -1) => void;
   addTimelineKeyframe: () => void;
@@ -121,7 +120,6 @@ interface ProjectStore {
   updateUnit: (id: string, patch: Partial<Unit>) => void;
   setUnitRoute: (id: string, route?: UnitRoute) => void;
   toggleUnitRoutePreview: (id: string) => void;
-  clearRoutePreview: () => void;
   deleteUnit: (id: string) => void;
   addSite: (point?: MapPoint) => void;
   setSiteImage: (siteId: string, imageDataUrl: string) => void;
@@ -166,7 +164,6 @@ interface ProjectStore {
   exportProject: () => ProjectData;
   importProject: (project: ProjectData) => void;
   setTool: (tool: ToolMode) => void;
-  setDrawingPoints: (points: MapPoint[]) => void;
   addDrawingPoint: (point: MapPoint) => void;
   cancelDrawing: () => void;
   finishDrawing: () => void;
@@ -646,11 +643,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       historyFuture: [],
     }),
 
-  loadSample: (index) => {
-    const sample = sampleProjects[index] ?? sampleProjects[0] ?? emptyProject;
-    get().loadProject(sample);
-  },
-
   setCurrentTime: (time) =>
     set((state) => ({
       project: {
@@ -1064,7 +1056,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((state) => ({
       routePreviewUnitId: state.routePreviewUnitId === id ? null : id,
     })),
-  clearRoutePreview: () => set({ routePreviewUnitId: null }),
   deleteUnit: (id) =>
     commit(set, get, (project) => {
       const previousRoute = project.units.find((unit) => unit.id === id)?.route;
@@ -1634,7 +1625,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       drawingPoints: tool === "drawLine" || tool === "drawArrow" ? state.drawingPoints : [],
       selected: tool !== "mapImageEdit" && state.selected.type === "mapImage" ? { type: null, id: null } : state.selected,
     })),
-  setDrawingPoints: (points) => set({ drawingPoints: points }),
   addDrawingPoint: (point) => set({ drawingPoints: [...get().drawingPoints, clampPoint(point)] }),
   cancelDrawing: () => set({ drawingPoints: [], tool: "select" }),
   finishDrawing: () => {
