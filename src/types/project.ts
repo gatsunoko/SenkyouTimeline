@@ -167,10 +167,12 @@ export interface Faction {
 export interface UnitAsset {
   id: string;
   name: string;
-  imageDataUrl: string;
+  imageDataUrl?: string;
   size: number;
   factionId: string;
   shape?: UnitShape;
+  rotation?: number;
+  showName?: boolean;
   nameTextColor?: string;
   nameBackgroundEnabled?: boolean;
   nameBackgroundColor?: string;

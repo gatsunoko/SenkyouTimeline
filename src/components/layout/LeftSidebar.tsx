@@ -97,16 +97,25 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
           {project.unitAssets.length > 0 && (
             <>
               <div className="sidebar-subheading">登録アセット</div>
-              {project.unitAssets.map((asset) => (
-                <button className="list-row asset-row" type="button" key={asset.id} onClick={() => duplicateUnitFromAsset(asset.id)}>
-                  <img className="asset-thumb" src={asset.imageDataUrl} alt="" />
-                  <span>
-                    <strong>{asset.name}</strong>
-                    <small>クリックで複製</small>
-                  </span>
-                  <Copy size={16} />
-                </button>
-              ))}
+              {project.unitAssets.map((asset) => {
+                const faction = project.factions.find((entry) => entry.id === asset.factionId);
+                return (
+                  <button className="list-row asset-row" type="button" key={asset.id} onClick={() => duplicateUnitFromAsset(asset.id)}>
+                    {asset.imageDataUrl ? (
+                      <img className="asset-thumb" src={asset.imageDataUrl} alt="" />
+                    ) : (
+                      <span className="asset-thumb asset-thumb-fallback" style={{ backgroundColor: faction?.color ?? "#0c121b" }}>
+                        <Flag size={15} />
+                      </span>
+                    )}
+                    <span>
+                      <strong>{asset.name}</strong>
+                      <small>クリックで複製</small>
+                    </span>
+                    <Copy size={16} />
+                  </button>
+                );
+              })}
             </>
           )}
         </section>

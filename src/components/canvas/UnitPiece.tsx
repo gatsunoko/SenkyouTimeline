@@ -265,8 +265,8 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
         </>
       ) : (
         <>
-          {unit.nameBackgroundEnabled && <Rect x={-bodyNameWidth / 2} y={bodyNameBackgroundY} width={bodyNameWidth} height={bodyNameBackgroundHeight} fill={unit.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
-          <Text text={unit.name} x={-width / 2 + 8} y={bodyNameTextY} width={width - 16} height={bodyNameFontSize + 2} align="center" fontSize={bodyNameFontSize} fontStyle="bold" fill={unit.nameTextColor ?? textColor} ellipsis />
+          {showName && unit.nameBackgroundEnabled && <Rect x={-bodyNameWidth / 2} y={bodyNameBackgroundY} width={bodyNameWidth} height={bodyNameBackgroundHeight} fill={unit.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
+          {showName && <Text text={unit.name} x={-width / 2 + 8} y={bodyNameTextY} width={width - 16} height={bodyNameFontSize + 2} align="center" fontSize={bodyNameFontSize} fontStyle="bold" fill={unit.nameTextColor ?? textColor} ellipsis />}
         </>
       )}
     </Group>

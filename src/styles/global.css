@@ -452,6 +452,13 @@ textarea {
   object-fit: contain;
 }
 
+.asset-thumb-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #f8fafc;
+}
+
 .unit-image-preview {
   display: grid;
   grid-template-columns: 54px 1fr;

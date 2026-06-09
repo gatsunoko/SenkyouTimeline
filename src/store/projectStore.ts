@@ -346,6 +346,8 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     asset.size ||= 1;
     asset.factionId ||= normalized.factions?.[0]?.id ?? "faction_default_a";
     asset.shape = asset.shape === "pentagon" ? "pentagon" : "rectangle";
+    asset.rotation = Number.isFinite(asset.rotation) ? asset.rotation : 0;
+    asset.showName = asset.showName ?? true;
     asset.nameTextColor ||= "#f5efe3";
     asset.nameBackgroundEnabled = asset.nameBackgroundEnabled ?? false;
     asset.nameBackgroundColor ||= "#111827";
@@ -739,20 +741,22 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     commit(set, get, (project) => {
       project.unitAssets ||= [];
       const unit = project.units.find((entry) => entry.id === unitId);
-      if (!unit?.iconUrl) return;
-      const name = unit.name.trim() || "画像コマ";
+      if (!unit) return;
+      const name = unit.name.trim() || "コマ";
       const currentFrame = resolveUnitFrame(unit, project.timeline.currentTime, project.timeline.interpolationMode);
       const asset: UnitAsset = {
         id: createId("unit_asset"),
         name,
-        imageDataUrl: unit.iconUrl,
         size: currentFrame?.size ?? unit.size,
-        factionId: unit.factionId,
+        factionId: currentFrame?.effectiveFactionId ?? unit.factionId,
         shape: unit.shape ?? "rectangle",
+        rotation: currentFrame?.rotation ?? 0,
+        showName: unit.showName ?? true,
         nameTextColor: unit.nameTextColor ?? "#f5efe3",
         nameBackgroundEnabled: unit.nameBackgroundEnabled ?? false,
         nameBackgroundColor: unit.nameBackgroundColor ?? "#111827",
       };
+      if (unit.iconUrl) asset.imageDataUrl = unit.iconUrl;
       project.unitAssets.push(asset);
       unit.assetId = asset.id;
       unit.showName = unit.showName ?? true;
@@ -790,7 +794,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         displayEndTime: project.timeline.end,
         assetId: asset.id,
         iconUrl: asset.imageDataUrl,
-        showName: true,
+        showName: asset.showName ?? true,
         nameTextColor: asset.nameTextColor ?? "#f5efe3",
         nameBackgroundEnabled: asset.nameBackgroundEnabled ?? false,
         nameBackgroundColor: asset.nameBackgroundColor ?? "#111827",
@@ -801,7 +805,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             time: frame?.time ?? project.timeline.currentTime,
             displayDate: frame?.displayDate ?? formatTimelineLabel(project.timeline.currentTime),
             ...point,
-            rotation: 0,
+            rotation: asset.rotation ?? 0,
             status: "normal",
             sourceNote: "",
           },

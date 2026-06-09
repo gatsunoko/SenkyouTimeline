@@ -186,15 +186,15 @@ export function UnitInspector({ id }: { id: string }) {
           event.currentTarget.value = "";
         }}
       />
-      {unit.iconUrl && <ToggleField label="名前を表示" checked={unit.showName !== false} onChange={(value) => updateUnit(unit.id, { showName: value })} />}
-      {unit.iconUrl && !unit.assetId && (
+      <ToggleField label="名前を表示" checked={unit.showName !== false} onChange={(value) => updateUnit(unit.id, { showName: value })} />
+      {!unit.assetId && (
         <button type="button" onClick={() => registerUnitAsset(unit.id)}>
           アセットとして登録
         </button>
       )}
       {unit.assetId && (
         <button type="button" onClick={() => duplicateUnitFromAsset(unit.assetId!)}>
-          この画像コマを複製
+          このコマを複製
         </button>
       )}
 
