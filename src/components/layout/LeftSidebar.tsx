@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Castle, Copy, Flag, Lock, PanelLeftClose, Plus, Trash2, Unlock } from "lucide-react";
+import { Castle, Copy, Flag, Lock, Paintbrush, PanelLeftClose, Plus, Trash2, Unlock } from "lucide-react";
 import { factionTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
 
@@ -14,6 +14,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const unitPlacementAssetId = useProjectStore((state) => state.unitPlacementAssetId);
   const sitePlacementAssetId = useProjectStore((state) => state.sitePlacementAssetId);
   const addFaction = useProjectStore((state) => state.addFaction);
+  const deleteFaction = useProjectStore((state) => state.deleteFaction);
   const setUnitPlacementAsset = useProjectStore((state) => state.setUnitPlacementAsset);
   const deleteUnitAsset = useProjectStore((state) => state.deleteUnitAsset);
   const addSite = useProjectStore((state) => state.addSite);
@@ -50,25 +51,49 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
             <Plus size={16} /> 陣営追加
           </button>
           {project.factions.map((faction) => (
-            <button
-              className={`list-row ${selected.type === "faction" && selected.id === faction.id ? "is-selected" : ""}`}
-              type="button"
+            <div
+              className={`list-row faction-row asset-row-clickable ${selected.type === "faction" && selected.id === faction.id ? "is-selected" : ""}`}
+              role="button"
+              tabIndex={0}
               key={faction.id}
               onClick={() => selectObject("faction", faction.id)}
+              onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return;
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  selectObject("faction", faction.id);
+                }
+              }}
             >
               <span className="color-swatch" style={{ backgroundColor: faction.color }} />
               <span>
                 <strong>{faction.name}</strong>
                 <small>{factionTypeLabels[faction.type]}</small>
               </span>
-              <input
-                type="color"
-                value={faction.color}
-                onChange={(event) => updateFaction(faction.id, { color: event.target.value })}
-                onClick={(event) => event.stopPropagation()}
-                title="色変更"
-              />
-            </button>
+              <label className="color-edit-button" title="陣営色を変更" onClick={(event) => event.stopPropagation()}>
+                <Paintbrush size={14} />
+                <span className="color-edit-swatch" style={{ backgroundColor: faction.color }} />
+                <input
+                  type="color"
+                  value={faction.color}
+                  onChange={(event) => updateFaction(faction.id, { color: event.target.value })}
+                  onClick={(event) => event.stopPropagation()}
+                  aria-label={`${faction.name}の色を変更`}
+                />
+              </label>
+              <button
+                className="icon-only danger"
+                type="button"
+                title={project.factions.length <= 1 ? "最後の陣営は削除できません" : "陣営を削除"}
+                disabled={project.factions.length <= 1}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  deleteFaction(faction.id);
+                }}
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
           ))}
         </section>
       )}

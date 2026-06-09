@@ -113,6 +113,7 @@ interface ProjectStore {
   updateTimelineFrame: (id: string, patch: { time?: string; displayDate?: string; memo?: string }) => void;
   addFaction: () => void;
   updateFaction: (id: string, patch: Partial<Faction>) => void;
+  deleteFaction: (id: string) => void;
   addUnit: (point?: MapPoint) => void;
   setUnitImage: (unitId: string, imageDataUrl: string) => void;
   clearUnitImage: (unitId: string) => void;
@@ -891,6 +892,41 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }),
 
   updateFaction: (id, patch) => commit(set, get, (project) => applyListPatch(project.factions, id, patch)),
+
+  deleteFaction: (id) => {
+    if (get().project.factions.length <= 1) return;
+    commit(set, get, (project) => {
+      const fallbackFaction = project.factions.find((faction) => faction.id !== id);
+      if (!fallbackFaction) return;
+      const fallbackId = fallbackFaction.id;
+
+      project.factions = project.factions.filter((faction) => faction.id !== id);
+      for (const asset of project.unitAssets ?? []) {
+        if (asset.factionId === id) asset.factionId = fallbackId;
+      }
+      for (const unit of project.units) {
+        if (unit.factionId === id) unit.factionId = fallbackId;
+        for (const keyframe of unit.keyframes) {
+          if (keyframe.factionId === id) keyframe.factionId = fallbackId;
+        }
+      }
+      for (const site of project.sites) {
+        if (site.factionId === id) site.factionId = fallbackId;
+        for (const keyframe of site.keyframes ?? []) {
+          if (keyframe.factionId === id) keyframe.factionId = fallbackId;
+        }
+      }
+      for (const line of project.lines) {
+        if (line.factionId === id) line.factionId = fallbackId;
+      }
+      for (const arrow of project.arrows) {
+        if (arrow.factionId === id) arrow.factionId = fallbackId;
+      }
+    });
+    if (get().selected.type === "faction" && get().selected.id === id) {
+      set({ selected: { type: null, id: null } });
+    }
+  },
 
   addUnit: (point = { x: 0.5, y: 0.5 }) =>
     commit(set, get, (project) => {

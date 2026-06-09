@@ -428,6 +428,48 @@ textarea {
   border-radius: 50%;
 }
 
+.faction-row {
+  grid-template-columns: 20px 1fr auto auto;
+}
+
+.color-edit-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 46px;
+  min-height: 28px;
+  border: 1px solid #46546a;
+  border-radius: 6px;
+  background: #101827;
+  color: #f3efe4;
+  cursor: pointer;
+}
+
+.color-edit-button:hover {
+  background: #223048;
+  border-color: #6e7f99;
+}
+
+.color-edit-button input[type="color"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.color-edit-swatch {
+  width: 14px;
+  height: 14px;
+  border: 1px solid #d8deea;
+  border-radius: 50%;
+}
+
 .icon-only {
   display: inline-flex;
   align-items: center;
