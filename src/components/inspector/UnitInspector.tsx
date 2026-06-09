@@ -160,6 +160,7 @@ export function UnitInspector({ id }: { id: string }) {
       </label>
       <ToggleField label="ロック" checked={unit.locked} onChange={(value) => updateUnit(unit.id, { locked: value })} />
       <SelectField label="形状" value={unitShape} options={unitShapeLabels} onChange={(value) => updateUnit(unit.id, { shape: value })} />
+      <NumberField label="サイズ" value={currentSize} min={0.2} max={4} step={0.05} onChange={(value) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: currentX, y: currentY, size: value, status: unit.status })} />
 
       <h3>画像コマ</h3>
       <h3>名前表示</h3>
@@ -311,7 +312,6 @@ export function UnitInspector({ id }: { id: string }) {
         <NumberField label="x" value={currentX} min={0} max={1} step={0.001} onChange={(value) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: value, y: currentY })} />
         <NumberField label="y" value={currentY} min={0} max={1} step={0.001} onChange={(value) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: currentX, y: value })} />
       </div>
-      <NumberField label="サイズ" value={currentSize} min={0.2} max={4} step={0.05} onChange={(value) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: currentX, y: currentY, size: value, status: unit.status })} />
       <button type="button" onClick={() => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: currentX, y: currentY, status: unit.status })}>
         現在時間にキーフレーム追加/更新
       </button>
