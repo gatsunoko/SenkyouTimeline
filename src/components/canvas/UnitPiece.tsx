@@ -184,6 +184,13 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
             fill="#f4d06f"
             stroke="#1b1f29"
             strokeWidth={2}
+            listening={false}
+          />
+          <Circle
+            x={rotationHandlePosition.x}
+            y={rotationHandlePosition.y}
+            radius={18}
+            fill="rgba(244, 208, 111, 0.01)"
             draggable
             onMouseDown={(event) => {
               event.cancelBubble = true;

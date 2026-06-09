@@ -974,10 +974,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const frame = currentFrame(project);
       const selected = get().selected;
       let point: MapPoint = { x: 0.5, y: 0.5 };
+      let rotation = asset.rotation ?? 0;
       if (selected.type === "unit" && selected.id) {
         const selectedUnit = project.units.find((entry) => entry.id === selected.id);
         const selectedFrame = selectedUnit ? resolveUnitFrame(selectedUnit, project.timeline.currentTime, project.timeline.interpolationMode) : null;
-        if (selectedFrame) point = clampPoint({ x: selectedFrame.x + 0.04, y: selectedFrame.y + 0.04 });
+        if (selectedFrame) {
+          point = clampPoint({ x: selectedFrame.x + 0.04, y: selectedFrame.y + 0.04 });
+          rotation = selectedFrame.rotation;
+        }
       }
       const id = createId("unit");
       project.units.push({
@@ -1008,7 +1012,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             time: frame?.time ?? project.timeline.currentTime,
             displayDate: frame?.displayDate ?? formatTimelineLabel(project.timeline.currentTime),
             ...point,
-            rotation: asset.rotation ?? 0,
+            rotation,
             status: "normal",
             sourceNote: "",
           },
