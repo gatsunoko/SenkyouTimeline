@@ -4,7 +4,7 @@ import type Konva from "konva";
 import { useProjectStore } from "../../store/projectStore";
 import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas } from "../../utils/coordinate";
 import { downloadBlob, downloadDataUrl } from "../../utils/fileIO";
-import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveCameraFrame, resolveLineKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRoutePoint } from "../../utils/interpolation";
+import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveCameraFrame, resolveLineKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRouteApproachPoint, resolveUnitRoutePoint } from "../../utils/interpolation";
 import { createZip, type ZipEntry } from "../../utils/zip";
 import { compareTime, parseTimelineSeconds } from "../../utils/time";
 import { ArrowShape } from "./ArrowShape";
@@ -463,9 +463,11 @@ export function MapCanvas() {
   const shouldRenderArrow = (arrow: (typeof project.arrows)[number]) => !arrow.hideWhenRoute || isPreviewRouteSource("arrow", arrow.id);
   const resolveDisplayUnitFrame = (unit: (typeof project.units)[number]) => {
     const routePoint = resolveUnitRoutePoint(unit, project.lines, project.arrows, project.timeline.currentTime, project.timeline.interpolationMode);
+    const routeApproachPoint = routePoint ? null : resolveUnitRouteApproachPoint(unit, project.lines, project.arrows, project.timeline.currentTime, project.timeline.interpolationMode);
     const frame = resolveUnitFrame(unit, project.timeline.currentTime, project.timeline.interpolationMode);
-    if (!frame && !routePoint) return null;
-    if (!frame && routePoint) {
+    const effectiveRoutePoint = routePoint ?? routeApproachPoint;
+    if (!frame && !effectiveRoutePoint) return null;
+    if (!frame && effectiveRoutePoint) {
       const routeRange = getUnitRouteTimeRange(unit.route);
       const displayStartTime = unit.displayStartTime ?? routeRange?.startTime;
       const displayEndTime = unit.displayEndTime;
@@ -474,8 +476,8 @@ export function MapCanvas() {
       return {
         time: project.timeline.currentTime,
         displayDate: project.timeline.frames.find((entry) => entry.time === project.timeline.currentTime)?.displayDate ?? project.timeline.currentTime,
-        x: routePoint.x,
-        y: routePoint.y,
+        x: effectiveRoutePoint.x,
+        y: effectiveRoutePoint.y,
         rotation: 0,
         size: unit.size,
         status: unit.status,
@@ -487,7 +489,7 @@ export function MapCanvas() {
       };
     }
     if (!frame) return null;
-    return routePoint ? { ...frame, x: routePoint.x, y: routePoint.y } : frame;
+    return effectiveRoutePoint ? { ...frame, x: effectiveRoutePoint.x, y: effectiveRoutePoint.y } : frame;
   };
 
   return (

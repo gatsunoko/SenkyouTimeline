@@ -4,7 +4,7 @@ import { useProjectStore } from "../../store/projectStore";
 import type { RouteDirection, RouteSourceType, Unit, UnitRoute, UnitRouteSegment, UnitShape } from "../../types/project";
 import { createId } from "../../utils/id";
 import { readFileAsDataUrl } from "../../utils/fileIO";
-import { getUnitRouteSegments, resolveUnitFrame, resolveUnitRoutePoint } from "../../utils/interpolation";
+import { getUnitRouteSegments, resolveUnitFrame, resolveUnitRouteApproachPoint, resolveUnitRoutePoint } from "../../utils/interpolation";
 import { compareTime, parseTimelineSeconds, sortedFrames } from "../../utils/time";
 import { ColorField, NumberField, SelectField, TextField, ToggleField } from "./InspectorFields";
 
@@ -50,14 +50,15 @@ export function UnitInspector({ id }: { id: string }) {
   const keyframe = unit.keyframes.find((entry) => Math.abs(parseTimelineSeconds(entry.time) - currentSeconds) < 0.05);
   const resolvedFrame = resolveUnitFrame(unit, project.timeline.currentTime, project.timeline.interpolationMode);
   const routePoint = resolveUnitRoutePoint(unit, project.lines, project.arrows, project.timeline.currentTime, project.timeline.interpolationMode);
+  const routeApproachPoint = routePoint ? null : resolveUnitRouteApproachPoint(unit, project.lines, project.arrows, project.timeline.currentTime, project.timeline.interpolationMode);
   const frames = sortedFrames(project.timeline.frames);
   const unitKeyframes = [...unit.keyframes].sort((a, b) => compareTime(a.time, b.time));
   const fallbackStart = firstUnitKeyframeTime(unit, frames[0]?.time ?? project.timeline.currentTime);
   const displayStartTime = unit.displayStartTime ?? fallbackStart;
   const displayEndTime = unit.displayEndTime ?? frames[frames.length - 1]?.time ?? project.timeline.end;
   const linkedAsset = project.unitAssets.find((asset) => asset.id === unit.assetId);
-  const currentX = routePoint?.x ?? keyframe?.x ?? resolvedFrame?.x ?? 0.5;
-  const currentY = routePoint?.y ?? keyframe?.y ?? resolvedFrame?.y ?? 0.5;
+  const currentX = routePoint?.x ?? routeApproachPoint?.x ?? keyframe?.x ?? resolvedFrame?.x ?? 0.5;
+  const currentY = routePoint?.y ?? routeApproachPoint?.y ?? keyframe?.y ?? resolvedFrame?.y ?? 0.5;
   const currentSize = keyframe?.size ?? resolvedFrame?.size ?? unit.size;
   const unitShape = unit.shape ?? "rectangle";
   const routeOptions: RouteOption[] = [

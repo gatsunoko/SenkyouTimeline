@@ -364,6 +364,35 @@ export function resolveUnitRoutePoint(unit: Unit, lines: BattleLine[], arrows: B
   return previousEndpoint?.point ?? null;
 }
 
+export function resolveUnitRouteApproachPoint(unit: Unit, lines: BattleLine[], arrows: BattleArrow[], currentTime: string, mode: InterpolationMode): MapPoint | null {
+  if (!unit.route) return null;
+
+  const currentSeconds = parseTimelineSeconds(currentTime);
+  if (Number.isNaN(currentSeconds)) return null;
+
+  const nextSegment = getUnitRouteSegments(unit.route).find((segment) => {
+    const startSeconds = parseTimelineSeconds(segment.startTime);
+    return !Number.isNaN(startSeconds) && currentSeconds < startSeconds;
+  });
+  if (!nextSegment) return null;
+
+  const startSeconds = parseTimelineSeconds(nextSegment.startTime);
+  const startPoint = routeSegmentEndpoint(nextSegment, lines, arrows, "start", mode);
+  if (!startPoint) return null;
+
+  const previousKeyframe = [...orderedUnitKeyframes(unit)].reverse().find((frame) => compareTime(frame.time, currentTime) <= 0);
+  if (!previousKeyframe) return null;
+
+  const previousSeconds = parseTimelineSeconds(previousKeyframe.time);
+  if (Number.isNaN(previousSeconds) || startSeconds <= previousSeconds) return startPoint;
+
+  const progress = Math.min(1, Math.max(0, (currentSeconds - previousSeconds) / (startSeconds - previousSeconds)));
+  return {
+    x: previousKeyframe.x + (startPoint.x - previousKeyframe.x) * progress,
+    y: previousKeyframe.y + (startPoint.y - previousKeyframe.y) * progress,
+  };
+}
+
 export function resolveSiteFrame(site: Site, currentTime: string): ResolvedSiteFrame {
   const keyframes = site.keyframes && site.keyframes.length > 0 ? [...site.keyframes].sort((a, b) => compareTime(a.time, b.time)) : [];
   const previous = [...keyframes].reverse().find((frame) => compareTime(frame.time, currentTime) <= 0);
