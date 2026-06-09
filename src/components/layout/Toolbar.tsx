@@ -8,6 +8,8 @@ import {
   FileUp,
   Flag,
   ImagePlus,
+  Maximize2,
+  Minimize2,
   MousePointer2,
   PencilLine,
   Redo2,
@@ -60,6 +62,7 @@ export function Toolbar() {
   const [exportStatus, setExportStatus] = useState("");
   const [exportBusy, setExportBusy] = useState(false);
   const [activeMenu, setActiveMenu] = useState<ToolbarMenu>(null);
+  const [fullscreen, setFullscreen] = useState(false);
 
   useEffect(() => {
     const onExportStatus = (event: Event) => {
@@ -69,6 +72,13 @@ export function Toolbar() {
     };
     window.addEventListener("sengoku-export-status", onExportStatus);
     return () => window.removeEventListener("sengoku-export-status", onExportStatus);
+  }, []);
+
+  useEffect(() => {
+    const syncFullscreen = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    syncFullscreen();
+    return () => document.removeEventListener("fullscreenchange", syncFullscreen);
   }, []);
 
   useEffect(() => {
@@ -126,6 +136,15 @@ export function Toolbar() {
     setActiveMenu(null);
   };
 
+  const toggleFullscreen = async () => {
+    setActiveMenu(null);
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+      return;
+    }
+    await document.documentElement.requestFullscreen();
+  };
+
   return (
     <header className="toolbar" ref={toolbarRef}>
       <div className="app-title">
@@ -170,6 +189,10 @@ export function Toolbar() {
           <span>キャンバス</span>
         </button>
       </div>
+
+      <button type="button" className="icon-only toolbar-fullscreen-button" onClick={() => void toggleFullscreen()} title={fullscreen ? "フルスクリーン解除" : "フルスクリーン"}>
+        {fullscreen ? <Minimize2 size={26} /> : <Maximize2 size={26} />}
+      </button>
 
       {activeMenu === "file" && (
         <div className="toolbar-popover toolbar-popover-file">

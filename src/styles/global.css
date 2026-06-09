@@ -422,6 +422,18 @@ textarea {
   padding: 0;
 }
 
+.toolbar .toolbar-fullscreen-button {
+  width: 34px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+}
+
+.toolbar .toolbar-fullscreen-button svg {
+  width: 24px;
+  height: 24px;
+}
+
 .asset-row {
   grid-template-columns: 28px 1fr auto;
 }
