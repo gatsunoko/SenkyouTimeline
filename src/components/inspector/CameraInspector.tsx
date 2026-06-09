@@ -11,6 +11,7 @@ export function CameraInspector() {
   const camera = project.map.exportCamera ?? {
     width: project.map.outputWidth,
     height: project.map.outputHeight,
+    scale: 1,
     keyframes: [{ time: project.timeline.currentTime, displayDate: project.timeline.currentTime, x: 0, y: 0 }],
   };
   const frame = resolveCameraFrame(camera, project.timeline.currentTime, project.timeline.interpolationMode);
@@ -22,9 +23,14 @@ export function CameraInspector() {
       <h2>書き出しカメラ</h2>
       <NumberField label="出力W(px)" value={camera.width} min={64} max={7680} step={10} onChange={(value) => updateExportCamera({ width: value })} />
       <NumberField label="出力H(px)" value={camera.height} min={64} max={4320} step={10} onChange={(value) => updateExportCamera({ height: value })} />
+      <NumberField label="倍率" value={frame.scale} min={0.1} max={8} step={0.1} onChange={(value) => updateCameraKeyframe(project.timeline.currentTime, { scale: value })} />
       <h3>現在時刻の範囲</h3>
       <NumberField label="X" value={Math.round(frame.x)} step={10} onChange={(value) => updateCameraKeyframe(project.timeline.currentTime, { x: value })} />
       <NumberField label="Y" value={Math.round(frame.y)} step={10} onChange={(value) => updateCameraKeyframe(project.timeline.currentTime, { y: value })} />
+      <p className="inspector-note">描画範囲: {Math.round(frame.width * frame.scale)} x {Math.round(frame.height * frame.scale)} px</p>
+      <button type="button" onClick={() => updateCameraKeyframe(project.timeline.currentTime, { x: frame.x, y: frame.y, scale: frame.scale })}>
+        現在の位置と倍率をキー登録
+      </button>
       <h3>キーフレーム</h3>
       <div className="keyframe-list">
         {keyframes.map((keyframe) => {
@@ -34,7 +40,7 @@ export function CameraInspector() {
               <span>
                 <strong>{keyframe.displayDate}</strong>
                 <small>
-                  X {Math.round(keyframe.x)} / Y {Math.round(keyframe.y)}
+                  X {Math.round(keyframe.x)} / Y {Math.round(keyframe.y)} / 倍率 {keyframe.scale ?? camera.scale ?? 1}
                 </small>
               </span>
               <button type="button" disabled={keyframes.length <= 1} onClick={() => deleteCameraKeyframe(keyframe.time)}>

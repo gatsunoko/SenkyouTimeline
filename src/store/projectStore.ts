@@ -126,8 +126,8 @@ interface ProjectStore {
   setInterpolationMode: (mode: ProjectData["timeline"]["interpolationMode"]) => void;
   setMapImage: (dataUrl: string, naturalSize?: { width: number; height: number }) => void;
   updateMapImagePlacement: (patch: { imageX?: number; imageY?: number; imageWidth?: number; imageHeight?: number }) => void;
-  updateExportCamera: (patch: Partial<Pick<ExportCamera, "width" | "height">>) => void;
-  updateCameraKeyframe: (time: string, patch: Partial<MapPoint>) => void;
+  updateExportCamera: (patch: Partial<Pick<ExportCamera, "width" | "height" | "scale">>) => void;
+  updateCameraKeyframe: (time: string, patch: Partial<MapPoint & { scale: number }>) => void;
   deleteCameraKeyframe: (time: string) => void;
   exportProject: () => ProjectData;
   importProject: (project: ProjectData) => void;
@@ -152,6 +152,11 @@ function firstFactionId(project: ProjectData) {
 function clampPixelValue(value: number | undefined, fallback: number, min: number, max: number) {
   const next = Number.isFinite(value) ? Number(value) : fallback;
   return Math.round(Math.min(max, Math.max(min, next)));
+}
+
+function clampCameraScale(value: number | undefined, fallback = 1) {
+  const next = Number.isFinite(value) ? Number(value) : fallback;
+  return Math.round(Math.min(8, Math.max(0.1, next)) * 10) / 10;
 }
 
 function fitImageToMap(project: ProjectData, naturalWidth: number, naturalHeight: number) {
@@ -198,6 +203,7 @@ function resizeMapImageWithAspect(map: ProjectData["map"], size: number, source:
 function normalizeExportCamera(project: ProjectData) {
   const width = clampPixelValue(project.map.exportCamera?.width ?? project.map.outputWidth, 1920, 64, 7680);
   const height = clampPixelValue(project.map.exportCamera?.height ?? project.map.outputHeight, 1080, 64, 4320);
+  const scale = clampCameraScale(project.map.exportCamera?.scale, 1);
   const fallbackTime = project.timeline?.currentTime || project.timeline?.start || "0";
   const fallbackFrame = getCurrentFrame(project.timeline?.frames ?? [], fallbackTime);
   const keyframes =
@@ -209,6 +215,7 @@ function normalizeExportCamera(project: ProjectData) {
             displayDate: fallbackFrame?.displayDate ?? formatTimelineLabel(fallbackTime),
             x: 0,
             y: 0,
+            scale,
           },
         ];
   project.map.outputWidth = width;
@@ -216,11 +223,13 @@ function normalizeExportCamera(project: ProjectData) {
   project.map.exportCamera = {
     width,
     height,
+    scale,
     keyframes: keyframes.map((keyframe) => ({
       time: keyframe.time || fallbackTime,
       displayDate: keyframe.displayDate || formatTimelineLabel(keyframe.time || fallbackTime),
       x: Number.isFinite(keyframe.x) ? keyframe.x : 0,
       y: Number.isFinite(keyframe.y) ? keyframe.y : 0,
+      scale: clampCameraScale(keyframe.scale, scale),
     })),
   };
   project.map.exportCamera.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
@@ -302,7 +311,6 @@ function commit(set: (partial: Partial<ProjectStore>) => void, get: () => Projec
   const next = cloneProject(previous);
   mutator(next);
   normalizeProjectTiming(next);
-  cleanupEmptyTimelineFrames(next);
   normalizeTimelineFrames(next);
   const currentSelected = get().selected;
   const selected = currentSelected.type === "frame" && currentSelected.id && !next.timeline.frames.some((frame) => frame.id === currentSelected.id) ? { type: null, id: null } : currentSelected;
@@ -1473,6 +1481,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       if (unit.displayEndTime && Math.abs(parseTimelineSeconds(unit.displayEndTime) - targetSeconds) < 0.05) {
         unit.displayEndTime = routeRange?.endTime ?? unit.keyframes[unit.keyframes.length - 1]?.time ?? unit.displayEndTime;
       }
+      cleanupEmptyTimelineFrames(project);
     }),
 
   setInterpolationMode: (mode) =>
@@ -1505,6 +1514,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const camera = project.map.exportCamera!;
       if (patch.width !== undefined) camera.width = clampPixelValue(patch.width, camera.width, 64, 7680);
       if (patch.height !== undefined) camera.height = clampPixelValue(patch.height, camera.height, 64, 4320);
+      if (patch.scale !== undefined) camera.scale = clampCameraScale(patch.scale, camera.scale ?? 1);
       project.map.outputWidth = camera.width;
       project.map.outputHeight = camera.height;
     }),
@@ -1523,6 +1533,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         displayDate: frame.displayDate ?? formatTimelineLabel(keyframeTime),
         x: patch.x ?? resolved.x,
         y: patch.y ?? resolved.y,
+        scale: patch.scale !== undefined ? clampCameraScale(patch.scale, resolved.scale) : resolved.scale,
       };
       if (existing) Object.assign(existing, next);
       else camera.keyframes.push(next);

@@ -131,11 +131,13 @@ export interface MapPoint {
 export interface CameraKeyframe extends MapPoint {
   time: string;
   displayDate: string;
+  scale?: number;
 }
 
 export interface ExportCamera {
   width: number;
   height: number;
+  scale?: number;
   keyframes: CameraKeyframe[];
 }
 

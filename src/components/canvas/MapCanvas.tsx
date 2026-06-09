@@ -16,7 +16,7 @@ import { UnitPiece } from "./UnitPiece";
 
 type TimelineExportFormat = "png-sequence" | "mp4";
 type TimelineExportRequest = { format: TimelineExportFormat; fps: number };
-type ExportViewport = { x: number; y: number; width: number; height: number };
+type ExportViewport = { x: number; y: number; width: number; height: number; outputWidth: number; outputHeight: number };
 
 const mp4MimeTypes = ["video/mp4", "video/mp4;codecs=avc1.42E01E", "video/mp4;codecs=h264"];
 
@@ -77,8 +77,10 @@ function resolveExportViewport(project: ReturnType<typeof useProjectStore.getSta
   return {
     x: frame.x,
     y: frame.y,
-    width: Math.max(1, Math.round(frame.width)),
-    height: Math.max(1, Math.round(frame.height)),
+    width: Math.max(1, Math.round(frame.width * frame.scale)),
+    height: Math.max(1, Math.round(frame.height * frame.scale)),
+    outputWidth: Math.max(1, Math.round(frame.width)),
+    outputHeight: Math.max(1, Math.round(frame.height)),
   };
 }
 
@@ -188,7 +190,7 @@ export function MapCanvas() {
       setExportViewport(viewport);
       await waitForPaint();
       stage.batchDraw();
-      return stage.toDataURL({ x: 0, y: 0, width: viewport.width, height: viewport.height, pixelRatio: 1, mimeType: "image/png" });
+      return stage.toDataURL({ x: 0, y: 0, width: viewport.outputWidth, height: viewport.outputHeight, pixelRatio: 1, mimeType: "image/png" });
     };
 
     const exportTimeline = async (request: TimelineExportRequest) => {
@@ -200,8 +202,8 @@ export function MapCanvas() {
       const sourceProject = state.project;
       const originalTime = sourceProject.timeline.currentTime;
       const firstViewport = resolveExportViewport(sourceProject);
-      const exportWidth = firstViewport.width;
-      const exportHeight = firstViewport.height;
+      const exportWidth = firstViewport.outputWidth;
+      const exportHeight = firstViewport.outputHeight;
       const bounds = getTimelineExportBounds(sourceProject);
       const times = buildExportTimes(bounds.start, bounds.end, fps);
       const basename = safeFilename(sourceProject.projectName);
@@ -408,7 +410,8 @@ export function MapCanvas() {
     width: size.width / scale,
     height: size.height / scale,
   };
-  const contentOffset = exportViewport ? { x: -exportViewport.x, y: -exportViewport.y } : { x: 0, y: 0 };
+  const exportContentScale = exportViewport ? { x: exportViewport.outputWidth / exportViewport.width, y: exportViewport.outputHeight / exportViewport.height } : { x: 1, y: 1 };
+  const contentOffset = exportViewport ? { x: -exportViewport.x * exportContentScale.x, y: -exportViewport.y * exportContentScale.y } : { x: 0, y: 0 };
 
   const mapImageRect = (() => {
     if (!mapImage?.naturalWidth || !mapImage.naturalHeight) return null;
@@ -491,8 +494,8 @@ export function MapCanvas() {
     <div className="canvas-container" ref={containerRef}>
       <Stage
         ref={stageRef}
-        width={exportViewport?.width ?? size.width}
-        height={exportViewport?.height ?? size.height}
+        width={exportViewport?.outputWidth ?? size.width}
+        height={exportViewport?.outputHeight ?? size.height}
         onWheel={onWheel}
         onClick={onCanvasClick}
         onTap={onCanvasClick}
@@ -521,7 +524,7 @@ export function MapCanvas() {
         }}
       >
         <Layer>
-          <Group x={contentOffset.x} y={contentOffset.y}>
+          <Group x={contentOffset.x} y={contentOffset.y} scaleX={exportContentScale.x} scaleY={exportContentScale.y}>
           <Rect x={gridLeft} y={gridTop} width={gridRight - gridLeft} height={gridBottom - gridTop} fill="#16202b" listening={false} />
           {gridLines}
           {mapImage && mapImageRect && (

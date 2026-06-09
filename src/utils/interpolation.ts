@@ -13,6 +13,7 @@ export interface ResolvedSiteFrame extends SiteKeyframe {
 export interface ResolvedCameraFrame extends CameraKeyframe {
   width: number;
   height: number;
+  scale: number;
 }
 
 function orderedUnitKeyframes(unit: Unit) {
@@ -218,11 +219,14 @@ export function resolveCameraFrame(camera: ExportCamera, currentTime: string, mo
   const fallback = keyframes[0] ?? { time: currentTime, displayDate: currentTime, x: 0, y: 0 };
   const width = Math.max(1, Math.round(camera.width));
   const height = Math.max(1, Math.round(camera.height));
-  if (keyframes.length === 0) return { ...fallback, width, height };
+  const baseScale = Number.isFinite(camera.scale) ? Math.max(0.1, Math.min(8, camera.scale ?? 1)) : 1;
+  const resolveScale = (frame?: CameraKeyframe) => (Number.isFinite(frame?.scale) ? Math.max(0.1, Math.min(8, frame?.scale ?? baseScale)) : baseScale);
+  if (keyframes.length === 0) return { ...fallback, width, height, scale: resolveScale(fallback) };
 
   const previous = [...keyframes].reverse().find((frame) => compareTime(frame.time, currentTime) <= 0);
   const next = keyframes.find((frame) => compareTime(frame.time, currentTime) >= 0);
   const base = previous ?? next ?? fallback;
+  const scale = resolveScale(base);
 
   if (mode === "linear" && previous && next && previous.time !== next.time) {
     const start = parseTimelineSeconds(previous.time);
@@ -230,6 +234,8 @@ export function resolveCameraFrame(camera: ExportCamera, currentTime: string, mo
     const current = parseTimelineSeconds(currentTime);
     if (!Number.isNaN(start) && !Number.isNaN(end) && !Number.isNaN(current) && end > start) {
       const t = Math.min(1, Math.max(0, (current - start) / (end - start)));
+      const previousScale = resolveScale(previous);
+      const nextScale = resolveScale(next);
       return {
         time: currentTime,
         displayDate: base.displayDate,
@@ -237,11 +243,12 @@ export function resolveCameraFrame(camera: ExportCamera, currentTime: string, mo
         y: previous.y + (next.y - previous.y) * t,
         width,
         height,
+        scale: previousScale + (nextScale - previousScale) * t,
       };
     }
   }
 
-  return { ...base, width, height };
+  return { ...base, width, height, scale };
 }
 
 function resolveRouteSegmentPoints(segment: UnitRouteSegment, lines: BattleLine[], arrows: BattleArrow[], routeTime: string, mode: InterpolationMode) {
