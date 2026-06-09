@@ -4,17 +4,20 @@ import { factionTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
 
 type TabKey = "factions" | "units" | "sites";
+type UnitSidebarView = "units" | "assets";
 
 export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const [tab, setTab] = useState<TabKey>("factions");
+  const [unitView, setUnitView] = useState<UnitSidebarView>("units");
   const project = useProjectStore((state) => state.project);
   const selected = useProjectStore((state) => state.selected);
+  const unitPlacementAssetId = useProjectStore((state) => state.unitPlacementAssetId);
+  const sitePlacementAssetId = useProjectStore((state) => state.sitePlacementAssetId);
   const addFaction = useProjectStore((state) => state.addFaction);
-  const addUnit = useProjectStore((state) => state.addUnit);
-  const duplicateUnitFromAsset = useProjectStore((state) => state.duplicateUnitFromAsset);
+  const setUnitPlacementAsset = useProjectStore((state) => state.setUnitPlacementAsset);
   const deleteUnitAsset = useProjectStore((state) => state.deleteUnitAsset);
   const addSite = useProjectStore((state) => state.addSite);
-  const duplicateSiteFromAsset = useProjectStore((state) => state.duplicateSiteFromAsset);
+  const setSitePlacementAsset = useProjectStore((state) => state.setSitePlacementAsset);
   const deleteSiteAsset = useProjectStore((state) => state.deleteSiteAsset);
   const selectObject = useProjectStore((state) => state.selectObject);
   const updateFaction = useProjectStore((state) => state.updateFaction);
@@ -72,48 +75,53 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
 
       {tab === "units" && (
         <section className="sidebar-section">
-          <button className="wide-action" type="button" onClick={() => addUnit()}>
-            <Plus size={16} /> コマ追加
+          <button className={`wide-action ${unitView === "assets" ? "is-active" : ""}`} type="button" onClick={() => setUnitView((view) => (view === "assets" ? "units" : "assets"))}>
+            {unitView === "assets" ? <Flag size={16} /> : <Copy size={16} />}
+            {unitView === "assets" ? "コマ一覧へ戻る" : "アセット"}
           </button>
-          {project.units.map((unit) => {
-            const faction = project.factions.find((entry) => entry.id === unit.factionId);
-            return (
-              <button
-                className={`list-row ${selected.type === "unit" && selected.id === unit.id ? "is-selected" : ""}`}
-                type="button"
-                key={unit.id}
-                onClick={() => selectObject("unit", unit.id)}
-              >
-                {unit.iconUrl ? <img className="asset-thumb" src={unit.iconUrl} alt="" /> : <Flag size={17} style={{ color: faction?.color }} />}
-                <span>
-                  <strong>{unit.name}</strong>
-                  <small>{faction?.name ?? "陣営なし"}</small>
-                </span>
-                <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateUnit(unit.id, { locked: !unit.locked }); }}>
-                  {unit.locked ? <Lock size={15} /> : <Unlock size={15} />}
-                </button>
-              </button>
-            );
-          })}
-
-          {project.unitAssets.length > 0 && (
+          {unitView === "units" && (
             <>
-              <div className="sidebar-subheading">登録アセット</div>
+              {project.units.map((unit) => {
+                const faction = project.factions.find((entry) => entry.id === unit.factionId);
+                return (
+                  <button
+                    className={`list-row ${selected.type === "unit" && selected.id === unit.id ? "is-selected" : ""}`}
+                    type="button"
+                    key={unit.id}
+                    onClick={() => selectObject("unit", unit.id)}
+                  >
+                    {unit.iconUrl ? <img className="asset-thumb" src={unit.iconUrl} alt="" /> : <Flag size={17} style={{ color: faction?.color }} />}
+                    <span>
+                      <strong>{unit.name}</strong>
+                      <small>{faction?.name ?? "陣営なし"}</small>
+                    </span>
+                    <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateUnit(unit.id, { locked: !unit.locked }); }}>
+                      {unit.locked ? <Lock size={15} /> : <Unlock size={15} />}
+                    </button>
+                  </button>
+                );
+              })}
+            </>
+          )}
+
+          {unitView === "assets" && (
+            <>
+              {project.unitAssets.length === 0 && <div className="sidebar-empty">登録済みのコマアセットはありません。</div>}
               {project.unitAssets.map((asset) => {
                 const faction = project.factions.find((entry) => entry.id === asset.factionId);
                 const assetName = asset.name.trim() || "（名前なし）";
                 return (
                   <div
-                    className="list-row asset-row asset-row-clickable"
+                    className={`list-row asset-row asset-row-clickable ${unitPlacementAssetId === asset.id ? "is-selected" : ""}`}
                     role="button"
                     tabIndex={0}
                     key={asset.id}
-                    onClick={() => duplicateUnitFromAsset(asset.id)}
+                    onClick={() => setUnitPlacementAsset(asset.id)}
                     onKeyDown={(event) => {
                       if (event.target !== event.currentTarget) return;
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
-                        duplicateUnitFromAsset(asset.id);
+                        setUnitPlacementAsset(asset.id);
                       }
                     }}
                   >
@@ -126,7 +134,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                     )}
                     <span>
                       <strong>{assetName}</strong>
-                      <small>クリックで複製</small>
+                      <small>クリックで配置準備</small>
                     </span>
                     <Copy size={16} />
                     <button
@@ -177,23 +185,23 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                 const assetName = asset.name.trim() || "（名前なし）";
                 return (
                   <div
-                    className="list-row asset-row asset-row-clickable"
+                    className={`list-row asset-row asset-row-clickable ${sitePlacementAssetId === asset.id ? "is-selected" : ""}`}
                     role="button"
                     tabIndex={0}
                     key={asset.id}
-                    onClick={() => duplicateSiteFromAsset(asset.id)}
+                    onClick={() => setSitePlacementAsset(asset.id)}
                     onKeyDown={(event) => {
                       if (event.target !== event.currentTarget) return;
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
-                        duplicateSiteFromAsset(asset.id);
+                        setSitePlacementAsset(asset.id);
                       }
                     }}
                   >
                     <img className="asset-thumb" src={asset.imageDataUrl} alt="" />
                     <span>
                       <strong>{assetName}</strong>
-                      <small>クリックで複製</small>
+                      <small>クリックで配置準備</small>
                     </span>
                     <Copy size={16} />
                     <button

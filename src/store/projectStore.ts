@@ -99,6 +99,8 @@ interface ProjectStore {
   selectedLinePointIndices: number[];
   selectedArrowPointIndices: number[];
   routePreviewUnitId: string | null;
+  unitPlacementAssetId: string | null;
+  sitePlacementAssetId: string | null;
   tool: ToolMode;
   drawingPoints: MapPoint[];
   historyPast: ProjectData[];
@@ -115,7 +117,7 @@ interface ProjectStore {
   setUnitImage: (unitId: string, imageDataUrl: string) => void;
   clearUnitImage: (unitId: string) => void;
   registerUnitAsset: (unitId: string) => void;
-  duplicateUnitFromAsset: (assetId: string) => void;
+  duplicateUnitFromAsset: (assetId: string, point?: MapPoint) => void;
   deleteUnitAsset: (assetId: string) => void;
   updateUnit: (id: string, patch: Partial<Unit>) => void;
   setUnitRoute: (id: string, route?: UnitRoute) => void;
@@ -125,7 +127,7 @@ interface ProjectStore {
   setSiteImage: (siteId: string, imageDataUrl: string) => void;
   clearSiteImage: (siteId: string) => void;
   registerSiteAsset: (siteId: string) => void;
-  duplicateSiteFromAsset: (assetId: string) => void;
+  duplicateSiteFromAsset: (assetId: string, point?: MapPoint) => void;
   deleteSiteAsset: (assetId: string) => void;
   updateSite: (id: string, patch: Partial<Site>) => void;
   updateSiteKeyframe: (siteId: string, time: string, patch: { factionId: string }) => void;
@@ -164,6 +166,8 @@ interface ProjectStore {
   exportProject: () => ProjectData;
   importProject: (project: ProjectData) => void;
   setTool: (tool: ToolMode) => void;
+  setUnitPlacementAsset: (assetId: string | null) => void;
+  setSitePlacementAsset: (assetId: string | null) => void;
   addDrawingPoint: (point: MapPoint) => void;
   cancelDrawing: () => void;
   finishDrawing: () => void;
@@ -610,6 +614,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   selectedLinePointIndices: [],
   selectedArrowPointIndices: [],
   routePreviewUnitId: null,
+  unitPlacementAssetId: null,
+  sitePlacementAssetId: null,
   tool: "select",
   drawingPoints: [],
   historyPast: [],
@@ -623,6 +629,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       selectedLinePointIndices: [],
       selectedArrowPointIndices: [],
       routePreviewUnitId: null,
+      unitPlacementAssetId: null,
+      sitePlacementAssetId: null,
       tool: "select",
       drawingPoints: [],
       historyPast: trimHistory([...get().historyPast, previous]),
@@ -637,6 +645,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       selectedLinePointIndices: [],
       selectedArrowPointIndices: [],
       routePreviewUnitId: null,
+      unitPlacementAssetId: null,
+      sitePlacementAssetId: null,
       tool: "select",
       drawingPoints: [],
       historyPast: [],
@@ -966,16 +976,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       unit.showName = unit.showName ?? true;
     }),
 
-  duplicateUnitFromAsset: (assetId) =>
+  duplicateUnitFromAsset: (assetId, placementPoint) =>
     commit(set, get, (project) => {
       project.unitAssets ||= [];
       const asset = project.unitAssets.find((entry) => entry.id === assetId);
       if (!asset) return;
       const frame = currentFrame(project);
       const selected = get().selected;
-      let point: MapPoint = { x: 0.5, y: 0.5 };
+      let point: MapPoint = placementPoint ? clampPoint(placementPoint) : { x: 0.5, y: 0.5 };
       let rotation = asset.rotation ?? 0;
-      if (selected.type === "unit" && selected.id) {
+      if (!placementPoint && selected.type === "unit" && selected.id) {
         const selectedUnit = project.units.find((entry) => entry.id === selected.id);
         const selectedFrame = selectedUnit ? resolveUnitFrame(selectedUnit, project.timeline.currentTime, project.timeline.interpolationMode) : null;
         if (selectedFrame) {
@@ -1021,13 +1031,15 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       get().selectObject("unit", id);
     }),
 
-  deleteUnitAsset: (assetId) =>
+  deleteUnitAsset: (assetId) => {
     commit(set, get, (project) => {
       project.unitAssets = (project.unitAssets ?? []).filter((asset) => asset.id !== assetId);
       for (const unit of project.units) {
         if (unit.assetId === assetId) unit.assetId = undefined;
       }
-    }),
+    });
+    if (get().unitPlacementAssetId === assetId) set({ unitPlacementAssetId: null });
+  },
 
   updateUnit: (id, patch) => commit(set, get, (project) => applyListPatch(project.units, id, patch)),
   setUnitRoute: (id, route) =>
@@ -1134,14 +1146,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       site.showName = site.showName ?? true;
     }),
 
-  duplicateSiteFromAsset: (assetId) =>
+  duplicateSiteFromAsset: (assetId, placementPoint) =>
     commit(set, get, (project) => {
       project.siteAssets ||= [];
       const asset = project.siteAssets.find((entry) => entry.id === assetId);
       if (!asset) return;
       const selected = get().selected;
-      let point: MapPoint = { x: 0.5, y: 0.5 };
-      if (selected.type === "site" && selected.id) {
+      let point: MapPoint = placementPoint ? clampPoint(placementPoint) : { x: 0.5, y: 0.5 };
+      if (!placementPoint && selected.type === "site" && selected.id) {
         const selectedSite = project.sites.find((entry) => entry.id === selected.id);
         if (selectedSite) point = clampPoint({ x: selectedSite.x + 0.04, y: selectedSite.y + 0.04 });
       }
@@ -1169,13 +1181,15 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       get().selectObject("site", id);
     }),
 
-  deleteSiteAsset: (assetId) =>
+  deleteSiteAsset: (assetId) => {
     commit(set, get, (project) => {
       project.siteAssets = (project.siteAssets ?? []).filter((asset) => asset.id !== assetId);
       for (const site of project.sites) {
         if (site.assetId === assetId) site.assetId = undefined;
       }
-    }),
+    });
+    if (get().sitePlacementAssetId === assetId) set({ sitePlacementAssetId: null });
+  },
 
   updateSite: (id, patch) => commit(set, get, (project) => applyListPatch(project.sites, id, patch)),
   updateSiteKeyframe: (siteId, time, patch) =>
@@ -1626,11 +1640,27 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setTool: (tool) =>
     set((state) => ({
       tool,
+      unitPlacementAssetId: null,
+      sitePlacementAssetId: null,
       drawingPoints: tool === "drawLine" || tool === "drawArrow" ? state.drawingPoints : [],
       selected: tool !== "mapImageEdit" && state.selected.type === "mapImage" ? { type: null, id: null } : state.selected,
     })),
+  setUnitPlacementAsset: (assetId) =>
+    set({
+      tool: "addUnit",
+      unitPlacementAssetId: assetId,
+      sitePlacementAssetId: null,
+      drawingPoints: [],
+    }),
+  setSitePlacementAsset: (assetId) =>
+    set({
+      tool: "addSite",
+      unitPlacementAssetId: null,
+      sitePlacementAssetId: assetId,
+      drawingPoints: [],
+    }),
   addDrawingPoint: (point) => set({ drawingPoints: [...get().drawingPoints, clampPoint(point)] }),
-  cancelDrawing: () => set({ drawingPoints: [], tool: "select" }),
+  cancelDrawing: () => set({ drawingPoints: [], tool: "select", unitPlacementAssetId: null, sitePlacementAssetId: null }),
   finishDrawing: () => {
     const { tool, drawingPoints } = get();
     if (drawingPoints.length < 2) {
@@ -1676,7 +1706,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (selected.type === "arrow") get().deleteArrow(selected.id);
     if (selected.type === "event") get().deleteEvent(selected.id);
     if (selected.type === "label") get().deleteLabel(selected.id);
-    set({ selected: { type: null, id: null }, selectedLinePointIndices: [], selectedArrowPointIndices: [], routePreviewUnitId: null });
+    set({ selected: { type: null, id: null }, selectedLinePointIndices: [], selectedArrowPointIndices: [], routePreviewUnitId: null, unitPlacementAssetId: null, sitePlacementAssetId: null });
   },
 
   undo: () => {
@@ -1691,6 +1721,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       selectedLinePointIndices: [],
       selectedArrowPointIndices: [],
       routePreviewUnitId: null,
+      unitPlacementAssetId: null,
+      sitePlacementAssetId: null,
     });
   },
 
@@ -1706,6 +1738,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       selectedLinePointIndices: [],
       selectedArrowPointIndices: [],
       routePreviewUnitId: null,
+      unitPlacementAssetId: null,
+      sitePlacementAssetId: null,
     });
   },
 }));

@@ -369,6 +369,21 @@ textarea {
   width: 100%;
 }
 
+.wide-action.is-active {
+  background: #304a70;
+  border-color: #82a7d9;
+}
+
+.sidebar-empty {
+  padding: 12px 10px;
+  border: 1px dashed #3b4658;
+  border-radius: 6px;
+  color: #9da9ba;
+  font-size: 12px;
+  line-height: 1.5;
+  background: #121a26;
+}
+
 .list-row {
   display: grid;
   grid-template-columns: 20px 1fr auto auto;

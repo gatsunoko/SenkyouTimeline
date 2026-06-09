@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva";
 import type Konva from "konva";
 import { useProjectStore } from "../../store/projectStore";
+import type { Site, Unit } from "../../types/project";
 import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas } from "../../utils/coordinate";
 import { downloadBlob, downloadDataUrl } from "../../utils/fileIO";
 import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveCameraFrame, resolveLineKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRouteApproachPoint, resolveUnitRoutePoint } from "../../utils/interpolation";
@@ -114,6 +115,8 @@ export function MapCanvas() {
   const selectedLinePointIndices = useProjectStore((state) => state.selectedLinePointIndices);
   const selectedArrowPointIndices = useProjectStore((state) => state.selectedArrowPointIndices);
   const routePreviewUnitId = useProjectStore((state) => state.routePreviewUnitId);
+  const unitPlacementAssetId = useProjectStore((state) => state.unitPlacementAssetId);
+  const sitePlacementAssetId = useProjectStore((state) => state.sitePlacementAssetId);
   const tool = useProjectStore((state) => state.tool);
   const drawingPoints = useProjectStore((state) => state.drawingPoints);
   const selectObject = useProjectStore((state) => state.selectObject);
@@ -128,7 +131,9 @@ export function MapCanvas() {
   const updateMapImagePlacement = useProjectStore((state) => state.updateMapImagePlacement);
   const updateCameraKeyframe = useProjectStore((state) => state.updateCameraKeyframe);
   const addUnit = useProjectStore((state) => state.addUnit);
+  const duplicateUnitFromAsset = useProjectStore((state) => state.duplicateUnitFromAsset);
   const addSite = useProjectStore((state) => state.addSite);
+  const duplicateSiteFromAsset = useProjectStore((state) => state.duplicateSiteFromAsset);
   const addLabel = useProjectStore((state) => state.addLabel);
   const addDrawingPoint = useProjectStore((state) => state.addDrawingPoint);
 
@@ -155,7 +160,7 @@ export function MapCanvas() {
   }, [project.map.imageDataUrl]);
 
   useEffect(() => {
-    if (tool !== "drawLine" && tool !== "drawArrow") setPreviewPoint(null);
+    if (tool !== "addUnit" && tool !== "addSite" && tool !== "drawLine" && tool !== "drawArrow") setPreviewPoint(null);
   }, [tool]);
 
   useEffect(() => {
@@ -348,6 +353,10 @@ export function MapCanvas() {
   };
 
   const updateDrawingPreview = () => {
+    if (tool === "addUnit" || tool === "addSite") {
+      setPreviewPoint(pointerToRelative());
+      return;
+    }
     if (tool !== "drawLine" && tool !== "drawArrow") return;
     if (drawingPoints.length === 0) {
       setPreviewPoint(null);
@@ -394,13 +403,19 @@ export function MapCanvas() {
   };
 
   const onCanvasClick = (event: Konva.KonvaEventObject<MouseEvent>) => {
-    if (event.target !== event.target.getStage()) return;
     const point = pointerToRelative();
     if (tool === "addUnit") {
-      addUnit(point);
-    } else if (tool === "addSite") {
-      addSite(point);
-    } else if (tool === "addLabel") {
+      if (unitPlacementAssetId) duplicateUnitFromAsset(unitPlacementAssetId, point);
+      else addUnit(point);
+      return;
+    }
+    if (tool === "addSite") {
+      if (sitePlacementAssetId) duplicateSiteFromAsset(sitePlacementAssetId, point);
+      else addSite(point);
+      return;
+    }
+    if (event.target !== event.target.getStage()) return;
+    if (tool === "addLabel") {
       addLabel(point);
     } else if (tool === "drawLine" || tool === "drawArrow") {
       addDrawingPoint(point);
@@ -500,6 +515,76 @@ export function MapCanvas() {
     if (!frame) return null;
     return effectiveRoutePoint ? { ...frame, x: effectiveRoutePoint.x, y: effectiveRoutePoint.y } : frame;
   };
+  const unitPlacementPreview = (() => {
+    if (exportViewport || tool !== "addUnit" || !previewPoint) return null;
+    const asset = unitPlacementAssetId ? project.unitAssets.find((entry) => entry.id === unitPlacementAssetId) : null;
+    const factionId = asset && project.factions.some((faction) => faction.id === asset.factionId) ? asset.factionId : project.factions[0]?.id ?? "faction_default_a";
+    const previewUnit: Unit = {
+      id: "unit-placement-preview",
+      name: asset?.name ?? "新規軍勢",
+      factionId,
+      unitType: "busho",
+      commander: "",
+      troopType: "mixed",
+      strengthText: "",
+      status: "normal",
+      certainty: "confirmed",
+      locked: true,
+      size: asset?.size ?? 1,
+      shape: asset?.shape ?? "rectangle",
+      assetId: asset?.id,
+      iconUrl: asset?.imageDataUrl,
+      showName: asset?.showName ?? true,
+      nameTextColor: asset?.nameTextColor ?? "#f5efe3",
+      nameBackgroundEnabled: asset?.nameBackgroundEnabled ?? false,
+      nameBackgroundColor: asset?.nameBackgroundColor ?? "#111827",
+      memo: "",
+      sourceNote: "",
+      keyframes: [],
+    };
+    const frame = {
+      time: project.timeline.currentTime,
+      displayDate: project.timeline.frames.find((entry) => entry.time === project.timeline.currentTime)?.displayDate ?? project.timeline.currentTime,
+      x: previewPoint.x,
+      y: previewPoint.y,
+      rotation: asset?.rotation ?? 0,
+      size: asset?.size ?? 1,
+      status: "normal" as const,
+      factionId,
+      certainty: "confirmed" as const,
+      sourceNote: "",
+      effectiveFactionId: factionId,
+      effectiveCertainty: "confirmed" as const,
+    };
+    const faction = project.factions.find((entry) => entry.id === factionId);
+    return { unit: previewUnit, frame, color: faction?.color ?? "#8a96a8" };
+  })();
+  const sitePlacementPreview = (() => {
+    if (exportViewport || tool !== "addSite" || !previewPoint) return null;
+    const asset = sitePlacementAssetId ? project.siteAssets.find((entry) => entry.id === sitePlacementAssetId) : null;
+    const previewSite: Site = {
+      id: "site-placement-preview",
+      name: asset?.name ?? "新規拠点",
+      x: previewPoint.x,
+      y: previewPoint.y,
+      factionId: project.factions[0]?.id ?? "faction_default_a",
+      status: "normal",
+      certainty: "confirmed",
+      memo: "",
+      sourceNote: "",
+      locked: true,
+      size: asset?.size ?? 1,
+      nameFontSize: asset?.nameFontSize ?? 14,
+      assetId: asset?.id,
+      showName: true,
+      nameTextColor: asset?.nameTextColor ?? "#f5efe3",
+      nameBackgroundEnabled: asset?.nameBackgroundEnabled ?? false,
+      nameBackgroundColor: asset?.nameBackgroundColor ?? "#111827",
+      iconUrl: asset?.imageDataUrl,
+      keyframes: [],
+    };
+    return { site: previewSite, color: project.factions[0]?.color ?? "#8a96a8" };
+  })();
 
   return (
     <div className="canvas-container" ref={containerRef}>
@@ -640,6 +725,20 @@ export function MapCanvas() {
             return <SitePiece key={site.id} site={site} color={faction?.color ?? "#8a96a8"} selected={isSelected("site", site.id)} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
           })}
 
+          {sitePlacementPreview && (
+            <Group opacity={0.48} listening={false}>
+              <SitePiece
+                site={sitePlacementPreview.site}
+                color={sitePlacementPreview.color}
+                selected={false}
+                mapWidth={mapWidth}
+                mapHeight={mapHeight}
+                onSelect={() => undefined}
+                onDragEnd={() => undefined}
+              />
+            </Group>
+          )}
+
           {withoutSelected(project.units, "unit").map((unit) => {
             const frame = resolveDisplayUnitFrame(unit);
             if (!frame) return null;
@@ -659,6 +758,22 @@ export function MapCanvas() {
               />
             );
           })}
+
+          {unitPlacementPreview && (
+            <Group opacity={0.48} listening={false}>
+              <UnitPiece
+                unit={unitPlacementPreview.unit}
+                frame={unitPlacementPreview.frame}
+                color={unitPlacementPreview.color}
+                selected={false}
+                mapWidth={mapWidth}
+                mapHeight={mapHeight}
+                onSelect={() => undefined}
+                onDragEnd={() => undefined}
+                onRotateEnd={() => undefined}
+              />
+            </Group>
+          )}
 
           {withoutSelected(project.events, "event")
             .filter((event) => Math.abs(parseTimelineSeconds(event.time) - parseTimelineSeconds(project.timeline.currentTime)) < 0.25)
