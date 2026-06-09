@@ -59,6 +59,36 @@ const emptyProject: ProjectData = {
   labels: [],
 };
 
+function createBlankProject(): ProjectData {
+  return {
+    ...cloneProject(emptyProject),
+    timeline: {
+      ...emptyProject.timeline,
+      end: "0",
+      currentTime: "0",
+      frames: [{ id: createId("frame"), time: "0", displayDate: "00:00.0", order: 1, memo: "" }],
+    },
+    map: {
+      outputWidth: 1920,
+      outputHeight: 1080,
+      exportCamera: {
+        width: 1920,
+        height: 1080,
+        scale: 1,
+        keyframes: [{ time: "0", displayDate: "00:00.0", x: 0, y: 0, scale: 1 }],
+      },
+    },
+    unitAssets: [],
+    siteAssets: [],
+    sites: [],
+    units: [],
+    lines: [],
+    arrows: [],
+    events: [],
+    labels: [],
+  };
+}
+
 type ProjectMutator = (project: ProjectData) => void;
 type TimedEntry = { time: string; displayDate?: string };
 
@@ -72,6 +102,7 @@ interface ProjectStore {
   drawingPoints: MapPoint[];
   historyPast: ProjectData[];
   historyFuture: ProjectData[];
+  createNewProject: () => void;
   loadProject: (project: ProjectData) => void;
   loadSample: (index: number) => void;
   setCurrentTime: (time: string) => void;
@@ -568,6 +599,21 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   drawingPoints: [],
   historyPast: [],
   historyFuture: [],
+
+  createNewProject: () => {
+    const previous = get().project;
+    set({
+      project: normalizeImportedProject(createBlankProject()),
+      selected: { type: null, id: null },
+      selectedLinePointIndices: [],
+      selectedArrowPointIndices: [],
+      routePreviewUnitId: null,
+      tool: "select",
+      drawingPoints: [],
+      historyPast: trimHistory([...get().historyPast, previous]),
+      historyFuture: [],
+    });
+  },
 
   loadProject: (project) =>
     set({

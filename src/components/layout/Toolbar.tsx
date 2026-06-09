@@ -5,6 +5,7 @@ import {
   Castle,
   Download,
   FileDown,
+  FilePlus2,
   FileUp,
   Flag,
   ImagePlus,
@@ -48,6 +49,7 @@ function readImageDimensions(dataUrl: string) {
 export function Toolbar() {
   const project = useProjectStore((state) => state.project);
   const tool = useProjectStore((state) => state.tool);
+  const createNewProject = useProjectStore((state) => state.createNewProject);
   const importProject = useProjectStore((state) => state.importProject);
   const exportProject = useProjectStore((state) => state.exportProject);
   const setMapImage = useProjectStore((state) => state.setMapImage);
@@ -110,6 +112,13 @@ export function Toolbar() {
     setMapImage(dataUrl, naturalSize);
     setTool("mapImageEdit");
     selectObject("mapImage", "mapImage");
+    setActiveMenu(null);
+  };
+
+  const onCreateNewProject = () => {
+    const confirmed = window.confirm("現在のプロジェクトを空にして新規作成します。保存していない変更は失われます。実行しますか？");
+    if (!confirmed) return;
+    createNewProject();
     setActiveMenu(null);
   };
 
@@ -197,6 +206,10 @@ export function Toolbar() {
       {activeMenu === "file" && (
         <div className="toolbar-popover toolbar-popover-file">
           <h3>ファイル</h3>
+          <button type="button" onClick={onCreateNewProject} title="空のプロジェクトを作成">
+            <FilePlus2 size={17} />
+            新規作成
+          </button>
           <button type="button" onClick={() => jsonInputRef.current?.click()} title="プロジェクトJSON読み込み">
             <FileUp size={17} />
             JSONを読み込む
