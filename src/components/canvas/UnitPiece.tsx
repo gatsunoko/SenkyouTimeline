@@ -117,7 +117,8 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
   const labelTextY = labelY - 2 + (labelBackgroundHeight - nameFontSize) / 2 + nameFontSize * 0.06;
   const labelHeight = hasImage && showName ? labelBackgroundHeight + 2 : 0;
   const bodyNameFontSize = 17 * size;
-  const bodyNameWidth = Math.min(width - 12, Math.max(24, estimateTextWidth(unit.name, bodyNameFontSize) + 12));
+  const bodyNameWidth = Math.max(24, estimateTextWidth(unit.name, bodyNameFontSize) + 12);
+  const bodyNameTextWidthForKonva = bodyNameWidth + 2;
   const bodySelectionSize = isPentagon ? Math.hypot(width, bodyHeight) : bodyHeight;
   const selectionWidth = isPentagon ? Math.hypot(width, bodyHeight) : width;
   const totalHeight = bodySelectionSize + labelHeight;
@@ -282,12 +283,12 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
       {hasImage ? (
         <>
           {showName && unit.nameBackgroundEnabled && <Rect x={-labelWidth / 2} y={labelY - 2} width={labelWidth} height={labelBackgroundHeight} fill={unit.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
-          {showName && <Text text={unit.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontStyle="bold" fill={nameTextColor} wrap="none" ellipsis />}
+          {showName && <Text text={unit.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontStyle="bold" fill={nameTextColor} wrap="none" />}
         </>
       ) : (
         <>
           {showName && unit.nameBackgroundEnabled && <Rect x={-bodyNameWidth / 2} y={bodyNameBackgroundY} width={bodyNameWidth} height={bodyNameBackgroundHeight} fill={unit.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
-          {showName && <Text text={unit.name} x={-width / 2 + 8} y={bodyNameTextY} width={width - 16} height={bodyNameFontSize + 2} align="center" fontSize={bodyNameFontSize} fontStyle="bold" fill={unit.nameTextColor ?? textColor} ellipsis />}
+          {showName && <Text text={unit.name} x={-bodyNameTextWidthForKonva / 2} y={bodyNameTextY} width={bodyNameTextWidthForKonva} height={bodyNameFontSize + 2} align="center" fontSize={bodyNameFontSize} fontStyle="bold" fill={unit.nameTextColor ?? textColor} wrap="none" />}
         </>
       )}
     </Group>
