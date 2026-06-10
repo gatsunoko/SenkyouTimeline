@@ -62,6 +62,7 @@ export function UnitInspector({ id }: { id: string }) {
   const currentX = routePoint?.x ?? routeApproachPoint?.x ?? routeExitPoint?.x ?? keyframe?.x ?? resolvedFrame?.x ?? 0.5;
   const currentY = routePoint?.y ?? routeApproachPoint?.y ?? routeExitPoint?.y ?? keyframe?.y ?? resolvedFrame?.y ?? 0.5;
   const currentSize = keyframe?.size ?? resolvedFrame?.size ?? unit.size;
+  const currentNameFontSize = unit.nameFontSize ?? 14 * currentSize;
   const unitShape = unit.shape ?? "rectangle";
   const routeOptions: RouteOption[] = [
     ...project.lines.map((line) => ({
@@ -164,6 +165,7 @@ export function UnitInspector({ id }: { id: string }) {
       <ToggleField label="ロック" checked={unit.locked} onChange={(value) => updateUnit(unit.id, { locked: value })} />
       <SelectField label="形状" value={unitShape} options={unitShapeLabels} onChange={(value) => updateUnit(unit.id, { shape: value })} />
       <NumberField label="サイズ" value={currentSize} min={0.2} max={4} step={0.05} onChange={(value) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: currentX, y: currentY, size: value, status: unit.status })} />
+      <NumberField label="名前の文字サイズ" value={currentNameFontSize} min={8} max={72} step={1} onChange={(value) => updateUnit(unit.id, { nameFontSize: value })} />
 
       <h3>画像コマ</h3>
       <h3>名前表示</h3>

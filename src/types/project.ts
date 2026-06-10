@@ -192,6 +192,7 @@ export interface UnitAsset {
   shape?: UnitShape;
   rotation?: number;
   showName?: boolean;
+  nameFontSize?: number;
   nameTextColor?: string;
   nameBackgroundEnabled?: boolean;
   nameBackgroundColor?: string;
@@ -260,6 +261,7 @@ export interface Unit {
   displayEndTime?: string;
   assetId?: string;
   showName?: boolean;
+  nameFontSize?: number;
   nameTextColor?: string;
   nameBackgroundEnabled?: boolean;
   nameBackgroundColor?: string;

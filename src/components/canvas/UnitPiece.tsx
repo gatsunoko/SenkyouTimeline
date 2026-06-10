@@ -25,15 +25,6 @@ type RotationDragState = {
   previewRotation: number;
 };
 
-function readableTextColor(color: string) {
-  const hex = color.replace("#", "");
-  const value = hex.length === 3 ? hex.split("").map((char) => char + char).join("") : hex;
-  const r = parseInt(value.slice(0, 2), 16);
-  const g = parseInt(value.slice(2, 4), 16);
-  const b = parseInt(value.slice(4, 6), 16);
-  return r * 0.299 + g * 0.587 + b * 0.114 > 150 ? "#10151d" : "#fffaf0";
-}
-
 function estimateTextWidth(text: string, fontSize: number) {
   return Array.from(text).reduce((sum, char) => {
     const wide = /[^\u0020-\u007e]/.test(char);
@@ -49,6 +40,16 @@ function shortestAngleDelta(from: number, to: number) {
   return ((to - from + 540) % 360) - 180;
 }
 
+function rotatedPoint(point: { x: number; y: number }, degrees: number) {
+  const radians = (degrees * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return {
+    x: point.x * cos - point.y * sin,
+    y: point.x * sin + point.y * cos,
+  };
+}
+
 export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, onSelect, onDragEnd, onRotateEnd }: UnitPieceProps) {
   const [image, setImage] = useState<HTMLImageElement | null>(() => getCachedImage(unit.iconUrl));
   const [rotationPreview, setRotationPreview] = useState<number | null>(null);
@@ -59,7 +60,6 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
   const position = relativeToCanvas(frame, mapWidth, mapHeight);
   const hasImage = Boolean(unit.iconUrl);
   const showName = unit.showName !== false;
-  const textColor = readableTextColor(color);
   const size = frame.size ?? unit.size;
   const nameTextColor = unit.nameTextColor ?? "#f5efe3";
   const isPentagon = (unit.shape ?? "rectangle") === "pentagon";
@@ -108,24 +108,32 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
     -width / 2,
     -bodyHeight / 2 + pointDepth,
   ];
-  const nameFontSize = 14 * size;
+  const bodyBoundsPoints = isPentagon
+    ? [
+        { x: pentagonPoints[0], y: pentagonPoints[1] },
+        { x: pentagonPoints[2], y: pentagonPoints[3] },
+        { x: pentagonPoints[4], y: pentagonPoints[5] },
+        { x: pentagonPoints[6], y: pentagonPoints[7] },
+        { x: pentagonPoints[8], y: pentagonPoints[9] },
+      ].map((point) => rotatedPoint(point, bodyRotation))
+    : [
+        { x: -width / 2, y: -bodyHeight / 2 },
+        { x: width / 2, y: -bodyHeight / 2 },
+        { x: width / 2, y: bodyHeight / 2 },
+        { x: -width / 2, y: bodyHeight / 2 },
+      ];
+  const bodyBottomY = Math.max(...bodyBoundsPoints.map((point) => point.y));
+  const bodySelectionSize = isPentagon ? Math.hypot(width, bodyHeight) : bodyHeight;
+  const selectionWidth = isPentagon ? Math.hypot(width, bodyHeight) : width;
+  const nameFontSize = unit.nameFontSize ?? 14 * size;
   const labelTextWidth = estimateTextWidth(unit.name, nameFontSize);
   const labelWidth = Math.max(24, labelTextWidth + 12);
   const labelTextWidthForKonva = labelWidth + 2;
-  const labelY = bodyHeight / 2 + 4;
+  const labelY = bodyBottomY + 4;
   const labelBackgroundHeight = nameFontSize + 6;
   const labelTextY = labelY - 2 + (labelBackgroundHeight - nameFontSize) / 2 + nameFontSize * 0.06;
-  const labelHeight = hasImage && showName ? labelBackgroundHeight + 2 : 0;
-  const bodyNameFontSize = 17 * size;
-  const bodyNameWidth = Math.max(24, estimateTextWidth(unit.name, bodyNameFontSize) + 12);
-  const bodyNameTextWidthForKonva = bodyNameWidth + 2;
-  const bodySelectionSize = isPentagon ? Math.hypot(width, bodyHeight) : bodyHeight;
-  const selectionWidth = isPentagon ? Math.hypot(width, bodyHeight) : width;
+  const labelHeight = showName ? labelBackgroundHeight + 2 : 0;
   const totalHeight = bodySelectionSize + labelHeight;
-  const bodyNameY = isPentagon ? pointDepth / 2 - bodyNameFontSize / 2 : -bodyHeight / 2 + 11;
-  const bodyNameBackgroundY = bodyNameY - 3;
-  const bodyNameBackgroundHeight = bodyNameFontSize + 6;
-  const bodyNameTextY = bodyNameBackgroundY + (bodyNameBackgroundHeight - bodyNameFontSize) / 2 + bodyNameFontSize * 0.06;
   const rotateGuideRadius = bodySelectionSize / 2 + 18;
   const rotationHandleRestPosition = {
     x: Math.sin((currentRotation * Math.PI) / 180) * rotateGuideRadius,
@@ -280,17 +288,8 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
           )}
         </Group>
       )}
-      {hasImage ? (
-        <>
-          {showName && unit.nameBackgroundEnabled && <Rect x={-labelWidth / 2} y={labelY - 2} width={labelWidth} height={labelBackgroundHeight} fill={unit.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
-          {showName && <Text text={unit.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontStyle="bold" fill={nameTextColor} wrap="none" />}
-        </>
-      ) : (
-        <>
-          {showName && unit.nameBackgroundEnabled && <Rect x={-bodyNameWidth / 2} y={bodyNameBackgroundY} width={bodyNameWidth} height={bodyNameBackgroundHeight} fill={unit.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
-          {showName && <Text text={unit.name} x={-bodyNameTextWidthForKonva / 2} y={bodyNameTextY} width={bodyNameTextWidthForKonva} height={bodyNameFontSize + 2} align="center" fontSize={bodyNameFontSize} fontStyle="bold" fill={unit.nameTextColor ?? textColor} wrap="none" />}
-        </>
-      )}
+      {showName && unit.nameBackgroundEnabled && <Rect x={-labelWidth / 2} y={labelY - 2} width={labelWidth} height={labelBackgroundHeight} fill={unit.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
+      {showName && <Text text={unit.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontStyle="bold" fill={nameTextColor} wrap="none" />}
     </Group>
   );
 }

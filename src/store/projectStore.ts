@@ -665,6 +665,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     asset.shape = asset.shape === "pentagon" ? "pentagon" : "rectangle";
     asset.rotation = Number.isFinite(asset.rotation) ? asset.rotation : 0;
     asset.showName = asset.showName ?? true;
+    asset.nameFontSize ||= 14 * asset.size;
     asset.nameTextColor ||= "#f5efe3";
     asset.nameBackgroundEnabled = asset.nameBackgroundEnabled ?? false;
     asset.nameBackgroundColor ||= "#111827";
@@ -1113,6 +1114,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         shape: unit.shape ?? "rectangle",
         rotation: currentFrame?.rotation ?? 0,
         showName: unit.showName ?? true,
+        nameFontSize: unit.nameFontSize ?? 14 * (currentFrame?.size ?? unit.size),
         nameTextColor: unit.nameTextColor ?? "#f5efe3",
         nameBackgroundEnabled: unit.nameBackgroundEnabled ?? false,
         nameBackgroundColor: unit.nameBackgroundColor ?? "#111827",
@@ -1159,6 +1161,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         assetId: asset.id,
         iconUrl: asset.imageDataUrl,
         showName: asset.showName ?? true,
+        nameFontSize: asset.nameFontSize ?? 14 * (asset.size ?? 1),
         nameTextColor: asset.nameTextColor ?? "#f5efe3",
         nameBackgroundEnabled: asset.nameBackgroundEnabled ?? false,
         nameBackgroundColor: asset.nameBackgroundColor ?? "#111827",

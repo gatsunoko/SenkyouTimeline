@@ -125,6 +125,55 @@ function labelBoundsSize(label: MapLabel) {
   };
 }
 
+function rotateCanvasPoint(point: CanvasPoint, degrees: number) {
+  const radians = (degrees * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return {
+    x: point.x * cos - point.y * sin,
+    y: point.x * sin + point.y * cos,
+  };
+}
+
+function unitVisualBounds(unit: Unit, frame: { rotation?: number; size?: number }, position: CanvasPoint): CanvasRect {
+  const size = frame.size ?? unit.size;
+  const bodyWidth = (unit.iconUrl ? 68 : 92) * size;
+  const bodyHeight = (unit.iconUrl ? 68 : 44) * size;
+  const isPentagon = (unit.shape ?? "rectangle") === "pentagon";
+  const pointDepth = isPentagon ? Math.min(bodyHeight * 0.34, bodyWidth * 0.22) : 0;
+  const bodyPoints: CanvasPoint[] = isPentagon
+    ? [
+        { x: 0, y: -bodyHeight / 2 },
+        { x: bodyWidth / 2, y: -bodyHeight / 2 + pointDepth },
+        { x: bodyWidth / 2, y: bodyHeight / 2 },
+        { x: -bodyWidth / 2, y: bodyHeight / 2 },
+        { x: -bodyWidth / 2, y: -bodyHeight / 2 + pointDepth },
+      ].map((point) => rotateCanvasPoint(point, frame.rotation ?? 0))
+    : [
+        { x: -bodyWidth / 2, y: -bodyHeight / 2 },
+        { x: bodyWidth / 2, y: -bodyHeight / 2 },
+        { x: bodyWidth / 2, y: bodyHeight / 2 },
+        { x: -bodyWidth / 2, y: bodyHeight / 2 },
+      ];
+  const left = Math.min(...bodyPoints.map((point) => point.x));
+  const right = Math.max(...bodyPoints.map((point) => point.x));
+  const top = Math.min(...bodyPoints.map((point) => point.y));
+  const bottom = Math.max(...bodyPoints.map((point) => point.y));
+  const nameFontSize = unit.nameFontSize ?? 14 * size;
+  const labelWidth = unit.showName === false ? 0 : Math.max(24, estimateLabelTextWidth(unit.name, nameFontSize) + 14);
+  const labelBottom = unit.showName === false ? bottom : bottom + nameFontSize + 10;
+  const visualLeft = Math.min(left, -labelWidth / 2) - 6;
+  const visualRight = Math.max(right, labelWidth / 2) + 6;
+  const visualTop = top - 6;
+  const visualBottom = labelBottom + 6;
+  return {
+    x: position.x + visualLeft,
+    y: position.y + visualTop,
+    width: visualRight - visualLeft,
+    height: visualBottom - visualTop,
+  };
+}
+
 function expandRect(rect: CanvasRect, padding: number): CanvasRect {
   return {
     x: rect.x - padding,
@@ -741,10 +790,7 @@ export function MapCanvas() {
       const frame = unit ? resolveDisplayUnitFrame(unit) : null;
       if (!unit || !frame) return null;
       const position = { x: frame.x * mapWidth, y: frame.y * mapHeight };
-      const size = frame.size ?? unit.size;
-      const width = (unit.iconUrl ? 86 : 72) * size;
-      const height = (unit.iconUrl ? 104 : 88) * size;
-      return { x: position.x - width / 2, y: position.y - height / 2, width, height };
+      return unitVisualBounds(unit, frame, position);
     }
     if (item.type === "site") {
       const site = project.sites.find((entry) => entry.id === item.id);
