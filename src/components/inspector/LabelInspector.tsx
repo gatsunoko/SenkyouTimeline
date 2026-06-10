@@ -1,11 +1,23 @@
+import { useEffect, useRef } from "react";
 import { useProjectStore } from "../../store/projectStore";
 import { compareTime, sortedFrames } from "../../utils/time";
-import { ColorField, NumberField, TextAreaField, TextField, ToggleField } from "./InspectorFields";
+import { ColorField, NumberField, TextAreaField, ToggleField } from "./InspectorFields";
 
 export function LabelInspector({ id }: { id: string }) {
+  const textInputRef = useRef<HTMLInputElement>(null);
   const project = useProjectStore((state) => state.project);
+  const tool = useProjectStore((state) => state.tool);
   const updateLabel = useProjectStore((state) => state.updateLabel);
   const label = project.labels.find((entry) => entry.id === id);
+
+  useEffect(() => {
+    if (tool !== "addLabel") return;
+    window.requestAnimationFrame(() => {
+      textInputRef.current?.focus();
+      textInputRef.current?.select();
+    });
+  }, [id, tool]);
+
   if (!label) return null;
 
   const frames = sortedFrames(project.timeline.frames);
@@ -29,7 +41,10 @@ export function LabelInspector({ id }: { id: string }) {
   return (
     <aside className="right-inspector">
       <h2>ラベル編集</h2>
-      <TextField label="テキスト" value={label.text} onChange={(value) => updateLabel(label.id, { text: value })} />
+      <label>
+        テキスト
+        <input ref={textInputRef} value={label.text} onChange={(event) => updateLabel(label.id, { text: event.target.value })} />
+      </label>
       <label>
         開始時間
         <select value={displayStartTime} onChange={(event) => setDisplayStartTime(event.target.value)}>

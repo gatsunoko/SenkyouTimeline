@@ -12,16 +12,34 @@ interface LabelShapeProps {
   onDragEnd: (x: number, y: number) => void;
 }
 
+function estimateTextWidth(text: string, fontSize: number) {
+  return Array.from(text).reduce((sum, char) => {
+    const wide = /[^\u0020-\u007e]/.test(char);
+    return sum + fontSize * (wide ? 1.05 : 0.62);
+  }, 0);
+}
+
+function labelFont(fontSize: number) {
+  return `normal ${fontSize}px "Yu Gothic UI", "Meiryo", system-ui, sans-serif`;
+}
+
+function measureLabelTextWidth(text: string, fontSize: number) {
+  if (typeof document === "undefined") return estimateTextWidth(text, fontSize);
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) return estimateTextWidth(text, fontSize);
+  context.font = labelFont(fontSize);
+  return context.measureText(text).width;
+}
+
 export function LabelShape({ label, selected, mapWidth, mapHeight, onSelect, onDragEnd }: LabelShapeProps) {
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const position = relativeToCanvas(label, mapWidth, mapHeight);
-  const textWidth = Array.from(label.text).reduce((sum, char) => {
-    const wide = /[^\u0020-\u007e]/.test(char);
-    return sum + label.fontSize * (wide ? 1.05 : 0.62);
-  }, 0);
-  const width = Math.max(70, textWidth + 24);
+  const horizontalPadding = 11;
+  const textWidth = measureLabelTextWidth(label.text, label.fontSize);
+  const width = Math.max(70, textWidth + horizontalPadding * 2);
   const height = label.fontSize + 16;
-  const textAreaWidth = width - 16;
+  const textAreaWidth = width - horizontalPadding * 2;
   return (
     <Group
       x={position.x}
@@ -46,7 +64,7 @@ export function LabelShape({ label, selected, mapWidth, mapHeight, onSelect, onD
       {selected && <Rect x={-width / 2 - 5} y={-height / 2 - 5} width={width + 10} height={height + 10} stroke="#f4d06f" strokeWidth={3} cornerRadius={6} />}
       <Rect x={-width / 2} y={-height / 2} width={width} height={height} fill={label.backgroundColor} stroke={label.borderColor} strokeWidth={2} cornerRadius={6} />
       <Shape
-        x={-width / 2 + 8}
+        x={-width / 2 + horizontalPadding}
         y={-height / 2}
         width={textAreaWidth}
         height={height}
@@ -54,7 +72,7 @@ export function LabelShape({ label, selected, mapWidth, mapHeight, onSelect, onD
         sceneFunc={(context) => {
           const canvasContext = (context as unknown as { _context: CanvasRenderingContext2D })._context;
           canvasContext.save();
-          canvasContext.font = `normal ${label.fontSize}px "Yu Gothic UI", "Meiryo", system-ui, sans-serif`;
+          canvasContext.font = labelFont(label.fontSize);
           canvasContext.fillStyle = label.color;
           canvasContext.textAlign = "center";
           canvasContext.textBaseline = "alphabetic";
