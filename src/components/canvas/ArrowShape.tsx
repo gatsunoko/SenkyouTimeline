@@ -23,6 +23,7 @@ export function ArrowShape({ arrow, frame, selected, preview = false, selectedPo
   const activePoints = dragPoints ?? frame.points;
   const tension = arrow.curveMode === "curve" ? 0.45 : 0;
   const arrowHeadSize = arrow.arrowHeadSize ?? 1;
+  const canvasPoints = pointsToCanvas(activePoints, mapWidth, mapHeight);
 
   useEffect(() => {
     setDragPoints(null);
@@ -45,11 +46,27 @@ export function ArrowShape({ arrow, frame, selected, preview = false, selectedPo
         onClick={onSelect}
         onTap={onSelect}
       />
+      {selected && (
+        <Arrow
+          points={canvasPoints}
+          stroke="#f4d06f"
+          fill="#f4d06f"
+          strokeWidth={arrow.width + 8}
+          pointerLength={20 * arrowHeadSize + 8}
+          pointerWidth={18 * arrowHeadSize + 8}
+          opacity={0.95}
+          dash={arrow.dashed ? [15, 10] : undefined}
+          lineCap="round"
+          lineJoin="round"
+          tension={tension}
+          listening={false}
+        />
+      )}
       <Arrow
-        points={pointsToCanvas(activePoints, mapWidth, mapHeight)}
-        stroke={selected ? "#f4d06f" : preview ? "#f0c665" : arrow.color}
-        fill={selected ? "#f4d06f" : preview ? "#f0c665" : arrow.color}
-        strokeWidth={selected ? arrow.width + 2 : preview ? arrow.width + 2 : arrow.width}
+        points={canvasPoints}
+        stroke={preview ? "#f0c665" : arrow.color}
+        fill={preview ? "#f0c665" : arrow.color}
+        strokeWidth={preview ? arrow.width + 2 : arrow.width}
         pointerLength={20 * arrowHeadSize}
         pointerWidth={18 * arrowHeadSize}
         opacity={preview ? Math.max(0.9, arrow.opacity) : arrow.opacity}

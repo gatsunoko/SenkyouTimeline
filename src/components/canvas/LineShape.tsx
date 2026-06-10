@@ -23,6 +23,7 @@ export function LineShape({ line, frame, selected, preview = false, selectedPoin
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const activePoints = dragPoints ?? frame.points;
   const tension = line.curveMode === "curve" ? 0.45 : 0;
+  const canvasPoints = pointsToCanvas(activePoints, mapWidth, mapHeight);
 
   useEffect(() => {
     setDragPoints(null);
@@ -42,10 +43,23 @@ export function LineShape({ line, frame, selected, preview = false, selectedPoin
         onClick={onSelect}
         onTap={onSelect}
       />
+      {selected && (
+        <Line
+          points={canvasPoints}
+          stroke="#f4d06f"
+          strokeWidth={line.width + 8}
+          opacity={0.95}
+          dash={line.dashed ? [16, 10] : undefined}
+          lineCap="round"
+          lineJoin="round"
+          tension={tension}
+          listening={false}
+        />
+      )}
       <Line
-        points={pointsToCanvas(activePoints, mapWidth, mapHeight)}
-        stroke={selected ? "#f4d06f" : preview ? "#f0c665" : line.color}
-        strokeWidth={selected ? line.width + 3 : preview ? line.width + 2 : line.width}
+        points={canvasPoints}
+        stroke={preview ? "#f0c665" : line.color}
+        strokeWidth={preview ? line.width + 2 : line.width}
         opacity={preview ? Math.max(0.9, line.opacity) : line.opacity}
         dash={line.dashed ? [16, 10] : undefined}
         lineCap="round"
