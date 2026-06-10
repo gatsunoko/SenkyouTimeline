@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Pause, Play, Plus, SkipBack, SkipForward, Trash2 } from "lucide-react";
 import { useProjectStore } from "../../store/projectStore";
-import { getUnitRouteTimeRange, resolveArrowRoutePoints, resolveLineRoutePoints } from "../../utils/interpolation";
+import { getUnitRouteTimeRange, resolveArrowRoutePoints, resolveLineRoutePoints, resolveUnitFrame } from "../../utils/interpolation";
 import { formatSeconds, formatTimelineLabel, getTimelineBounds, parseTimelineSeconds, sortedFrames } from "../../utils/time";
 
 export function TimelinePanel() {
@@ -103,7 +103,18 @@ export function TimelinePanel() {
     for (const unit of next.units) {
       updateRouteFallbackPoints(unit);
       const routeRange = getUnitRouteTimeRange(unit.route);
+      const resolvedBeforeDelete = resolveUnitFrame(unit, activeFrame.time, next.timeline.interpolationMode);
       unit.keyframes = unit.keyframes.filter((keyframe) => !isDeletedTime(keyframe.time));
+      if (unit.keyframes.length === 0 && resolvedBeforeDelete) {
+        unit.x = resolvedBeforeDelete.x;
+        unit.y = resolvedBeforeDelete.y;
+        unit.rotation = resolvedBeforeDelete.rotation;
+        unit.size = resolvedBeforeDelete.size ?? unit.size;
+        unit.status = resolvedBeforeDelete.status;
+        unit.factionId = resolvedBeforeDelete.effectiveFactionId;
+        unit.certainty = resolvedBeforeDelete.effectiveCertainty;
+        unit.sourceNote = resolvedBeforeDelete.sourceNote ?? unit.sourceNote;
+      }
       if (isDeletedTime(unit.displayStartTime)) unit.displayStartTime = routeRange?.startTime ?? replacementStart;
       if (isDeletedTime(unit.displayEndTime)) unit.displayEndTime = routeRange?.endTime ?? replacementEnd;
     }

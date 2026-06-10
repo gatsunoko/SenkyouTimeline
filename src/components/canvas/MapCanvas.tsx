@@ -6,7 +6,7 @@ import type { MapLabel, MovableSelectionType, SelectionMoveUpdate, Site, Unit } 
 import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas } from "../../utils/coordinate";
 import { downloadBlob, downloadDataUrl } from "../../utils/fileIO";
 import { loadCachedImage } from "../../utils/imageCache";
-import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveCameraFrame, resolveLineKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRouteApproachPoint, resolveUnitRoutePoint } from "../../utils/interpolation";
+import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveCameraFrame, resolveLineKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRouteApproachPoint, resolveUnitRouteExitPoint, resolveUnitRoutePoint } from "../../utils/interpolation";
 import { createZip, type ZipEntry } from "../../utils/zip";
 import { compareTime, parseTimelineSeconds } from "../../utils/time";
 import { ArrowShape } from "./ArrowShape";
@@ -687,13 +687,15 @@ export function MapCanvas() {
   const shouldRenderLine = (line: (typeof project.lines)[number]) => !line.hideWhenRoute || isPreviewRouteSource("line", line.id);
   const shouldRenderArrow = (arrow: (typeof project.arrows)[number]) => !arrow.hideWhenRoute || isPreviewRouteSource("arrow", arrow.id);
   const resolveDisplayUnitFrame = (unit: (typeof project.units)[number]) => {
-    const routePoint = resolveUnitRoutePoint(unit, project.lines, project.arrows, project.timeline.currentTime, project.timeline.interpolationMode);
+    const routeRange = getUnitRouteTimeRange(unit.route);
+    const afterRoute = Boolean(routeRange && compareTime(project.timeline.currentTime, routeRange.endTime) > 0);
+    const routePoint = afterRoute ? null : resolveUnitRoutePoint(unit, project.lines, project.arrows, project.timeline.currentTime, project.timeline.interpolationMode);
     const routeApproachPoint = routePoint ? null : resolveUnitRouteApproachPoint(unit, project.lines, project.arrows, project.timeline.currentTime, project.timeline.interpolationMode);
+    const routeExitPoint = afterRoute ? resolveUnitRouteExitPoint(unit, project.lines, project.arrows, project.timeline.currentTime, project.timeline.interpolationMode) : null;
     const frame = resolveUnitFrame(unit, project.timeline.currentTime, project.timeline.interpolationMode);
-    const effectiveRoutePoint = routePoint ?? routeApproachPoint;
+    const effectiveRoutePoint = routePoint ?? routeApproachPoint ?? routeExitPoint;
     if (!frame && !effectiveRoutePoint) return null;
     if (!frame && effectiveRoutePoint) {
-      const routeRange = getUnitRouteTimeRange(unit.route);
       const displayStartTime = unit.displayStartTime ?? routeRange?.startTime;
       const displayEndTime = unit.displayEndTime;
       if (displayStartTime && compareTime(project.timeline.currentTime, displayStartTime) < 0) return null;

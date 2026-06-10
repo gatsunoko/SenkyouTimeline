@@ -278,7 +278,26 @@ function routeSegmentEndpoint(segment: UnitRouteSegment, lines: BattleLine[], ar
 
 export function resolveUnitFrame(unit: Unit, currentTime: string, mode: InterpolationMode): ResolvedUnitFrame | null {
   const keyframes = orderedUnitKeyframes(unit);
-  if (keyframes.length === 0) return null;
+  if (keyframes.length === 0) {
+    const displayStartTime = unit.displayStartTime;
+    const displayEndTime = unit.displayEndTime;
+    if (displayStartTime && compareTime(currentTime, displayStartTime) < 0) return null;
+    if (displayEndTime && compareTime(currentTime, displayEndTime) > 0) return null;
+    return {
+      time: currentTime,
+      displayDate: currentTime,
+      x: unit.x ?? 0.5,
+      y: unit.y ?? 0.5,
+      rotation: unit.rotation ?? 0,
+      size: unit.size,
+      status: unit.status,
+      factionId: unit.factionId,
+      certainty: unit.certainty,
+      sourceNote: unit.sourceNote,
+      effectiveFactionId: unit.factionId,
+      effectiveCertainty: unit.certainty,
+    };
+  }
 
   const displayStartTime = unit.displayStartTime ?? keyframes[0].time;
   const displayEndTime = unit.displayEndTime;
@@ -362,6 +381,39 @@ export function resolveUnitRoutePoint(unit: Unit, lines: BattleLine[], arrows: B
   }
 
   return previousEndpoint?.point ?? null;
+}
+
+export function resolveUnitRouteExitPoint(unit: Unit, lines: BattleLine[], arrows: BattleArrow[], currentTime: string, mode: InterpolationMode): MapPoint | null {
+  if (!unit.route) return null;
+
+  const currentSeconds = parseTimelineSeconds(currentTime);
+  if (Number.isNaN(currentSeconds)) return null;
+
+  const segments = getUnitRouteSegments(unit.route);
+  const lastSegment = segments[segments.length - 1];
+  if (!lastSegment) return null;
+
+  const endSeconds = parseTimelineSeconds(lastSegment.endTime);
+  if (Number.isNaN(endSeconds) || currentSeconds <= endSeconds) return null;
+
+  const endPoint = routeSegmentEndpoint(lastSegment, lines, arrows, "end", mode);
+  if (!endPoint) return null;
+
+  const nextKeyframe = orderedUnitKeyframes(unit).find((frame) => {
+    const frameSeconds = parseTimelineSeconds(frame.time);
+    return !Number.isNaN(frameSeconds) && frameSeconds > endSeconds + 0.0001;
+  });
+  if (!nextKeyframe) return endPoint;
+
+  const nextSeconds = parseTimelineSeconds(nextKeyframe.time);
+  if (Number.isNaN(nextSeconds) || nextSeconds <= endSeconds) return endPoint;
+  if (currentSeconds >= nextSeconds - 0.0001) return null;
+
+  const progress = Math.min(1, Math.max(0, (currentSeconds - endSeconds) / (nextSeconds - endSeconds)));
+  return {
+    x: endPoint.x + (nextKeyframe.x - endPoint.x) * progress,
+    y: endPoint.y + (nextKeyframe.y - endPoint.y) * progress,
+  };
 }
 
 export function resolveUnitRouteApproachPoint(unit: Unit, lines: BattleLine[], arrows: BattleArrow[], currentTime: string, mode: InterpolationMode): MapPoint | null {

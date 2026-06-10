@@ -243,6 +243,8 @@ export interface UnitRoute extends UnitRouteSegment {
 export interface Unit {
   id: string;
   name: string;
+  x?: number;
+  y?: number;
   factionId: string;
   unitType: UnitType;
   commander: string;
@@ -252,6 +254,7 @@ export interface Unit {
   certainty: Certainty;
   locked: boolean;
   size: number;
+  rotation?: number;
   shape?: UnitShape;
   displayStartTime?: string;
   displayEndTime?: string;

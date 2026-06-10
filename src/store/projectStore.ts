@@ -473,6 +473,32 @@ function isSameTime(a: string, b: string) {
   return Math.abs(parseTimelineSeconds(a) - parseTimelineSeconds(b)) < 0.05;
 }
 
+function timelineMaxSeconds(project: ProjectData) {
+  const frameSeconds = project.timeline.frames.map((frame) => parseTimelineSeconds(frame.time)).filter(Number.isFinite);
+  const timelineEndSeconds = parseTimelineSeconds(project.timeline.end);
+  if (Number.isFinite(timelineEndSeconds)) frameSeconds.push(timelineEndSeconds);
+  return frameSeconds.length > 0 ? Math.max(...frameSeconds) : 0;
+}
+
+function extendObjectDisplayEnds(project: ProjectData, previousEndSeconds: number, nextEndTime: string) {
+  const nextEndSeconds = parseTimelineSeconds(nextEndTime);
+  if (!Number.isFinite(previousEndSeconds) || !Number.isFinite(nextEndSeconds) || nextEndSeconds <= previousEndSeconds + 0.05) return;
+  const matchesPreviousEnd = (time?: string) => Boolean(time && Math.abs(parseTimelineSeconds(time) - previousEndSeconds) < 0.05);
+
+  for (const unit of project.units) {
+    if (matchesPreviousEnd(unit.displayEndTime)) unit.displayEndTime = nextEndTime;
+  }
+  for (const line of project.lines) {
+    if (matchesPreviousEnd(line.displayEndTime)) line.displayEndTime = nextEndTime;
+  }
+  for (const arrow of project.arrows) {
+    if (matchesPreviousEnd(arrow.endTime)) arrow.endTime = nextEndTime;
+  }
+  for (const label of project.labels) {
+    if (matchesPreviousEnd(label.endTime)) label.endTime = nextEndTime;
+  }
+}
+
 function hasObjectKeyAtTime(project: ProjectData, time: string) {
   return (
     project.units.some((unit) => unit.keyframes.some((keyframe) => isSameTime(keyframe.time, time))) ||
@@ -773,7 +799,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
     commit(set, get, (project) => {
       const currentSeconds = parseTimelineSeconds(project.timeline.currentTime);
-      const previousEndSeconds = parseTimelineSeconds(project.timeline.end);
+      const previousEndSeconds = timelineMaxSeconds(project);
       const hasFrameAtCurrent = project.timeline.frames.some((frame) => Math.abs(parseTimelineSeconds(frame.time) - currentSeconds) < 0.05);
       let targetSeconds = currentSeconds;
 
@@ -795,24 +821,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       project.timeline.frames = sortedFrames(project.timeline.frames).map((frame, index) => ({ ...frame, order: index + 1 }));
       if (parseTimelineSeconds(project.timeline.end) < targetSeconds) project.timeline.end = time;
       project.timeline.currentTime = time;
-
-      if (Math.abs(currentSeconds - previousEndSeconds) < 0.05 && targetSeconds > previousEndSeconds) {
-        for (const unit of project.units) {
-          if (unit.displayEndTime && Math.abs(parseTimelineSeconds(unit.displayEndTime) - previousEndSeconds) < 0.05) {
-            unit.displayEndTime = time;
-          }
-        }
-        for (const line of project.lines) {
-          if (line.displayEndTime && Math.abs(parseTimelineSeconds(line.displayEndTime) - previousEndSeconds) < 0.05) {
-            line.displayEndTime = time;
-          }
-        }
-        for (const arrow of project.arrows) {
-          if (arrow.endTime && Math.abs(parseTimelineSeconds(arrow.endTime) - previousEndSeconds) < 0.05) {
-            arrow.endTime = time;
-          }
-        }
-      }
+      extendObjectDisplayEnds(project, previousEndSeconds, time);
 
       const selected = get().selected;
       if (selected.type === "site" && selected.id) {
@@ -913,6 +922,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       if (patch.time !== undefined && project.timeline.frames.some((entry) => entry.id !== id && isSameTime(entry.time, nextTime))) {
         return;
       }
+      const previousEndSeconds = timelineMaxSeconds(project);
 
       frame.time = nextTime;
       frame.displayDate = patch.displayDate ?? (patch.time !== undefined ? formatTimelineLabel(nextTime) : frame.displayDate);
@@ -976,6 +986,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const frameSeconds = project.timeline.frames.map((entry) => parseTimelineSeconds(entry.time));
       project.timeline.start = Math.min(...frameSeconds, parseTimelineSeconds(project.timeline.start)).toFixed(1);
       project.timeline.end = Math.max(...frameSeconds, parseTimelineSeconds(project.timeline.end)).toFixed(1);
+      if (patch.time !== undefined) extendObjectDisplayEnds(project, previousEndSeconds, project.timeline.end);
     }),
 
   addFaction: () =>
@@ -1715,7 +1726,18 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const unit = project.units.find((entry) => entry.id === unitId);
       if (!unit) return;
       const targetSeconds = parseTimelineSeconds(time);
+      const resolvedBeforeDelete = resolveUnitFrame(unit, time, project.timeline.interpolationMode);
       unit.keyframes = unit.keyframes.filter((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) >= 0.05);
+      if (unit.keyframes.length === 0 && resolvedBeforeDelete) {
+        unit.x = resolvedBeforeDelete.x;
+        unit.y = resolvedBeforeDelete.y;
+        unit.rotation = resolvedBeforeDelete.rotation;
+        unit.size = resolvedBeforeDelete.size ?? unit.size;
+        unit.status = resolvedBeforeDelete.status;
+        unit.factionId = resolvedBeforeDelete.effectiveFactionId;
+        unit.certainty = resolvedBeforeDelete.effectiveCertainty;
+        unit.sourceNote = resolvedBeforeDelete.sourceNote ?? unit.sourceNote;
+      }
       unit.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
       const routeRange = getUnitRouteTimeRange(unit.route);
       if (unit.displayStartTime && Math.abs(parseTimelineSeconds(unit.displayStartTime) - targetSeconds) < 0.05) {
