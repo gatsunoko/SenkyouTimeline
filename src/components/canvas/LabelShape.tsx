@@ -1,6 +1,7 @@
 import { Group, Rect, Shape } from "react-konva";
 import type { MapLabel } from "../../types/project";
 import { relativeToCanvas } from "../../utils/coordinate";
+import { MarchingAntsRect } from "./SelectionMarchingAnts";
 import { usePrimaryButtonDrag } from "./usePrimaryButtonDrag";
 
 interface LabelShapeProps {
@@ -61,7 +62,7 @@ export function LabelShape({ label, selected, mapWidth, mapHeight, onSelect, onD
         onDragEnd(event.target.x() / mapWidth, event.target.y() / mapHeight);
       }}
     >
-      {selected && <Rect x={-width / 2 - 5} y={-height / 2 - 5} width={width + 10} height={height + 10} stroke="#f4d06f" strokeWidth={3} cornerRadius={6} />}
+      {selected && <MarchingAntsRect x={-width / 2 - 5} y={-height / 2 - 5} width={width + 10} height={height + 10} cornerRadius={6} />}
       <Rect x={-width / 2} y={-height / 2} width={width} height={height} fill={label.backgroundColor} stroke={label.borderColor} strokeWidth={2} cornerRadius={6} />
       <Shape
         x={-width / 2 + horizontalPadding}

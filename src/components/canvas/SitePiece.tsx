@@ -3,6 +3,7 @@ import { Group, Image as KonvaImage, Rect, Text } from "react-konva";
 import type { Site } from "../../types/project";
 import { relativeToCanvas } from "../../utils/coordinate";
 import { getCachedImage, loadCachedImage } from "../../utils/imageCache";
+import { MarchingAntsRect } from "./SelectionMarchingAnts";
 import { usePrimaryButtonDrag } from "./usePrimaryButtonDrag";
 
 interface SitePieceProps {
@@ -90,7 +91,7 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
         onDragEnd(event.target.x() / mapWidth, event.target.y() / mapHeight);
       }}
     >
-      {selected && <Rect x={-width / 2 - 6} y={-bodyHeight / 2 - 6} width={width + 12} height={totalHeight + 12} stroke="#f4d06f" strokeWidth={3} cornerRadius={8} />}
+      {selected && <MarchingAntsRect x={-width / 2 - 6} y={-bodyHeight / 2 - 6} width={width + 12} height={totalHeight + 12} cornerRadius={8} />}
       {hasImage ? (
         <>
           <Group

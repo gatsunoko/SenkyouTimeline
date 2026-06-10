@@ -12,6 +12,7 @@ import type {
   MapPoint,
   ProjectData,
   SelectionState,
+  SelectionMoveUpdate,
   Site,
   SiteAsset,
   ToolMode,
@@ -150,6 +151,7 @@ interface ProjectStore {
   addLabel: (point?: MapPoint) => void;
   updateLabel: (id: string, patch: Partial<MapLabel>) => void;
   deleteLabel: (id: string) => void;
+  moveSelectionItems: (updates: SelectionMoveUpdate[]) => void;
   selectObject: (type: SelectionState["type"], id: string | null) => void;
   toggleLinePointSelection: (lineId: string, pointIndex: number) => void;
   toggleArrowPointSelection: (arrowId: string, pointIndex: number) => void;
@@ -368,6 +370,103 @@ function commit(set: (partial: Partial<ProjectStore>) => void, get: () => Projec
 function applyListPatch<T extends { id: string }>(items: T[], id: string, patch: Partial<T>) {
   const item = items.find((entry) => entry.id === id);
   if (item) Object.assign(item, patch);
+}
+
+function applyUnitPositionKeyframe(project: ProjectData, unitId: string, time: string, patch: Pick<UnitKeyframe, "x" | "y">) {
+  const unit = project.units.find((entry) => entry.id === unitId);
+  if (!unit) return;
+  const frame = ensureTimelineFrame(project, time);
+  const keyframeTime = frame.time;
+  const targetSeconds = parseTimelineSeconds(keyframeTime);
+  const existing = unit.keyframes.find((entry) => Math.abs(parseTimelineSeconds(entry.time) - targetSeconds) < 0.05);
+  const resolved = resolveUnitFrame(unit, keyframeTime, project.timeline.interpolationMode);
+  const point = clampPoint(patch);
+
+  if (existing) {
+    existing.x = point.x;
+    existing.y = point.y;
+    existing.time = keyframeTime;
+    existing.displayDate = frame.displayDate ?? formatTimelineLabel(keyframeTime);
+  } else {
+    unit.keyframes.push({
+      time: keyframeTime,
+      displayDate: frame.displayDate ?? formatTimelineLabel(keyframeTime),
+      x: point.x,
+      y: point.y,
+      rotation: resolved?.rotation ?? 0,
+      status: unit.status,
+      factionId: resolved?.effectiveFactionId,
+      certainty: resolved?.effectiveCertainty,
+      sourceNote: unit.sourceNote,
+    });
+  }
+  unit.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+}
+
+function applyLinePointsKeyframe(project: ProjectData, lineId: string, time: string, points: MapPoint[]) {
+  const line = project.lines.find((entry) => entry.id === lineId);
+  if (!line) return;
+  const frame = getCurrentFrame(project.timeline.frames, time);
+  const targetSeconds = parseTimelineSeconds(time);
+  const existing = line.keyframes.find((entry) => Math.abs(parseTimelineSeconds(entry.time) - targetSeconds) < 0.05);
+  const normalizedPoints = points.map(clampPoint);
+  if (existing) {
+    existing.points = normalizedPoints;
+  } else {
+    line.keyframes.push({
+      time,
+      displayDate: frame?.displayDate ?? formatTimelineLabel(time),
+      points: normalizedPoints,
+      sourceNote: line.sourceNote,
+    });
+  }
+  line.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+  const routePoints = resolveLineRoutePoints(line, time, project.timeline.interpolationMode) ?? normalizedPoints;
+  for (const unit of project.units) {
+    for (const segment of routeSegmentRefs(unit.route)) {
+      if (segment.sourceType === "line" && segment.sourceId === lineId) {
+        segment.fallbackPoints = routePoints.map((point) => ({ ...point }));
+      }
+    }
+    syncRouteRoot(unit.route);
+  }
+}
+
+function applyArrowPointsKeyframe(project: ProjectData, arrowId: string, time: string, points: MapPoint[]) {
+  const arrow = project.arrows.find((entry) => entry.id === arrowId);
+  if (!arrow) return;
+  const frame = getCurrentFrame(project.timeline.frames, time);
+  arrow.keyframes ||= [
+    {
+      time: arrow.startTime,
+      displayDate: formatTimelineLabel(arrow.startTime),
+      points: arrow.points.map((point) => ({ ...point })),
+      sourceNote: arrow.sourceNote,
+    },
+  ];
+  const existing = arrow.keyframes.find((entry) => entry.time === time);
+  const normalizedPoints = points.map(clampPoint);
+  if (existing) {
+    existing.points = normalizedPoints;
+  } else {
+    arrow.keyframes.push({
+      time,
+      displayDate: frame?.displayDate ?? formatTimelineLabel(time),
+      points: normalizedPoints,
+      sourceNote: arrow.sourceNote,
+    });
+  }
+  arrow.points = normalizedPoints;
+  arrow.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+  const routePoints = resolveArrowRoutePoints(arrow, time, project.timeline.interpolationMode) ?? normalizedPoints;
+  for (const unit of project.units) {
+    for (const segment of routeSegmentRefs(unit.route)) {
+      if (segment.sourceType === "arrow" && segment.sourceId === arrowId) {
+        segment.fallbackPoints = routePoints.map((point) => ({ ...point }));
+      }
+    }
+    syncRouteRoot(unit.route);
+  }
 }
 
 function isSameTime(a: string, b: string) {
@@ -1494,6 +1593,26 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   updateLabel: (id, patch) => commit(set, get, (project) => applyListPatch(project.labels, id, patch)),
   deleteLabel: (id) => commit(set, get, (project) => (project.labels = project.labels.filter((label) => label.id !== id))),
+  moveSelectionItems: (updates) =>
+    commit(set, get, (project) => {
+      for (const update of updates) {
+        if (update.type === "unit") {
+          applyUnitPositionKeyframe(project, update.id, project.timeline.currentTime, { x: update.x, y: update.y });
+        } else if (update.type === "site") {
+          const site = project.sites.find((entry) => entry.id === update.id);
+          if (site && !site.locked) Object.assign(site, clampPoint({ x: update.x, y: update.y }));
+        } else if (update.type === "label") {
+          const label = project.labels.find((entry) => entry.id === update.id);
+          if (label && !label.locked) Object.assign(label, clampPoint({ x: update.x, y: update.y }));
+        } else if (update.type === "line") {
+          const line = project.lines.find((entry) => entry.id === update.id);
+          if (line && !line.locked) applyLinePointsKeyframe(project, update.id, project.timeline.currentTime, update.points);
+        } else {
+          const arrow = project.arrows.find((entry) => entry.id === update.id);
+          if (arrow && !arrow.locked) applyArrowPointsKeyframe(project, update.id, project.timeline.currentTime, update.points);
+        }
+      }
+    }),
 
   selectObject: (type, id) =>
     set((state) => ({

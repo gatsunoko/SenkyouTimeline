@@ -5,6 +5,7 @@ import type { Unit } from "../../types/project";
 import type { ResolvedUnitFrame } from "../../utils/interpolation";
 import { relativeToCanvas } from "../../utils/coordinate";
 import { getCachedImage, loadCachedImage } from "../../utils/imageCache";
+import { MarchingAntsCircle, MarchingAntsLine, MarchingAntsRect } from "./SelectionMarchingAnts";
 import { usePrimaryButtonDrag } from "./usePrimaryButtonDrag";
 
 interface UnitPieceProps {
@@ -185,11 +186,11 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
         onDragEnd(event.target.x() / mapWidth, event.target.y() / mapHeight);
       }}
     >
-      {selected && <Rect x={-selectionWidth / 2 - 6} y={-bodySelectionSize / 2 - 6} width={selectionWidth + 12} height={totalHeight + 12} stroke="#f4d06f" strokeWidth={3} cornerRadius={8} />}
+      {selected && <MarchingAntsRect x={-selectionWidth / 2 - 6} y={-bodySelectionSize / 2 - 6} width={selectionWidth + 12} height={totalHeight + 12} cornerRadius={8} />}
       {selected && isPentagon && !unit.locked && (
         <>
-          <Circle radius={rotateGuideRadius} stroke="#f4d06f" strokeWidth={1.5} dash={[5, 5]} opacity={0.72} listening={false} />
-          <Line points={[0, 0, rotationHandlePosition.x, rotationHandlePosition.y]} stroke="#f4d06f" strokeWidth={1.5} opacity={0.55} listening={false} />
+          <MarchingAntsCircle radius={rotateGuideRadius} opacity={0.72} />
+          <MarchingAntsLine points={[0, 0, rotationHandlePosition.x, rotationHandlePosition.y]} strokeWidth={2} />
           <Circle
             x={rotationHandlePosition.x}
             y={rotationHandlePosition.y}

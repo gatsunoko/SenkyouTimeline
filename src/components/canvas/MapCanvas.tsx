@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva";
 import type Konva from "konva";
 import { useProjectStore } from "../../store/projectStore";
-import type { MapLabel, Site, Unit } from "../../types/project";
+import type { MapLabel, MovableSelectionType, SelectionMoveUpdate, Site, Unit } from "../../types/project";
 import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas } from "../../utils/coordinate";
 import { downloadBlob, downloadDataUrl } from "../../utils/fileIO";
 import { loadCachedImage } from "../../utils/imageCache";
@@ -13,6 +13,7 @@ import { ArrowShape } from "./ArrowShape";
 import { EventMarker } from "./EventMarker";
 import { LabelShape } from "./LabelShape";
 import { LineShape } from "./LineShape";
+import { MarchingAntsRect } from "./SelectionMarchingAnts";
 import { SitePiece } from "./SitePiece";
 import { UnitPiece } from "./UnitPiece";
 
@@ -20,6 +21,9 @@ type TimelineExportFormat = "png-sequence" | "jpeg-sequence" | "mp4";
 type TimelineExportRequest = { format: TimelineExportFormat; fps: number };
 type ExportViewport = { x: number; y: number; width: number; height: number; outputWidth: number; outputHeight: number };
 type StillImageExportFormat = "png" | "jpeg";
+type CanvasPoint = { x: number; y: number };
+type CanvasRect = { x: number; y: number; width: number; height: number };
+type MultiSelectionItem = { type: MovableSelectionType; id: string };
 
 const mp4MimeTypes = ["video/mp4", "video/mp4;codecs=avc1.42E01E", "video/mp4;codecs=h264"];
 
@@ -106,6 +110,97 @@ function drawStageLayerToCanvas(stage: Konva.Stage, context: CanvasRenderingCont
   context.drawImage(sourceCanvas, 0, 0, width, height);
 }
 
+function estimateLabelTextWidth(text: string, fontSize: number) {
+  return Array.from(text).reduce((sum, char) => {
+    const wide = /[^\u0020-\u007e]/.test(char);
+    return sum + fontSize * (wide ? 1.05 : 0.62);
+  }, 0);
+}
+
+function labelBoundsSize(label: MapLabel) {
+  const horizontalPadding = 11;
+  return {
+    width: Math.max(70, estimateLabelTextWidth(label.text, label.fontSize) + horizontalPadding * 2),
+    height: label.fontSize + 16,
+  };
+}
+
+function expandRect(rect: CanvasRect, padding: number): CanvasRect {
+  return {
+    x: rect.x - padding,
+    y: rect.y - padding,
+    width: rect.width + padding * 2,
+    height: rect.height + padding * 2,
+  };
+}
+
+function pointInRect(point: CanvasPoint, rect: CanvasRect) {
+  return point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height;
+}
+
+function cross(a: CanvasPoint, b: CanvasPoint, c: CanvasPoint) {
+  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+}
+
+function pointOnSegment(point: CanvasPoint, start: CanvasPoint, end: CanvasPoint) {
+  const epsilon = 0.0001;
+  return Math.abs(cross(start, end, point)) <= epsilon && point.x >= Math.min(start.x, end.x) - epsilon && point.x <= Math.max(start.x, end.x) + epsilon && point.y >= Math.min(start.y, end.y) - epsilon && point.y <= Math.max(start.y, end.y) + epsilon;
+}
+
+function segmentsIntersect(a: CanvasPoint, b: CanvasPoint, c: CanvasPoint, d: CanvasPoint) {
+  const abC = cross(a, b, c);
+  const abD = cross(a, b, d);
+  const cdA = cross(c, d, a);
+  const cdB = cross(c, d, b);
+  if ((abC > 0 && abD < 0 || abC < 0 && abD > 0) && (cdA > 0 && cdB < 0 || cdA < 0 && cdB > 0)) return true;
+  return pointOnSegment(c, a, b) || pointOnSegment(d, a, b) || pointOnSegment(a, c, d) || pointOnSegment(b, c, d);
+}
+
+function segmentIntersectsRect(start: CanvasPoint, end: CanvasPoint, rect: CanvasRect) {
+  if (pointInRect(start, rect) || pointInRect(end, rect)) return true;
+  const topLeft = { x: rect.x, y: rect.y };
+  const topRight = { x: rect.x + rect.width, y: rect.y };
+  const bottomRight = { x: rect.x + rect.width, y: rect.y + rect.height };
+  const bottomLeft = { x: rect.x, y: rect.y + rect.height };
+  return segmentsIntersect(start, end, topLeft, topRight) || segmentsIntersect(start, end, topRight, bottomRight) || segmentsIntersect(start, end, bottomRight, bottomLeft) || segmentsIntersect(start, end, bottomLeft, topLeft);
+}
+
+function catmullRomPoint(p0: CanvasPoint, p1: CanvasPoint, p2: CanvasPoint, p3: CanvasPoint, t: number): CanvasPoint {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return {
+    x: 0.5 * (2 * p1.x + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+    y: 0.5 * (2 * p1.y + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+  };
+}
+
+function approximateCanvasPath(points: CanvasPoint[], tension: number) {
+  if (points.length < 3 || tension <= 0) return points;
+  const result: CanvasPoint[] = [];
+  const samplesPerSegment = 16;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const p0 = points[Math.max(0, index - 1)];
+    const p1 = points[index];
+    const p2 = points[index + 1];
+    const p3 = points[Math.min(points.length - 1, index + 2)];
+    for (let sample = 0; sample <= samplesPerSegment; sample += 1) {
+      if (index > 0 && sample === 0) continue;
+      result.push(catmullRomPoint(p0, p1, p2, p3, sample / samplesPerSegment));
+    }
+  }
+  return result;
+}
+
+function pathIntersectsRect(points: CanvasPoint[], rect: CanvasRect, padding: number, tension: number) {
+  const hitRect = expandRect(rect, padding);
+  const path = approximateCanvasPath(points, tension);
+  if (path.some((point) => pointInRect(point, hitRect))) return true;
+  for (let index = 0; index < path.length - 1; index += 1) {
+    if (segmentIntersectsRect(path[index], path[index + 1], hitRect)) return true;
+  }
+  return false;
+}
+
 export function MapCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
@@ -117,8 +212,14 @@ export function MapCanvas() {
   const [previewPoint, setPreviewPoint] = useState<{ x: number; y: number } | null>(null);
   const [mapImageResizePreview, setMapImageResizePreview] = useState<{ width: number; height: number } | null>(null);
   const [cameraDragPreview, setCameraDragPreview] = useState<{ x: number; y: number } | null>(null);
+  const [selectionRect, setSelectionRect] = useState<CanvasRect | null>(null);
+  const [multiSelected, setMultiSelected] = useState<MultiSelectionItem[]>([]);
+  const [multiDragDelta, setMultiDragDelta] = useState<CanvasPoint | null>(null);
   const middlePanRef = useRef<{ active: boolean; x: number; y: number }>({ active: false, x: 0, y: 0 });
   const mapImageResizeStartRef = useRef<{ width: number; height: number } | null>(null);
+  const selectionStartRef = useRef<CanvasPoint | null>(null);
+  const selectionJustFinishedRef = useRef(false);
+  const multiDragStartRef = useRef<CanvasPoint | null>(null);
   const [mapImage, setMapImage] = useState<HTMLImageElement | null>(null);
 
   const project = useProjectStore((state) => state.project);
@@ -141,6 +242,7 @@ export function MapCanvas() {
   const updateLineKeyframe = useProjectStore((state) => state.updateLineKeyframe);
   const updateArrowKeyframe = useProjectStore((state) => state.updateArrowKeyframe);
   const updateLabel = useProjectStore((state) => state.updateLabel);
+  const moveSelectionItems = useProjectStore((state) => state.moveSelectionItems);
   const updateMapImagePlacement = useProjectStore((state) => state.updateMapImagePlacement);
   const updateCameraKeyframe = useProjectStore((state) => state.updateCameraKeyframe);
   const addUnit = useProjectStore((state) => state.addUnit);
@@ -357,14 +459,90 @@ export function MapCanvas() {
     };
   }, []);
 
-  const pointerToRelative = () => {
+  const pointerToCanvasPoint = (): CanvasPoint => {
     const stage = stageRef.current;
     const pointer = stage?.getPointerPosition();
-    if (!stage || !pointer) return { x: 0.5, y: 0.5 };
-    return canvasToRelative({
+    if (!stage || !pointer) return { x: mapWidth / 2, y: mapHeight / 2 };
+    return {
       x: (pointer.x - stagePosition.x) / scale,
       y: (pointer.y - stagePosition.y) / scale,
-    }, mapWidth, mapHeight);
+    };
+  };
+
+  const pointerToRelative = () => {
+    return canvasToRelative(pointerToCanvasPoint(), mapWidth, mapHeight);
+  };
+
+  const selectSingle = (type: Parameters<typeof selectObject>[0], id: string | null) => {
+    setMultiSelected([]);
+    setMultiDragDelta(null);
+    selectObject(type, id);
+  };
+
+  const makeRectFromPoints = (start: CanvasPoint, end: CanvasPoint): CanvasRect => ({
+    x: Math.min(start.x, end.x),
+    y: Math.min(start.y, end.y),
+    width: Math.abs(end.x - start.x),
+    height: Math.abs(end.y - start.y),
+  });
+
+  const rectsIntersect = (a: CanvasRect, b: CanvasRect) => a.x <= b.x + b.width && a.x + a.width >= b.x && a.y <= b.y + b.height && a.y + a.height >= b.y;
+
+  const selectedItemKey = (item: MultiSelectionItem) => `${item.type}:${item.id}`;
+
+  const selectItemsInRect = (rect: CanvasRect) => {
+    if (rect.width < 4 && rect.height < 4) {
+      setMultiSelected([]);
+      clearSelection();
+      return;
+    }
+    const items: MultiSelectionItem[] = [];
+    for (const unit of project.units) {
+      const bounds = getSelectableBounds({ type: "unit", id: unit.id });
+      if (bounds && rectsIntersect(rect, bounds)) items.push({ type: "unit", id: unit.id });
+    }
+    for (const site of project.sites) {
+      const bounds = getSelectableBounds({ type: "site", id: site.id });
+      if (bounds && rectsIntersect(rect, bounds)) items.push({ type: "site", id: site.id });
+    }
+    for (const line of project.lines) {
+      if (!shouldRenderLine(line)) continue;
+      const lineFrameTime = previewRouteTime("line", line.id) ?? project.timeline.currentTime;
+      const frame = resolveLineKeyframe(line, lineFrameTime, project.timeline.interpolationMode);
+      const tension = line.curveMode === "curve" ? 0.45 : 0;
+      const points = frame ? flattenedPointsToCanvasPoints(pointsToCanvas(frame.points, mapWidth, mapHeight)) : [];
+      if (points.length >= 2 && pathIntersectsRect(points, rect, Math.max(8, line.width / 2 + 6), tension)) items.push({ type: "line", id: line.id });
+    }
+    for (const arrow of project.arrows) {
+      if (!shouldRenderArrow(arrow)) continue;
+      const arrowFrameTime = previewRouteTime("arrow", arrow.id) ?? project.timeline.currentTime;
+      if (compareTime(arrow.startTime, arrowFrameTime) > 0 || compareTime(arrow.endTime, arrowFrameTime) < 0) continue;
+      const frame = resolveArrowKeyframe(arrow, arrowFrameTime, project.timeline.interpolationMode);
+      const tension = arrow.curveMode === "curve" ? 0.45 : 0;
+      const points = frame ? flattenedPointsToCanvasPoints(pointsToCanvas(frame.points, mapWidth, mapHeight)) : [];
+      if (points.length >= 2 && pathIntersectsRect(points, rect, Math.max(9, arrow.width / 2 + 7), tension)) items.push({ type: "arrow", id: arrow.id });
+    }
+    for (const label of project.labels) {
+      const bounds = getSelectableBounds({ type: "label", id: label.id });
+      if (bounds && rectsIntersect(rect, bounds)) items.push({ type: "label", id: label.id });
+    }
+    setMultiSelected(items);
+    setMultiDragDelta(null);
+    if (items[0]) selectObject(items[0].type, items[0].id);
+    else clearSelection();
+  };
+
+  const finishSelectionDrag = () => {
+    const start = selectionStartRef.current;
+    if (!start) return;
+    const rect = makeRectFromPoints(start, pointerToCanvasPoint());
+    selectionStartRef.current = null;
+    setSelectionRect(null);
+    selectionJustFinishedRef.current = true;
+    window.setTimeout(() => {
+      selectionJustFinishedRef.current = false;
+    }, 0);
+    selectItemsInRect(rect);
   };
 
   const updateDrawingPreview = () => {
@@ -389,6 +567,11 @@ export function MapCanvas() {
       const dy = nextY - middlePanRef.current.y;
       middlePanRef.current = { active: true, x: nextX, y: nextY };
       setStagePosition((position) => ({ x: position.x + dx, y: position.y + dy }));
+      return;
+    }
+    if (selectionStartRef.current) {
+      event.evt.preventDefault();
+      setSelectionRect(makeRectFromPoints(selectionStartRef.current, pointerToCanvasPoint()));
       return;
     }
     updateDrawingPreview();
@@ -418,6 +601,7 @@ export function MapCanvas() {
   };
 
   const onCanvasClick = (event: Konva.KonvaEventObject<MouseEvent>) => {
+    if (selectionJustFinishedRef.current) return;
     const point = pointerToRelative();
     if (tool === "addUnit") {
       if (unitPlacementAssetId) duplicateUnitFromAsset(unitPlacementAssetId, point);
@@ -435,8 +619,9 @@ export function MapCanvas() {
     } else if (tool === "drawLine" || tool === "drawArrow") {
       addDrawingPoint(point);
     } else if (tool === "mapImageEdit") {
-      if (project.map.imageDataUrl) selectObject("mapImage", "mapImage");
+      if (project.map.imageDataUrl) selectSingle("mapImage", "mapImage");
     } else {
+      setMultiSelected([]);
       clearSelection();
     }
   };
@@ -479,10 +664,11 @@ export function MapCanvas() {
   for (let y = gridTop; y <= gridBottom; y += 80) gridLines.push(<Line key={`y${y}`} points={[gridLeft, y, gridRight, y]} stroke="#273241" strokeWidth={1} listening={false} />);
 
   const withoutSelected = <T extends { id: string }>(items: T[], type: typeof selected.type) => {
-    if (exportViewport || selected.type !== type || !selected.id) return items;
-    return items.filter((item) => item.id !== selected.id);
+    if (exportViewport) return items;
+    return items.filter((item) => !isSelected(type, item.id));
   };
-  const isSelected = (type: typeof selected.type, id: string) => !exportViewport && selected.type === type && selected.id === id;
+  const isMultiSelected = (type: typeof selected.type, id: string) => multiSelected.some((item) => item.type === type && item.id === id);
+  const isSelected = (type: typeof selected.type, id: string) => !exportViewport && ((selected.type === type && selected.id === id) || isMultiSelected(type, id));
   const isMapImageEditing = !exportViewport && tool === "mapImageEdit" && selected.type === "mapImage" && selected.id === "mapImage";
   const cameraHandleOffset = { x: -40, y: -36 };
   const routePreviewUnit = routePreviewUnitId ? project.units.find((unit) => unit.id === routePreviewUnitId) : undefined;
@@ -529,6 +715,103 @@ export function MapCanvas() {
     }
     if (!frame) return null;
     return effectiveRoutePoint ? { ...frame, x: effectiveRoutePoint.x, y: effectiveRoutePoint.y } : frame;
+  };
+  const deltaRelative = multiDragDelta ? { x: multiDragDelta.x / mapWidth, y: multiDragDelta.y / mapHeight } : { x: 0, y: 0 };
+  const offsetPoint = <T extends { x: number; y: number }>(point: T, delta = deltaRelative): T => ({ ...point, x: point.x + delta.x, y: point.y + delta.y });
+  const selectablePointsBounds = (points: CanvasPoint[], padding: number): CanvasRect | null => {
+    if (points.length === 0) return null;
+    const xs = points.map((point) => point.x);
+    const ys = points.map((point) => point.y);
+    const x = Math.min(...xs) - padding;
+    const y = Math.min(...ys) - padding;
+    return { x, y, width: Math.max(...xs) - Math.min(...xs) + padding * 2, height: Math.max(...ys) - Math.min(...ys) + padding * 2 };
+  };
+  const flattenedPointsToCanvasPoints = (points: number[]): CanvasPoint[] => {
+    const result: CanvasPoint[] = [];
+    for (let index = 0; index < points.length - 1; index += 2) {
+      result.push({ x: points[index], y: points[index + 1] });
+    }
+    return result;
+  };
+  const getSelectableBounds = (item: MultiSelectionItem): CanvasRect | null => {
+    if (item.type === "unit") {
+      const unit = project.units.find((entry) => entry.id === item.id);
+      const frame = unit ? resolveDisplayUnitFrame(unit) : null;
+      if (!unit || !frame) return null;
+      const position = { x: frame.x * mapWidth, y: frame.y * mapHeight };
+      const size = frame.size ?? unit.size;
+      const width = (unit.iconUrl ? 86 : 72) * size;
+      const height = (unit.iconUrl ? 104 : 88) * size;
+      return { x: position.x - width / 2, y: position.y - height / 2, width, height };
+    }
+    if (item.type === "site") {
+      const site = project.sites.find((entry) => entry.id === item.id);
+      if (!site) return null;
+      const size = site.size ?? 1;
+      const position = { x: site.x * mapWidth, y: site.y * mapHeight };
+      const width = (site.iconUrl ? 82 : 68) * size;
+      const height = (site.iconUrl ? 96 : 78) * size;
+      return { x: position.x - width / 2, y: position.y - height / 2, width, height };
+    }
+    if (item.type === "line") {
+      const line = project.lines.find((entry) => entry.id === item.id);
+      if (!line || !shouldRenderLine(line)) return null;
+      const frame = resolveLineKeyframe(line, previewRouteTime("line", line.id) ?? project.timeline.currentTime, project.timeline.interpolationMode);
+      return frame ? selectablePointsBounds(flattenedPointsToCanvasPoints(pointsToCanvas(frame.points, mapWidth, mapHeight)), Math.max(10, line.width + 8)) : null;
+    }
+    if (item.type === "label") {
+      const label = project.labels.find((entry) => entry.id === item.id);
+      if (!label || (label.startTime && compareTime(label.startTime, project.timeline.currentTime) > 0) || (label.endTime && compareTime(label.endTime, project.timeline.currentTime) < 0)) return null;
+      const size = labelBoundsSize(label);
+      const position = { x: label.x * mapWidth, y: label.y * mapHeight };
+      return { x: position.x - size.width / 2, y: position.y - size.height / 2, width: size.width, height: size.height };
+    }
+    const arrow = project.arrows.find((entry) => entry.id === item.id);
+    if (!arrow || !shouldRenderArrow(arrow)) return null;
+    const arrowFrameTime = previewRouteTime("arrow", arrow.id) ?? project.timeline.currentTime;
+    if (compareTime(arrow.startTime, arrowFrameTime) > 0 || compareTime(arrow.endTime, arrowFrameTime) < 0) return null;
+    const frame = resolveArrowKeyframe(arrow, arrowFrameTime, project.timeline.interpolationMode);
+    return frame ? selectablePointsBounds(flattenedPointsToCanvasPoints(pointsToCanvas(frame.points, mapWidth, mapHeight)), Math.max(12, arrow.width + 12)) : null;
+  };
+  const selectedBounds = (() => {
+    const bounds = multiSelected.map(getSelectableBounds).filter((entry): entry is CanvasRect => Boolean(entry));
+    if (bounds.length === 0) return null;
+    const left = Math.min(...bounds.map((entry) => entry.x));
+    const top = Math.min(...bounds.map((entry) => entry.y));
+    const right = Math.max(...bounds.map((entry) => entry.x + entry.width));
+    const bottom = Math.max(...bounds.map((entry) => entry.y + entry.height));
+    const dx = multiDragDelta?.x ?? 0;
+    const dy = multiDragDelta?.y ?? 0;
+    return { x: left + dx, y: top + dy, width: right - left, height: bottom - top };
+  })();
+  const frontSelectedItems = (multiSelected.length > 0 ? multiSelected : selected.type && selected.id && ["unit", "site", "line", "arrow", "label"].includes(selected.type) ? [{ type: selected.type as MovableSelectionType, id: selected.id }] : []).filter(
+    (item, index, items) => items.findIndex((entry) => selectedItemKey(entry) === selectedItemKey(item)) === index,
+  );
+  const moveSelectedItems = (delta: CanvasPoint) => {
+    const relativeDelta = { x: delta.x / mapWidth, y: delta.y / mapHeight };
+    const updates: SelectionMoveUpdate[] = [];
+    for (const item of multiSelected) {
+      if (item.type === "unit") {
+        const unit = project.units.find((entry) => entry.id === item.id);
+        const frame = unit ? resolveDisplayUnitFrame(unit) : null;
+        if (unit && frame && !unit.locked) updates.push({ type: "unit", id: unit.id, x: frame.x + relativeDelta.x, y: frame.y + relativeDelta.y });
+      } else if (item.type === "site") {
+        const site = project.sites.find((entry) => entry.id === item.id);
+        if (site && !site.locked) updates.push({ type: "site", id: site.id, x: site.x + relativeDelta.x, y: site.y + relativeDelta.y });
+      } else if (item.type === "line") {
+        const line = project.lines.find((entry) => entry.id === item.id);
+        const frame = line ? resolveLineKeyframe(line, previewRouteTime("line", line.id) ?? project.timeline.currentTime, project.timeline.interpolationMode) : null;
+        if (line && frame && !line.locked) updates.push({ type: "line", id: line.id, points: frame.points.map((point) => offsetPoint(point, relativeDelta)) });
+      } else if (item.type === "arrow") {
+        const arrow = project.arrows.find((entry) => entry.id === item.id);
+        const frame = arrow ? resolveArrowKeyframe(arrow, previewRouteTime("arrow", arrow.id) ?? project.timeline.currentTime, project.timeline.interpolationMode) : null;
+        if (arrow && frame && !arrow.locked) updates.push({ type: "arrow", id: arrow.id, points: frame.points.map((point) => offsetPoint(point, relativeDelta)) });
+      } else {
+        const label = project.labels.find((entry) => entry.id === item.id);
+        if (label && !label.locked) updates.push({ type: "label", id: label.id, x: label.x + relativeDelta.x, y: label.y + relativeDelta.y });
+      }
+    }
+    if (updates.length > 0) moveSelectionItems(updates);
   };
   const unitPlacementPreview = (() => {
     if (exportViewport || tool !== "addUnit" || !previewPoint) return null;
@@ -639,11 +922,22 @@ export function MapCanvas() {
           if (event.evt.button === 1) {
             event.evt.preventDefault();
             middlePanRef.current = { active: true, x: event.evt.clientX, y: event.evt.clientY };
+            return;
+          }
+          if (!exportViewport && event.evt.button === 0 && event.target === event.target.getStage() && tool === "select" && !spacePressed) {
+            const start = pointerToCanvasPoint();
+            selectionStartRef.current = start;
+            setSelectionRect({ x: start.x, y: start.y, width: 0, height: 0 });
           }
         }}
-        onMouseUp={stopMiddlePan}
+        onMouseUp={() => {
+          if (selectionStartRef.current) finishSelectionDrag();
+          stopMiddlePan();
+        }}
         onMouseLeave={() => {
           setPreviewPoint(null);
+          selectionStartRef.current = null;
+          setSelectionRect(null);
           stopMiddlePan();
         }}
         onDragEnd={(event) => {
@@ -664,12 +958,12 @@ export function MapCanvas() {
               onClick={(event) => {
                 if (tool !== "mapImageEdit") return;
                 event.cancelBubble = true;
-                selectObject("mapImage", "mapImage");
+                selectSingle("mapImage", "mapImage");
               }}
               onTap={(event) => {
                 if (tool !== "mapImageEdit") return;
                 event.cancelBubble = true;
-                selectObject("mapImage", "mapImage");
+                selectSingle("mapImage", "mapImage");
               }}
               onDragEnd={(event) => {
                 updateMapImagePlacement({ imageX: event.target.x(), imageY: event.target.y() });
@@ -693,7 +987,7 @@ export function MapCanvas() {
                 selectedPointIndices={isSelected("line", line.id) ? selectedLinePointIndices : []}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
-                onSelect={() => selectObject("line", line.id)}
+                onSelect={() => selectSingle("line", line.id)}
                 onPointSelect={(pointIndex) => toggleLinePointSelection(line.id, pointIndex)}
                 onPointDragEnd={(pointIndex, x, y) => {
                   const points = frame.points.map((point, index) => (index === pointIndex ? { x, y } : point));
@@ -719,7 +1013,7 @@ export function MapCanvas() {
                 selectedPointIndices={isSelected("arrow", arrow.id) ? selectedArrowPointIndices : []}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
-                onSelect={() => selectObject("arrow", arrow.id)}
+                onSelect={() => selectSingle("arrow", arrow.id)}
                 onPointSelect={(pointIndex) => toggleArrowPointSelection(arrow.id, pointIndex)}
                 onPointDragEnd={(pointIndex, x, y) => {
                   const points = frame.points.map((point, index) => (index === pointIndex ? { x, y } : point));
@@ -756,7 +1050,7 @@ export function MapCanvas() {
           {withoutSelected(project.sites, "site").map((site) => {
             const siteFrame = resolveSiteFrame(site, project.timeline.currentTime);
             const faction = project.factions.find((entry) => entry.id === siteFrame.effectiveFactionId);
-            return <SitePiece key={site.id} site={site} color={faction?.color ?? "#8a96a8"} selected={isSelected("site", site.id)} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
+            return <SitePiece key={site.id} site={site} color={faction?.color ?? "#8a96a8"} selected={isSelected("site", site.id)} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectSingle("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
           })}
 
           {sitePlacementPreview && (
@@ -786,7 +1080,7 @@ export function MapCanvas() {
                 selected={isSelected("unit", unit.id)}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
-                onSelect={() => selectObject("unit", unit.id)}
+                onSelect={() => selectSingle("unit", unit.id)}
                 onDragEnd={(x, y) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x, y, status: unit.status })}
                 onRotateEnd={(rotation) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: frame.x, y: frame.y, rotation, status: unit.status })}
               />
@@ -812,13 +1106,13 @@ export function MapCanvas() {
           {withoutSelected(project.events, "event")
             .filter((event) => Math.abs(parseTimelineSeconds(event.time) - parseTimelineSeconds(project.timeline.currentTime)) < 0.25)
             .map((event) => (
-              <EventMarker key={event.id} event={event} selected={isSelected("event", event.id)} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("event", event.id)} />
+              <EventMarker key={event.id} event={event} selected={isSelected("event", event.id)} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectSingle("event", event.id)} />
             ))}
 
           {withoutSelected(project.labels, "label")
             .filter((label) => (!label.startTime || compareTime(label.startTime, project.timeline.currentTime) <= 0) && (!label.endTime || compareTime(label.endTime, project.timeline.currentTime) >= 0))
             .map((label) => (
-              <LabelShape key={label.id} label={label} selected={isSelected("label", label.id)} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />
+              <LabelShape key={label.id} label={label} selected={isSelected("label", label.id)} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectSingle("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />
             ))}
 
           {labelPlacementPreview && (
@@ -834,107 +1128,162 @@ export function MapCanvas() {
             </Group>
           )}
 
-          {!exportViewport && selected.type === "line" &&
-            (() => {
-              const line = project.lines.find((entry) => entry.id === selected.id);
-              if (!line) return null;
-              const frame = resolveLineKeyframe(line, previewRouteTime("line", line.id) ?? project.timeline.currentTime, project.timeline.interpolationMode);
-              if (!frame) return null;
-              return (
-                <LineShape
-                  key={`${line.id}-selected-front`}
-                  line={line}
-                  frame={frame}
-                  selected
-                  preview={isPreviewRouteSource("line", line.id)}
-                  selectedPointIndices={selectedLinePointIndices}
-                  mapWidth={mapWidth}
-                  mapHeight={mapHeight}
-                  onSelect={() => selectObject("line", line.id)}
-                  onPointSelect={(pointIndex) => toggleLinePointSelection(line.id, pointIndex)}
-                  onPointDragEnd={(pointIndex, x, y) => {
-                    const points = frame.points.map((point, index) => (index === pointIndex ? { x, y } : point));
-                    updateLineKeyframe(line.id, project.timeline.currentTime, points);
-                  }}
-                />
-              );
-            })()}
+          {selectionRect && (
+            <Rect
+              x={selectionRect.x}
+              y={selectionRect.y}
+              width={selectionRect.width}
+              height={selectionRect.height}
+              fill="rgba(130, 167, 217, 0.12)"
+              stroke="#82a7d9"
+              strokeWidth={1.5}
+              dash={[6, 5]}
+              listening={false}
+            />
+          )}
 
-          {!exportViewport && selected.type === "arrow" &&
-            (() => {
-              const arrow = project.arrows.find((entry) => entry.id === selected.id);
-              const arrowFrameTime = arrow ? previewRouteTime("arrow", arrow.id) ?? project.timeline.currentTime : project.timeline.currentTime;
-              if (!arrow || compareTime(arrow.startTime, arrowFrameTime) > 0 || compareTime(arrow.endTime, arrowFrameTime) < 0) return null;
-              const frame = resolveArrowKeyframe(arrow, arrowFrameTime, project.timeline.interpolationMode);
-              if (!frame) return null;
-              return (
-                <ArrowShape
-                  key={`${arrow.id}-selected-front`}
-                  arrow={arrow}
-                  frame={frame}
-                  selected
-                  preview={isPreviewRouteSource("arrow", arrow.id)}
-                  selectedPointIndices={selectedArrowPointIndices}
-                  mapWidth={mapWidth}
-                  mapHeight={mapHeight}
-                  onSelect={() => selectObject("arrow", arrow.id)}
-                  onPointSelect={(pointIndex) => toggleArrowPointSelection(arrow.id, pointIndex)}
-                  onPointDragEnd={(pointIndex, x, y) => {
-                    const points = frame.points.map((point, index) => (index === pointIndex ? { x, y } : point));
-                    updateArrowKeyframe(arrow.id, project.timeline.currentTime, points);
-                  }}
-                />
-              );
-            })()}
-
-          {!exportViewport && selected.type === "site" &&
-            (() => {
-              const site = project.sites.find((entry) => entry.id === selected.id);
-              if (!site) return null;
-              const siteFrame = resolveSiteFrame(site, project.timeline.currentTime);
-              const faction = project.factions.find((entry) => entry.id === siteFrame.effectiveFactionId);
-              return <SitePiece key={`${site.id}-selected-front`} site={site} color={faction?.color ?? "#8a96a8"} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
-            })()}
-
-          {!exportViewport && selected.type === "unit" &&
-            (() => {
-              const unit = project.units.find((entry) => entry.id === selected.id);
+          {!exportViewport &&
+            frontSelectedItems.map((item) => {
+              if (item.type === "line") {
+                const line = project.lines.find((entry) => entry.id === item.id);
+                if (!line) return null;
+                const frame = resolveLineKeyframe(line, previewRouteTime("line", line.id) ?? project.timeline.currentTime, project.timeline.interpolationMode);
+                if (!frame) return null;
+                const displayFrame = multiDragDelta && isMultiSelected("line", line.id) ? { ...frame, points: frame.points.map((point) => offsetPoint(point)) } : frame;
+                return (
+                  <LineShape
+                    key={`${line.id}-selected-front`}
+                    line={line}
+                    frame={displayFrame}
+                    selected
+                    preview={isPreviewRouteSource("line", line.id)}
+                    selectedPointIndices={multiSelected.length === 0 ? selectedLinePointIndices : []}
+                    mapWidth={mapWidth}
+                    mapHeight={mapHeight}
+                    onSelect={() => selectSingle("line", line.id)}
+                    onPointSelect={(pointIndex) => toggleLinePointSelection(line.id, pointIndex)}
+                    onPointDragEnd={(pointIndex, x, y) => {
+                      const points = frame.points.map((point, index) => (index === pointIndex ? { x, y } : point));
+                      updateLineKeyframe(line.id, project.timeline.currentTime, points);
+                    }}
+                  />
+                );
+              }
+              if (item.type === "arrow") {
+                const arrow = project.arrows.find((entry) => entry.id === item.id);
+                const arrowFrameTime = arrow ? previewRouteTime("arrow", arrow.id) ?? project.timeline.currentTime : project.timeline.currentTime;
+                if (!arrow || compareTime(arrow.startTime, arrowFrameTime) > 0 || compareTime(arrow.endTime, arrowFrameTime) < 0) return null;
+                const frame = resolveArrowKeyframe(arrow, arrowFrameTime, project.timeline.interpolationMode);
+                if (!frame) return null;
+                const displayFrame = multiDragDelta && isMultiSelected("arrow", arrow.id) ? { ...frame, points: frame.points.map((point) => offsetPoint(point)) } : frame;
+                return (
+                  <ArrowShape
+                    key={`${arrow.id}-selected-front`}
+                    arrow={arrow}
+                    frame={displayFrame}
+                    selected
+                    preview={isPreviewRouteSource("arrow", arrow.id)}
+                    selectedPointIndices={multiSelected.length === 0 ? selectedArrowPointIndices : []}
+                    mapWidth={mapWidth}
+                    mapHeight={mapHeight}
+                    onSelect={() => selectSingle("arrow", arrow.id)}
+                    onPointSelect={(pointIndex) => toggleArrowPointSelection(arrow.id, pointIndex)}
+                    onPointDragEnd={(pointIndex, x, y) => {
+                      const points = frame.points.map((point, index) => (index === pointIndex ? { x, y } : point));
+                      updateArrowKeyframe(arrow.id, project.timeline.currentTime, points);
+                    }}
+                  />
+                );
+              }
+              if (item.type === "site") {
+                const site = project.sites.find((entry) => entry.id === item.id);
+                if (!site) return null;
+                const displaySite = multiDragDelta && isMultiSelected("site", site.id) ? offsetPoint(site) : site;
+                const siteFrame = resolveSiteFrame(site, project.timeline.currentTime);
+                const faction = project.factions.find((entry) => entry.id === siteFrame.effectiveFactionId);
+                return <SitePiece key={`${site.id}-selected-front`} site={displaySite} color={faction?.color ?? "#8a96a8"} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectSingle("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
+              }
+              if (item.type === "label") {
+                const label = project.labels.find((entry) => entry.id === item.id);
+                if (!label || (label.startTime && compareTime(label.startTime, project.timeline.currentTime) > 0) || (label.endTime && compareTime(label.endTime, project.timeline.currentTime) < 0)) return null;
+                const displayLabel = multiDragDelta && isMultiSelected("label", label.id) ? offsetPoint(label) : label;
+                return <LabelShape key={`${label.id}-selected-front`} label={displayLabel} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectSingle("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />;
+              }
+              const unit = project.units.find((entry) => entry.id === item.id);
               if (!unit) return null;
               const frame = resolveDisplayUnitFrame(unit);
               if (!frame) return null;
+              const displayFrame = multiDragDelta && isMultiSelected("unit", unit.id) ? offsetPoint(frame) : frame;
               const faction = project.factions.find((entry) => entry.id === frame.effectiveFactionId);
               return (
                 <UnitPiece
                   key={`${unit.id}-selected-front`}
                   unit={unit}
-                  frame={frame}
+                  frame={displayFrame}
                   color={faction?.color ?? "#8a96a8"}
                   selected
                   mapWidth={mapWidth}
                   mapHeight={mapHeight}
-                  onSelect={() => selectObject("unit", unit.id)}
+                  onSelect={() => selectSingle("unit", unit.id)}
                   onDragEnd={(x, y) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x, y, status: unit.status })}
                   onRotateEnd={(rotation) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: frame.x, y: frame.y, rotation, status: unit.status })}
                 />
               );
-            })()}
+            })}
+
+          {!exportViewport && multiSelected.length > 1 && selectedBounds && (
+            <>
+              <Rect
+                x={selectedBounds.x - 10}
+                y={selectedBounds.y - 10}
+                width={selectedBounds.width + 20}
+                height={selectedBounds.height + 20}
+                fill="rgba(255,255,255,0.01)"
+                draggable
+                onMouseDown={(event) => {
+                  event.cancelBubble = true;
+                }}
+                onClick={(event) => {
+                  event.cancelBubble = true;
+                }}
+                onDragStart={(event) => {
+                  event.cancelBubble = true;
+                  multiDragStartRef.current = { x: event.target.x(), y: event.target.y() };
+                }}
+                onDragMove={(event) => {
+                  event.cancelBubble = true;
+                  const start = multiDragStartRef.current ?? { x: selectedBounds.x - 10, y: selectedBounds.y - 10 };
+                  setMultiDragDelta({ x: event.target.x() - start.x, y: event.target.y() - start.y });
+                }}
+                onDragEnd={(event) => {
+                  event.cancelBubble = true;
+                  const start = multiDragStartRef.current ?? { x: selectedBounds.x - 10, y: selectedBounds.y - 10 };
+                  const delta = { x: event.target.x() - start.x, y: event.target.y() - start.y };
+                  multiDragStartRef.current = null;
+                  setMultiDragDelta(null);
+                  moveSelectedItems(delta);
+                }}
+              />
+              <MarchingAntsRect x={selectedBounds.x - 10} y={selectedBounds.y - 10} width={selectedBounds.width + 20} height={selectedBounds.height + 20} />
+            </>
+          )}
 
           {!exportViewport && selected.type === "event" &&
             (() => {
               const event = project.events.find((entry) => entry.id === selected.id);
               if (!event || Math.abs(parseTimelineSeconds(event.time) - parseTimelineSeconds(project.timeline.currentTime)) >= 0.25) return null;
-              return <EventMarker key={`${event.id}-selected-front`} event={event} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("event", event.id)} />;
+              return <EventMarker key={`${event.id}-selected-front`} event={event} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectSingle("event", event.id)} />;
             })()}
 
-          {!exportViewport && selected.type === "label" &&
+          {!exportViewport && selected.type === "label" && multiSelected.length === 0 &&
             (() => {
               const label = project.labels.find((entry) => entry.id === selected.id);
               if (!label || (label.startTime && compareTime(label.startTime, project.timeline.currentTime) > 0) || (label.endTime && compareTime(label.endTime, project.timeline.currentTime) < 0)) return null;
-              return <LabelShape key={`${label.id}-selected-front`} label={label} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />;
+              return <LabelShape key={`${label.id}-selected-front`} label={label} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectSingle("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />;
             })()}
           {isMapImageEditing && mapImageRect && (
             <Group x={mapImageRect.x} y={mapImageRect.y}>
-              <Rect x={0} y={0} width={mapImageRect.width} height={mapImageRect.height} stroke="#f4d06f" strokeWidth={2} dash={[8, 6]} listening={false} />
+              <MarchingAntsRect x={0} y={0} width={mapImageRect.width} height={mapImageRect.height} />
               <Circle
                 x={mapImageRect.width}
                 y={mapImageRect.height}
@@ -980,24 +1329,20 @@ export function MapCanvas() {
           {!exportViewport && (
             <Group>
               <Group x={cameraFrame.x} y={cameraFrame.y} listening={false}>
-                <Rect
-                  x={0}
-                  y={0}
-                  width={cameraFrame.width}
-                  height={cameraFrame.height}
-                  stroke={selected.type === "camera" ? "#f4d06f" : "#f8fafc"}
-                  strokeWidth={selected.type === "camera" ? 3 : 2}
-                  dash={[14, 8]}
-                  opacity={selected.type === "camera" ? 1 : 0.65}
-                  listening={false}
-                />
-                {selected.type === "camera" && (
-                  <>
-                    <Line points={[0, 0, 42, 0, 0, 0, 0, 42]} stroke="#f4d06f" strokeWidth={4} listening={false} />
-                    <Line points={[cameraFrame.width, 0, cameraFrame.width - 42, 0, cameraFrame.width, 0, cameraFrame.width, 42]} stroke="#f4d06f" strokeWidth={4} listening={false} />
-                    <Line points={[0, cameraFrame.height, 42, cameraFrame.height, 0, cameraFrame.height, 0, cameraFrame.height - 42]} stroke="#f4d06f" strokeWidth={4} listening={false} />
-                    <Line points={[cameraFrame.width, cameraFrame.height, cameraFrame.width - 42, cameraFrame.height, cameraFrame.width, cameraFrame.height, cameraFrame.width, cameraFrame.height - 42]} stroke="#f4d06f" strokeWidth={4} listening={false} />
-                  </>
+                {selected.type === "camera" ? (
+                  <MarchingAntsRect x={0} y={0} width={cameraFrame.width} height={cameraFrame.height} />
+                ) : (
+                  <Rect
+                    x={0}
+                    y={0}
+                    width={cameraFrame.width}
+                    height={cameraFrame.height}
+                    stroke="#f8fafc"
+                    strokeWidth={2}
+                    dash={[14, 8]}
+                    opacity={0.65}
+                    listening={false}
+                  />
                 )}
               </Group>
               {selected.type === "camera" && (
@@ -1043,15 +1388,15 @@ export function MapCanvas() {
                 draggable={tool === "select" && !spacePressed}
                 onClick={(event) => {
                   event.cancelBubble = true;
-                  selectObject("camera", "exportCamera");
+                  selectSingle("camera", "exportCamera");
                 }}
                 onTap={(event) => {
                   event.cancelBubble = true;
-                  selectObject("camera", "exportCamera");
+                  selectSingle("camera", "exportCamera");
                 }}
                 onDragStart={(event) => {
                   event.cancelBubble = true;
-                  selectObject("camera", "exportCamera");
+                  selectSingle("camera", "exportCamera");
                   setCameraDragPreview({ x: resolvedCameraFrame.x, y: resolvedCameraFrame.y });
                 }}
                 onDragMove={(event) => {

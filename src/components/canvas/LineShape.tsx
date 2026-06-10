@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { BattleLine, LineKeyframe } from "../../types/project";
 import type { MapPoint } from "../../types/project";
 import { canvasToRelative, relativeToCanvas, pointsToCanvas } from "../../utils/coordinate";
+import { MarchingAntsLine } from "./SelectionMarchingAnts";
 import { usePrimaryButtonDrag } from "./usePrimaryButtonDrag";
 
 interface LineShapeProps {
@@ -43,19 +44,7 @@ export function LineShape({ line, frame, selected, preview = false, selectedPoin
         onClick={onSelect}
         onTap={onSelect}
       />
-      {selected && (
-        <Line
-          points={canvasPoints}
-          stroke="#f4d06f"
-          strokeWidth={line.width + 8}
-          opacity={0.95}
-          dash={line.dashed ? [16, 10] : undefined}
-          lineCap="round"
-          lineJoin="round"
-          tension={tension}
-          listening={false}
-        />
-      )}
+      {selected && <MarchingAntsLine points={canvasPoints} strokeWidth={line.width + 8} lineCap="round" lineJoin="round" tension={tension} />}
       <Line
         points={canvasPoints}
         stroke={preview ? "#f0c665" : line.color}

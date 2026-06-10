@@ -391,3 +391,12 @@ export interface SelectionState {
   type: SelectableType | null;
   id: string | null;
 }
+
+export type MovableSelectionType = "unit" | "site" | "line" | "arrow" | "label";
+
+export type SelectionMoveUpdate =
+  | { type: "unit"; id: string; x: number; y: number }
+  | { type: "site"; id: string; x: number; y: number }
+  | { type: "label"; id: string; x: number; y: number }
+  | { type: "line"; id: string; points: MapPoint[] }
+  | { type: "arrow"; id: string; points: MapPoint[] };

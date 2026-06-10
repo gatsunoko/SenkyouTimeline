@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Arrow, Circle } from "react-konva";
 import type { ArrowKeyframe, BattleArrow, MapPoint } from "../../types/project";
 import { canvasToRelative, pointsToCanvas, relativeToCanvas } from "../../utils/coordinate";
+import { MarchingAntsArrow } from "./SelectionMarchingAnts";
 import { usePrimaryButtonDrag } from "./usePrimaryButtonDrag";
 
 interface ArrowShapeProps {
@@ -46,22 +47,7 @@ export function ArrowShape({ arrow, frame, selected, preview = false, selectedPo
         onClick={onSelect}
         onTap={onSelect}
       />
-      {selected && (
-        <Arrow
-          points={canvasPoints}
-          stroke="#f4d06f"
-          fill="#f4d06f"
-          strokeWidth={arrow.width + 8}
-          pointerLength={20 * arrowHeadSize + 8}
-          pointerWidth={18 * arrowHeadSize + 8}
-          opacity={0.95}
-          dash={arrow.dashed ? [15, 10] : undefined}
-          lineCap="round"
-          lineJoin="round"
-          tension={tension}
-          listening={false}
-        />
-      )}
+      {selected && <MarchingAntsArrow points={canvasPoints} strokeWidth={arrow.width + 8} pointerLength={20 * arrowHeadSize + 8} pointerWidth={18 * arrowHeadSize + 8} lineCap="round" lineJoin="round" tension={tension} />}
       <Arrow
         points={canvasPoints}
         stroke={preview ? "#f0c665" : arrow.color}
