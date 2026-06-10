@@ -577,12 +577,14 @@ export function MapCanvas() {
   const sitePlacementPreview = (() => {
     if (exportViewport || tool !== "addSite" || !previewPoint) return null;
     const asset = sitePlacementAssetId ? project.siteAssets.find((entry) => entry.id === sitePlacementAssetId) : null;
+    const factionId = asset?.factionId ?? project.factions[0]?.id ?? "faction_default_a";
+    const faction = project.factions.find((entry) => entry.id === factionId);
     const previewSite: Site = {
       id: "site-placement-preview",
       name: asset?.name ?? "新規拠点",
       x: previewPoint.x,
       y: previewPoint.y,
-      factionId: project.factions[0]?.id ?? "faction_default_a",
+      factionId,
       status: "normal",
       certainty: "confirmed",
       memo: "",
@@ -598,7 +600,7 @@ export function MapCanvas() {
       iconUrl: asset?.imageDataUrl,
       keyframes: [],
     };
-    return { site: previewSite, color: project.factions[0]?.color ?? "#8a96a8" };
+    return { site: previewSite, color: faction?.color ?? "#8a96a8" };
   })();
   const labelPlacementPreview = (() => {
     if (exportViewport || tool !== "addLabel" || !previewPoint) return null;

@@ -202,6 +202,7 @@ export interface SiteAsset {
   name: string;
   imageDataUrl: string;
   size: number;
+  factionId: string;
   nameFontSize?: number;
   nameTextColor?: string;
   nameBackgroundEnabled?: boolean;

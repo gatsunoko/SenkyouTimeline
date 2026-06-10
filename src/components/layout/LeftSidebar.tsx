@@ -2,14 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import { Castle, Copy, Flag, Lock, Paintbrush, PanelLeftClose, Plus, Trash2, Unlock } from "lucide-react";
 import { factionTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
+import { resolveSiteFrame } from "../../utils/interpolation";
 
 type TabKey = "factions" | "units" | "sites";
 type UnitSidebarView = "units" | "assets";
+type SiteSidebarView = "sites" | "assets";
 
 export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const [tab, setTab] = useState<TabKey>("factions");
   const [unitView, setUnitView] = useState<UnitSidebarView>("units");
+  const [siteView, setSiteView] = useState<SiteSidebarView>("sites");
   const unitRowRefs = useRef(new Map<string, HTMLButtonElement>());
+  const siteRowRefs = useRef(new Map<string, HTMLButtonElement>());
   const project = useProjectStore((state) => state.project);
   const selected = useProjectStore((state) => state.selected);
   const unitPlacementAssetId = useProjectStore((state) => state.unitPlacementAssetId);
@@ -18,7 +22,6 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const deleteFaction = useProjectStore((state) => state.deleteFaction);
   const setUnitPlacementAsset = useProjectStore((state) => state.setUnitPlacementAsset);
   const deleteUnitAsset = useProjectStore((state) => state.deleteUnitAsset);
-  const addSite = useProjectStore((state) => state.addSite);
   const setSitePlacementAsset = useProjectStore((state) => state.setSitePlacementAsset);
   const deleteSiteAsset = useProjectStore((state) => state.deleteSiteAsset);
   const selectObject = useProjectStore((state) => state.selectObject);
@@ -27,9 +30,16 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const updateSite = useProjectStore((state) => state.updateSite);
 
   useEffect(() => {
-    if (selected.type !== "unit" || !selected.id) return;
-    setTab("units");
-    setUnitView("units");
+    if (!selected.id) return;
+    if (selected.type === "unit") {
+      setTab("units");
+      setUnitView("units");
+      return;
+    }
+    if (selected.type === "site") {
+      setTab("sites");
+      setSiteView("sites");
+    }
   }, [selected.id, selected.type]);
 
   useEffect(() => {
@@ -38,6 +48,13 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
       unitRowRefs.current.get(selected.id!)?.scrollIntoView({ block: "center", behavior: "smooth" });
     });
   }, [selected.id, selected.type, tab, unitView, project.units.length]);
+
+  useEffect(() => {
+    if (selected.type !== "site" || !selected.id || tab !== "sites" || siteView !== "sites") return;
+    window.requestAnimationFrame(() => {
+      siteRowRefs.current.get(selected.id!)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  }, [selected.id, selected.type, tab, siteView, project.sites.length]);
 
   return (
     <aside className="left-sidebar">
@@ -201,31 +218,53 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
 
       {tab === "sites" && (
         <section className="sidebar-section">
-          <button className="wide-action" type="button" onClick={() => addSite()}>
-            <Plus size={16} /> 拠点追加
+          <button className={`wide-action ${siteView === "assets" ? "is-active" : ""}`} type="button" onClick={() => setSiteView((view) => (view === "assets" ? "sites" : "assets"))}>
+            {siteView === "assets" ? <Castle size={16} /> : <Copy size={16} />}
+            {siteView === "assets" ? "拠点一覧へ戻る" : "アセット"}
           </button>
-          {project.sites.map((site) => (
-            <button
-              className={`list-row ${selected.type === "site" && selected.id === site.id ? "is-selected" : ""}`}
-              type="button"
-              key={site.id}
-              onClick={() => selectObject("site", site.id)}
-            >
-              {site.iconUrl ? <img className="asset-thumb" src={site.iconUrl} alt="" /> : <Castle size={17} />}
-              <span>
-                <strong>{site.name}</strong>
-                <small>拠点</small>
-              </span>
-              <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateSite(site.id, { locked: !site.locked }); }}>
-                {site.locked ? <Lock size={15} /> : <Unlock size={15} />}
-              </button>
-            </button>
-          ))}
-          {project.siteAssets.length > 0 && (
+
+          {siteView === "sites" && (
             <>
-              <div className="sidebar-subheading">登録アセット</div>
+              {project.sites.map((site) => (
+                (() => {
+                  const siteFrame = resolveSiteFrame(site, project.timeline.currentTime);
+                  const faction = project.factions.find((entry) => entry.id === siteFrame.effectiveFactionId);
+                  const factionColor = faction?.color ?? "#8a96a8";
+                  return (
+                    <button
+                      className={`list-row ${selected.type === "site" && selected.id === site.id ? "is-selected" : ""}`}
+                      type="button"
+                      key={site.id}
+                      ref={(node) => {
+                        if (node) siteRowRefs.current.set(site.id, node);
+                        else siteRowRefs.current.delete(site.id);
+                      }}
+                      onClick={() => selectObject("site", site.id)}
+                    >
+                      <span className="site-list-icon" style={{ backgroundColor: factionColor }}>
+                        {site.iconUrl ? <img src={site.iconUrl} alt="" /> : <Castle size={16} />}
+                      </span>
+                      <span>
+                        <strong>{site.name}</strong>
+                        <small>{faction?.name ?? "陣営なし"}</small>
+                      </span>
+                      <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateSite(site.id, { locked: !site.locked }); }}>
+                        {site.locked ? <Lock size={15} /> : <Unlock size={15} />}
+                      </button>
+                    </button>
+                  );
+                })()
+              ))}
+            </>
+          )}
+
+          {siteView === "assets" && (
+            <>
+              {project.siteAssets.length === 0 && <div className="sidebar-empty">登録済みの拠点アセットはありません。</div>}
               {project.siteAssets.map((asset) => {
                 const assetName = asset.name.trim() || "（名前なし）";
+                const faction = project.factions.find((entry) => entry.id === asset.factionId);
+                const factionColor = faction?.color ?? "#8a96a8";
                 return (
                   <div
                     className={`list-row asset-row asset-row-clickable ${sitePlacementAssetId === asset.id ? "is-selected" : ""}`}
@@ -241,10 +280,12 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                       }
                     }}
                   >
-                    <img className="asset-thumb" src={asset.imageDataUrl} alt="" />
+                    <span className="site-list-icon" style={{ backgroundColor: factionColor }}>
+                      <img src={asset.imageDataUrl} alt="" />
+                    </span>
                     <span>
                       <strong>{assetName}</strong>
-                      <small>クリックで配置準備</small>
+                      <small>{faction?.name ?? "陣営なし"} / クリックで配置準備</small>
                     </span>
                     <Copy size={16} />
                     <button

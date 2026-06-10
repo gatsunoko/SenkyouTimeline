@@ -37,7 +37,6 @@ export function UnitInspector({ id }: { id: string }) {
   const setUnitImage = useProjectStore((state) => state.setUnitImage);
   const clearUnitImage = useProjectStore((state) => state.clearUnitImage);
   const registerUnitAsset = useProjectStore((state) => state.registerUnitAsset);
-  const duplicateUnitFromAsset = useProjectStore((state) => state.duplicateUnitFromAsset);
   const updateUnitKeyframe = useProjectStore((state) => state.updateUnitKeyframe);
   const deleteUnitKeyframe = useProjectStore((state) => state.deleteUnitKeyframe);
   const setUnitRoute = useProjectStore((state) => state.setUnitRoute);
@@ -202,8 +201,8 @@ export function UnitInspector({ id }: { id: string }) {
         </button>
       )}
       {unit.assetId && (
-        <button type="button" onClick={() => duplicateUnitFromAsset(unit.assetId!)}>
-          このコマを複製
+        <button type="button" onClick={() => registerUnitAsset(unit.id)}>
+          編集後を新規アセット登録
         </button>
       )}
 

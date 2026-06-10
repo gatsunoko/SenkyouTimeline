@@ -529,6 +529,24 @@ textarea {
   color: #f8fafc;
 }
 
+.site-list-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 5px;
+  color: #f8fafc;
+}
+
+.site-list-icon img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
 .unit-image-preview {
   display: grid;
   grid-template-columns: 54px 1fr;

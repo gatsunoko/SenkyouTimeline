@@ -15,7 +15,6 @@ export function SiteInspector({ id }: { id: string }) {
   const setSiteImage = useProjectStore((state) => state.setSiteImage);
   const clearSiteImage = useProjectStore((state) => state.clearSiteImage);
   const registerSiteAsset = useProjectStore((state) => state.registerSiteAsset);
-  const duplicateSiteFromAsset = useProjectStore((state) => state.duplicateSiteFromAsset);
   const site = project.sites.find((entry) => entry.id === id);
   if (!site) return null;
 
@@ -108,8 +107,8 @@ export function SiteInspector({ id }: { id: string }) {
         </button>
       )}
       {site.assetId && (
-        <button type="button" onClick={() => duplicateSiteFromAsset(site.assetId!)}>
-          この画像拠点を複製
+        <button type="button" onClick={() => registerSiteAsset(site.id)}>
+          編集後を新規アセット登録
         </button>
       )}
 

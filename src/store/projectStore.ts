@@ -548,6 +548,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   for (const asset of normalized.siteAssets) {
     asset.name ??= "画像拠点";
     asset.size ||= 1;
+    asset.factionId ||= normalized.factions?.[0]?.id ?? "faction_default_a";
     asset.nameFontSize ||= 14 * asset.size;
     asset.nameTextColor ||= "#f5efe3";
     asset.nameBackgroundEnabled = asset.nameBackgroundEnabled ?? false;
@@ -1167,11 +1168,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       project.siteAssets ||= [];
       const site = project.sites.find((entry) => entry.id === siteId);
       if (!site?.iconUrl) return;
+      const siteFrame = resolveSiteFrame(site, project.timeline.currentTime);
       const asset: SiteAsset = {
         id: createId("site_asset"),
         name: site.name.trim() || "画像拠点",
         imageDataUrl: site.iconUrl,
         size: site.size ?? 1,
+        factionId: siteFrame.effectiveFactionId,
         nameFontSize: site.nameFontSize ?? 14,
         nameTextColor: site.nameTextColor ?? "#f5efe3",
         nameBackgroundEnabled: site.nameBackgroundEnabled ?? false,
@@ -1198,7 +1201,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         id,
         name: asset.name,
         ...point,
-        factionId: firstFactionId(project),
+        factionId: project.factions.some((faction) => faction.id === asset.factionId) ? asset.factionId : firstFactionId(project),
         status: "normal",
         certainty: "confirmed",
         memo: "",
