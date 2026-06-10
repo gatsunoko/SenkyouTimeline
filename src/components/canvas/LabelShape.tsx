@@ -1,4 +1,4 @@
-import { Group, Rect, Text } from "react-konva";
+import { Group, Rect, Shape } from "react-konva";
 import type { MapLabel } from "../../types/project";
 import { relativeToCanvas } from "../../utils/coordinate";
 import { usePrimaryButtonDrag } from "./usePrimaryButtonDrag";
@@ -21,6 +21,7 @@ export function LabelShape({ label, selected, mapWidth, mapHeight, onSelect, onD
   }, 0);
   const width = Math.max(70, textWidth + 24);
   const height = label.fontSize + 16;
+  const textAreaWidth = width - 16;
   return (
     <Group
       x={position.x}
@@ -44,7 +45,27 @@ export function LabelShape({ label, selected, mapWidth, mapHeight, onSelect, onD
     >
       {selected && <Rect x={-width / 2 - 5} y={-height / 2 - 5} width={width + 10} height={height + 10} stroke="#f4d06f" strokeWidth={3} cornerRadius={6} />}
       <Rect x={-width / 2} y={-height / 2} width={width} height={height} fill={label.backgroundColor} stroke={label.borderColor} strokeWidth={2} cornerRadius={6} />
-      <Text text={label.text} x={-width / 2 + 8} y={-height / 2 + 7} width={width - 16} align="center" fontSize={label.fontSize} fill={label.color} wrap="none" />
+      <Shape
+        x={-width / 2 + 8}
+        y={-height / 2}
+        width={textAreaWidth}
+        height={height}
+        listening={false}
+        sceneFunc={(context) => {
+          const canvasContext = (context as unknown as { _context: CanvasRenderingContext2D })._context;
+          canvasContext.save();
+          canvasContext.font = `normal ${label.fontSize}px "Yu Gothic UI", "Meiryo", system-ui, sans-serif`;
+          canvasContext.fillStyle = label.color;
+          canvasContext.textAlign = "center";
+          canvasContext.textBaseline = "alphabetic";
+          const metrics = canvasContext.measureText(label.text);
+          const ascent = metrics.actualBoundingBoxAscent || label.fontSize * 0.82;
+          const descent = metrics.actualBoundingBoxDescent || label.fontSize * 0.18;
+          const baselineY = height / 2 + (ascent - descent) / 2;
+          canvasContext.fillText(label.text, textAreaWidth / 2, baselineY);
+          canvasContext.restore();
+        }}
+      />
     </Group>
   );
 }

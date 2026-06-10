@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva";
 import type Konva from "konva";
 import { useProjectStore } from "../../store/projectStore";
-import type { Site, Unit } from "../../types/project";
+import type { MapLabel, Site, Unit } from "../../types/project";
 import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas } from "../../utils/coordinate";
 import { downloadBlob, downloadDataUrl } from "../../utils/fileIO";
 import { loadCachedImage } from "../../utils/imageCache";
@@ -173,7 +173,7 @@ export function MapCanvas() {
   }, [project.map.imageDataUrl]);
 
   useEffect(() => {
-    if (tool !== "addUnit" && tool !== "addSite" && tool !== "drawLine" && tool !== "drawArrow") setPreviewPoint(null);
+    if (tool !== "addUnit" && tool !== "addSite" && tool !== "addLabel" && tool !== "drawLine" && tool !== "drawArrow") setPreviewPoint(null);
   }, [tool]);
 
   useEffect(() => {
@@ -368,7 +368,7 @@ export function MapCanvas() {
   };
 
   const updateDrawingPreview = () => {
-    if (tool === "addUnit" || tool === "addSite") {
+    if (tool === "addUnit" || tool === "addSite" || tool === "addLabel") {
       setPreviewPoint(pointerToRelative());
       return;
     }
@@ -600,6 +600,23 @@ export function MapCanvas() {
     };
     return { site: previewSite, color: project.factions[0]?.color ?? "#8a96a8" };
   })();
+  const labelPlacementPreview = (() => {
+    if (exportViewport || tool !== "addLabel" || !previewPoint) return null;
+    const previewLabel: MapLabel = {
+      id: "label-placement-preview",
+      text: "注記",
+      x: previewPoint.x,
+      y: previewPoint.y,
+      fontSize: 24,
+      color: "#fff7e6",
+      backgroundColor: "#111827",
+      borderColor: "#f0c665",
+      opacity: 0.9,
+      locked: true,
+      memo: "",
+    };
+    return previewLabel;
+  })();
 
   return (
     <div className="canvas-container" ref={containerRef}>
@@ -801,6 +818,19 @@ export function MapCanvas() {
             .map((label) => (
               <LabelShape key={label.id} label={label} selected={isSelected("label", label.id)} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectObject("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />
             ))}
+
+          {labelPlacementPreview && (
+            <Group opacity={0.48} listening={false}>
+              <LabelShape
+                label={labelPlacementPreview}
+                selected={false}
+                mapWidth={mapWidth}
+                mapHeight={mapHeight}
+                onSelect={() => undefined}
+                onDragEnd={() => undefined}
+              />
+            </Group>
+          )}
 
           {!exportViewport && selected.type === "line" &&
             (() => {

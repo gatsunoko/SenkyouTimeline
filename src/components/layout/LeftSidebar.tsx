@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Castle, Copy, Flag, Lock, Paintbrush, PanelLeftClose, Plus, Trash2, Unlock } from "lucide-react";
 import { factionTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
@@ -9,6 +9,7 @@ type UnitSidebarView = "units" | "assets";
 export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const [tab, setTab] = useState<TabKey>("factions");
   const [unitView, setUnitView] = useState<UnitSidebarView>("units");
+  const unitRowRefs = useRef(new Map<string, HTMLButtonElement>());
   const project = useProjectStore((state) => state.project);
   const selected = useProjectStore((state) => state.selected);
   const unitPlacementAssetId = useProjectStore((state) => state.unitPlacementAssetId);
@@ -24,6 +25,19 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const updateFaction = useProjectStore((state) => state.updateFaction);
   const updateUnit = useProjectStore((state) => state.updateUnit);
   const updateSite = useProjectStore((state) => state.updateSite);
+
+  useEffect(() => {
+    if (selected.type !== "unit" || !selected.id) return;
+    setTab("units");
+    setUnitView("units");
+  }, [selected.id, selected.type]);
+
+  useEffect(() => {
+    if (selected.type !== "unit" || !selected.id || tab !== "units" || unitView !== "units") return;
+    window.requestAnimationFrame(() => {
+      unitRowRefs.current.get(selected.id!)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  }, [selected.id, selected.type, tab, unitView, project.units.length]);
 
   return (
     <aside className="left-sidebar">
@@ -113,6 +127,10 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                     className={`list-row ${selected.type === "unit" && selected.id === unit.id ? "is-selected" : ""}`}
                     type="button"
                     key={unit.id}
+                    ref={(node) => {
+                      if (node) unitRowRefs.current.set(unit.id, node);
+                      else unitRowRefs.current.delete(unit.id);
+                    }}
                     onClick={() => selectObject("unit", unit.id)}
                   >
                     {unit.iconUrl ? <img className="asset-thumb" src={unit.iconUrl} alt="" /> : <Flag size={17} style={{ color: faction?.color }} />}
