@@ -6,7 +6,7 @@ import { RightInspector } from "./RightInspector";
 import { TimelinePanel } from "./TimelinePanel";
 import { Toolbar } from "./Toolbar";
 import { useProjectStore } from "../../store/projectStore";
-import { downloadJson } from "../../utils/fileIO";
+import { downloadJson, projectTitleToJsonFilename } from "../../utils/fileIO";
 
 export function AppShell() {
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
@@ -27,7 +27,8 @@ export function AppShell() {
 
       if (event.ctrlKey && event.key.toLowerCase() === "s") {
         event.preventDefault();
-        downloadJson(exportProject(), "sengoku-battle-map-project.json");
+        const data = exportProject();
+        downloadJson(data, projectTitleToJsonFilename(data.projectName));
       } else if (event.ctrlKey && event.key.toLowerCase() === "z") {
         event.preventDefault();
         undo();

@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { useProjectStore } from "../../store/projectStore";
 import type { ProjectData, ToolMode } from "../../types/project";
-import { downloadJson, readFileAsDataUrl, readJsonFile } from "../../utils/fileIO";
+import { downloadJson, projectTitleToJsonFilename, readFileAsDataUrl, readJsonFile } from "../../utils/fileIO";
 
 type ToolbarMenu = "file" | "export" | "canvas" | null;
 
@@ -52,6 +52,7 @@ export function Toolbar() {
   const createNewProject = useProjectStore((state) => state.createNewProject);
   const importProject = useProjectStore((state) => state.importProject);
   const exportProject = useProjectStore((state) => state.exportProject);
+  const updateProjectName = useProjectStore((state) => state.updateProjectName);
   const setMapImage = useProjectStore((state) => state.setMapImage);
   const selectObject = useProjectStore((state) => state.selectObject);
   const setTool = useProjectStore((state) => state.setTool);
@@ -135,6 +136,12 @@ export function Toolbar() {
     window.dispatchEvent(new CustomEvent("sengoku-export-timeline", { detail: { format, fps } }));
   };
 
+  const saveProjectJson = () => {
+    const data = exportProject();
+    downloadJson(data, projectTitleToJsonFilename(data.projectName));
+    setActiveMenu(null);
+  };
+
   const toggleMenu = (menu: Exclude<ToolbarMenu, null>) => {
     setActiveMenu((current) => (current === menu ? null : menu));
   };
@@ -157,8 +164,19 @@ export function Toolbar() {
   return (
     <header className="toolbar" ref={toolbarRef}>
       <div className="app-title">
-        <span className="app-title-main">戦況図タイムラインエディタ</span>
-        <span className="app-title-sub">{project.projectName}</span>
+        <label className="app-title-label" htmlFor="project-title-input">
+          タイトル
+        </label>
+        <input
+          id="project-title-input"
+          className="app-title-input"
+          aria-label="プロジェクトタイトル"
+          title="JSON保存時のファイル名に使われます"
+          placeholder="プロジェクトタイトル"
+          value={project.projectName}
+          onChange={(event) => updateProjectName(event.target.value)}
+          onClick={(event) => event.stopPropagation()}
+        />
       </div>
 
       <div className="toolbar-tool-group" aria-label="編集ツール">
@@ -214,7 +232,7 @@ export function Toolbar() {
             <FileUp size={17} />
             JSONを読み込む
           </button>
-          <button type="button" onClick={() => downloadJson(exportProject(), "sengoku-battle-map-project.json")} title="プロジェクトJSON保存">
+          <button type="button" onClick={saveProjectJson} title="プロジェクトJSON保存">
             <FileDown size={17} />
             JSONを保存
           </button>

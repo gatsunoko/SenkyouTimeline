@@ -16,6 +16,11 @@ export function downloadJson(data: unknown, filename: string) {
   downloadBlob(blob, filename);
 }
 
+export function projectTitleToJsonFilename(title: string) {
+  const basename = title.trim().replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_") || "sengoku-battle-map-project";
+  return `${basename}.json`;
+}
+
 export function readJsonFile<T>(file: File): Promise<T> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

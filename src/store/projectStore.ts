@@ -108,6 +108,7 @@ interface ProjectStore {
   historyFuture: ProjectData[];
   createNewProject: () => void;
   loadProject: (project: ProjectData) => void;
+  updateProjectName: (name: string) => void;
   setCurrentTime: (time: string) => void;
   moveFrame: (direction: 1 | -1) => void;
   addTimelineKeyframe: () => void;
@@ -779,6 +780,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       drawingPoints: [],
       historyPast: [],
       historyFuture: [],
+    }),
+
+  updateProjectName: (name) =>
+    commit(set, get, (project) => {
+      project.projectName = name;
     }),
 
   setCurrentTime: (time) =>

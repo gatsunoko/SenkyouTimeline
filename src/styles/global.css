@@ -231,23 +231,45 @@ textarea {
 
 .app-title {
   display: flex;
-  flex-direction: column;
-  width: 220px;
-  min-width: 180px;
-  line-height: 1.15;
+  align-items: center;
+  gap: 6px;
+  width: 270px;
+  min-width: 220px;
 }
 
-.app-title-main {
+.app-title-label {
+  flex: 0 0 auto;
+  color: #cbd5e1;
   font-weight: 700;
-  font-size: 15px;
+  font-size: 12px;
+  line-height: 1;
 }
 
-.app-title-sub {
-  color: #9ba7b9;
-  font-size: 12px;
+.app-title-input {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid #3b4a60;
+  border-radius: 6px;
+  outline: none;
+  background: #0f1724;
+  color: #f8fafc;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 30px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.app-title-input:focus {
+  border-color: #f0c665;
+  box-shadow: 0 0 0 2px rgba(240, 198, 101, 0.18);
+}
+
+.app-title-input::placeholder {
+  color: #64748b;
 }
 
 .main-grid {
