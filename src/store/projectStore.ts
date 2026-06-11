@@ -22,6 +22,7 @@ import type {
   UnitRoute,
   UnitRouteSegment,
 } from "../types/project";
+import type { AutoSaveSnapshot, CanvasViewState } from "../types/autoSave";
 import { clampPoint } from "../utils/coordinate";
 import { createId } from "../utils/id";
 import { compareTime, formatTimelineLabel, getCurrentFrame, nextFrameTime, parseTimelineSeconds, sortedFrames } from "../utils/time";
@@ -94,6 +95,8 @@ function createBlankProject(): ProjectData {
 type ProjectMutator = (project: ProjectData) => void;
 type TimedEntry = { time: string; displayDate?: string };
 
+const defaultCanvasView: CanvasViewState = { x: 40, y: 30, scale: 0.58 };
+
 interface ProjectStore {
   project: ProjectData;
   selected: SelectionState;
@@ -104,10 +107,12 @@ interface ProjectStore {
   sitePlacementAssetId: string | null;
   tool: ToolMode;
   drawingPoints: MapPoint[];
+  canvasView: CanvasViewState;
   historyPast: ProjectData[];
   historyFuture: ProjectData[];
   createNewProject: () => void;
   loadProject: (project: ProjectData) => void;
+  restoreAutoSaveState: (snapshot: AutoSaveSnapshot) => void;
   updateProjectName: (name: string) => void;
   setCurrentTime: (time: string) => void;
   moveFrame: (direction: 1 | -1) => void;
@@ -172,6 +177,7 @@ interface ProjectStore {
   setTool: (tool: ToolMode) => void;
   setUnitPlacementAsset: (assetId: string | null) => void;
   setSitePlacementAsset: (assetId: string | null) => void;
+  setCanvasView: (view: Partial<CanvasViewState>) => void;
   addDrawingPoint: (point: MapPoint) => void;
   cancelDrawing: () => void;
   finishDrawing: () => void;
@@ -371,6 +377,20 @@ function commit(set: (partial: Partial<ProjectStore>) => void, get: () => Projec
 function applyListPatch<T extends { id: string }>(items: T[], id: string, patch: Partial<T>) {
   const item = items.find((entry) => entry.id === id);
   if (item) Object.assign(item, patch);
+}
+
+function normalizeCanvasView(view?: Partial<CanvasViewState>): CanvasViewState {
+  const xValue = view?.x;
+  const yValue = view?.y;
+  const scaleValue = view?.scale;
+  const x = typeof xValue === "number" && Number.isFinite(xValue) ? xValue : defaultCanvasView.x;
+  const y = typeof yValue === "number" && Number.isFinite(yValue) ? yValue : defaultCanvasView.y;
+  const scale = typeof scaleValue === "number" && Number.isFinite(scaleValue) ? scaleValue : defaultCanvasView.scale;
+  return {
+    x,
+    y,
+    scale: Math.min(2.8, Math.max(0.25, scale)),
+  };
 }
 
 function applyUnitPositionKeyframe(project: ProjectData, unitId: string, time: string, patch: Pick<UnitKeyframe, "x" | "y">) {
@@ -747,6 +767,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   sitePlacementAssetId: null,
   tool: "select",
   drawingPoints: [],
+  canvasView: defaultCanvasView,
   historyPast: [],
   historyFuture: [],
 
@@ -762,6 +783,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       sitePlacementAssetId: null,
       tool: "select",
       drawingPoints: [],
+      canvasView: defaultCanvasView,
       historyPast: trimHistory([...get().historyPast, previous]),
       historyFuture: [],
     });
@@ -778,6 +800,23 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       sitePlacementAssetId: null,
       tool: "select",
       drawingPoints: [],
+      canvasView: defaultCanvasView,
+      historyPast: [],
+      historyFuture: [],
+    }),
+
+  restoreAutoSaveState: (snapshot) =>
+    set({
+      project: normalizeImportedProject(snapshot.project),
+      selected: snapshot.selected ?? { type: null, id: null },
+      selectedLinePointIndices: snapshot.selectedLinePointIndices ?? [],
+      selectedArrowPointIndices: snapshot.selectedArrowPointIndices ?? [],
+      routePreviewUnitId: snapshot.routePreviewUnitId ?? null,
+      unitPlacementAssetId: snapshot.unitPlacementAssetId ?? null,
+      sitePlacementAssetId: snapshot.sitePlacementAssetId ?? null,
+      tool: snapshot.tool ?? "select",
+      drawingPoints: snapshot.drawingPoints ?? [],
+      canvasView: normalizeCanvasView(snapshot.canvasView),
       historyPast: [],
       historyFuture: [],
     }),
@@ -1847,6 +1886,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       unitPlacementAssetId: null,
       sitePlacementAssetId: assetId,
       drawingPoints: [],
+    }),
+  setCanvasView: (view) =>
+    set((state) => {
+      const canvasView = normalizeCanvasView({ ...state.canvasView, ...view });
+      if (canvasView.x === state.canvasView.x && canvasView.y === state.canvasView.y && canvasView.scale === state.canvasView.scale) return {};
+      return { canvasView };
     }),
   addDrawingPoint: (point) => set({ drawingPoints: [...get().drawingPoints, clampPoint(point)] }),
   cancelDrawing: () => set({ drawingPoints: [], tool: "select", unitPlacementAssetId: null, sitePlacementAssetId: null }),

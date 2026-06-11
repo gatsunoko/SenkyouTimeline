@@ -6,10 +6,12 @@ import { RightInspector } from "./RightInspector";
 import { TimelinePanel } from "./TimelinePanel";
 import { Toolbar } from "./Toolbar";
 import { useProjectStore } from "../../store/projectStore";
+import { loadAutoSaveSnapshot, setupAutoSave } from "../../utils/autoSave";
 import { downloadJson, projectTitleToJsonFilename } from "../../utils/fileIO";
 
 export function AppShell() {
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
+  const [autoSaveReady, setAutoSaveReady] = useState(false);
   const exportProject = useProjectStore((state) => state.exportProject);
   const selected = useProjectStore((state) => state.selected);
   const undo = useProjectStore((state) => state.undo);
@@ -18,6 +20,30 @@ export function AppShell() {
   const cancelDrawing = useProjectStore((state) => state.cancelDrawing);
   const finishDrawing = useProjectStore((state) => state.finishDrawing);
   const moveFrame = useProjectStore((state) => state.moveFrame);
+
+  useEffect(() => {
+    let active = true;
+    let cleanupAutoSave: (() => void) | undefined;
+
+    void loadAutoSaveSnapshot()
+      .then((snapshot) => {
+        if (!active || !snapshot) return;
+        useProjectStore.getState().restoreAutoSaveState(snapshot);
+      })
+      .catch((error) => {
+        console.warn("Auto save restore failed", error);
+      })
+      .finally(() => {
+        if (!active) return;
+        cleanupAutoSave = setupAutoSave();
+        setAutoSaveReady(true);
+      });
+
+    return () => {
+      active = false;
+      cleanupAutoSave?.();
+    };
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -55,6 +81,8 @@ export function AppShell() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [cancelDrawing, deleteSelected, exportProject, finishDrawing, moveFrame, redo, undo]);
+
+  if (!autoSaveReady) return <div className="app-shell app-loading">読み込み中...</div>;
 
   return (
     <div className="app-shell">

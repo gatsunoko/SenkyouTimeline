@@ -255,9 +255,10 @@ function pathIntersectsRect(points: CanvasPoint[], rect: CanvasRect, padding: nu
 export function MapCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
+  const initialCanvasView = useRef(useProjectStore.getState().canvasView);
   const [size, setSize] = useState({ width: 900, height: 560 });
-  const [stagePosition, setStagePosition] = useState({ x: 40, y: 30 });
-  const [scale, setScale] = useState(0.58);
+  const [stagePosition, setStagePosition] = useState({ x: initialCanvasView.current.x, y: initialCanvasView.current.y });
+  const [scale, setScale] = useState(initialCanvasView.current.scale);
   const [exportViewport, setExportViewport] = useState<ExportViewport | null>(null);
   const [spacePressed, setSpacePressed] = useState(false);
   const [previewPoint, setPreviewPoint] = useState<{ x: number; y: number } | null>(null);
@@ -282,6 +283,7 @@ export function MapCanvas() {
   const routePreviewUnitId = useProjectStore((state) => state.routePreviewUnitId);
   const unitPlacementAssetId = useProjectStore((state) => state.unitPlacementAssetId);
   const sitePlacementAssetId = useProjectStore((state) => state.sitePlacementAssetId);
+  const canvasView = useProjectStore((state) => state.canvasView);
   const tool = useProjectStore((state) => state.tool);
   const drawingPoints = useProjectStore((state) => state.drawingPoints);
   const selectObject = useProjectStore((state) => state.selectObject);
@@ -302,6 +304,7 @@ export function MapCanvas() {
   const duplicateSiteFromAsset = useProjectStore((state) => state.duplicateSiteFromAsset);
   const addLabel = useProjectStore((state) => state.addLabel);
   const addDrawingPoint = useProjectStore((state) => state.addDrawingPoint);
+  const setCanvasView = useProjectStore((state) => state.setCanvasView);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -314,6 +317,15 @@ export function MapCanvas() {
     observer.observe(containerRef.current);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    setStagePosition((position) => (position.x === canvasView.x && position.y === canvasView.y ? position : { x: canvasView.x, y: canvasView.y }));
+    setScale((currentScale) => (currentScale === canvasView.scale ? currentScale : canvasView.scale));
+  }, [canvasView.x, canvasView.y, canvasView.scale]);
+
+  useEffect(() => {
+    setCanvasView({ x: stagePosition.x, y: stagePosition.y, scale });
+  }, [scale, setCanvasView, stagePosition.x, stagePosition.y]);
 
   useEffect(() => {
     if (!project.map.imageDataUrl) {
