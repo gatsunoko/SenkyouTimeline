@@ -63,7 +63,7 @@ export function UnitInspector({ id }: { id: string }) {
   const currentY = routePoint?.y ?? routeApproachPoint?.y ?? routeExitPoint?.y ?? keyframe?.y ?? resolvedFrame?.y ?? 0.5;
   const currentSize = keyframe?.size ?? resolvedFrame?.size ?? unit.size;
   const currentNameFontSize = unit.nameFontSize ?? 14 * currentSize;
-  const unitShape = unit.shape ?? "rectangle";
+  const unitShape = unit.shape ?? "pentagon";
   const routeOptions: RouteOption[] = [
     ...project.lines.map((line) => ({
       value: `line:${line.id}`,

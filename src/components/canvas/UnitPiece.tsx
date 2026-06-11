@@ -62,7 +62,7 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
   const showName = unit.showName !== false;
   const size = frame.size ?? unit.size;
   const nameTextColor = unit.nameTextColor ?? "#f5efe3";
-  const isPentagon = (unit.shape ?? "rectangle") === "pentagon";
+  const isPentagon = (unit.shape ?? "pentagon") === "pentagon";
   const currentRotation = rotationPreview ?? frame.rotation ?? 0;
   const bodyRotation = isPentagon ? currentRotation : 0;
 

@@ -588,7 +588,7 @@ function normalizeProjectTiming(project: ProjectData) {
   normalizeTimelineFrames(project);
 
   for (const unit of project.units ?? []) {
-    unit.shape = unit.shape === "pentagon" ? "pentagon" : "rectangle";
+    unit.shape = unit.shape === "rectangle" ? "rectangle" : "pentagon";
     for (const keyframe of unit.keyframes ?? []) {
       keyframe.rotation = Number.isFinite(keyframe.rotation) ? keyframe.rotation : 0;
     }
@@ -663,7 +663,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     asset.name ??= "コマ";
     asset.size ||= 1;
     asset.factionId ||= normalized.factions?.[0]?.id ?? "faction_default_a";
-    asset.shape = asset.shape === "pentagon" ? "pentagon" : "rectangle";
+    asset.shape = asset.shape === "rectangle" ? "rectangle" : "pentagon";
     asset.rotation = Number.isFinite(asset.rotation) ? asset.rotation : 0;
     asset.showName = asset.showName ?? true;
     asset.nameFontSize ||= 14 * asset.size;
@@ -1062,7 +1062,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         certainty: "fictional",
         locked: false,
         size: 1,
-        shape: "rectangle",
+        shape: "pentagon",
         displayStartTime: frame?.time ?? project.timeline.currentTime,
         displayEndTime: project.timeline.end,
         showName: true,
@@ -1117,7 +1117,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         name: unit.name,
         size: currentFrame?.size ?? unit.size,
         factionId: currentFrame?.effectiveFactionId ?? unit.factionId,
-        shape: unit.shape ?? "rectangle",
+        shape: unit.shape ?? "pentagon",
         rotation: currentFrame?.rotation ?? 0,
         showName: unit.showName ?? true,
         nameFontSize: unit.nameFontSize ?? 14 * (currentFrame?.size ?? unit.size),
@@ -1161,7 +1161,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         certainty: "confirmed",
         locked: false,
         size: asset.size ?? 1,
-        shape: asset.shape ?? "rectangle",
+        shape: asset.shape ?? "pentagon",
         displayStartTime: frame?.time ?? project.timeline.currentTime,
         displayEndTime: project.timeline.end,
         assetId: asset.id,

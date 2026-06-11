@@ -141,7 +141,7 @@ function unitVisualBounds(unit: Unit, frame: { rotation?: number; size?: number 
   const size = frame.size ?? unit.size;
   const bodyWidth = (unit.iconUrl ? 68 : 92) * size;
   const bodyHeight = (unit.iconUrl ? 68 : 44) * size;
-  const isPentagon = (unit.shape ?? "rectangle") === "pentagon";
+  const isPentagon = (unit.shape ?? "pentagon") === "pentagon";
   const pointDepth = isPentagon ? Math.min(bodyHeight * 0.34, bodyWidth * 0.22) : 0;
   const bodyPoints: CanvasPoint[] = isPentagon
     ? [
@@ -879,7 +879,7 @@ export function MapCanvas() {
       certainty: "confirmed",
       locked: true,
       size: asset?.size ?? 1,
-      shape: asset?.shape ?? "rectangle",
+      shape: asset?.shape ?? "pentagon",
       assetId: asset?.id,
       iconUrl: asset?.imageDataUrl,
       showName: asset?.showName ?? true,

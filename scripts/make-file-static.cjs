@@ -15,8 +15,17 @@ html = html.replace(/<link rel="stylesheet" crossorigin href="\.\/([^"]+)">/, (_
 let inlineScript = "";
 html = html.replace(/<script type="module" crossorigin src="\.\/([^"]+)"><\/script>/, (_match, src) => {
   const jsPath = path.join(distDir, src.replace(/\//g, path.sep));
-  const js = fs.readFileSync(jsPath, "utf8").replace(/<\/script/gi, "<\\/script");
-  inlineScript = `<script>\n${js}\n</script>`;
+  const jsDir = path.dirname(jsPath);
+  const js = fs
+    .readFileSync(jsPath, "utf8")
+    .replace(/new URL\((["'])([^"']+\.(?:avif|gif|jpe?g|png|svg|webp))\1,\s*import\.meta\.url\)\.href/g, (_url, _quote, asset) => {
+      const assetPath = path.resolve(jsDir, asset.replace(/\//g, path.sep));
+      const relativeAssetPath = path.relative(distDir, assetPath).replace(/\\/g, "/");
+      return JSON.stringify(`./${relativeAssetPath}`);
+    })
+    .replace(/<\/script/gi, "<\\/script");
+  const scriptType = js.includes("import.meta") ? ' type="module"' : "";
+  inlineScript = `<script${scriptType}>\n${js}\n</script>`;
   return "";
 });
 
