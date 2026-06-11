@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Castle, Copy, Flag, Lock, Paintbrush, PanelLeftClose, Plus, Trash2, Unlock } from "lucide-react";
+import { defaultSiteIconUrl } from "../../data/defaultAssets";
 import { factionTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
 import { resolveSiteFrame } from "../../utils/interpolation";
@@ -242,7 +243,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                       onClick={() => selectObject("site", site.id)}
                     >
                       <span className="site-list-icon" style={{ backgroundColor: factionColor }}>
-                        {site.iconUrl ? <img src={site.iconUrl} alt="" /> : <Castle size={16} />}
+                        <img src={site.iconUrl ?? defaultSiteIconUrl} alt="" />
                       </span>
                       <span>
                         <strong>{site.name}</strong>

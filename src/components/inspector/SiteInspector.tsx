@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { ImagePlus, Trash2 } from "lucide-react";
+import { defaultSiteIconUrl } from "../../data/defaultAssets";
 import { useProjectStore } from "../../store/projectStore";
 import { readFileAsDataUrl } from "../../utils/fileIO";
 import { resolveSiteFrame } from "../../utils/interpolation";
@@ -21,6 +22,7 @@ export function SiteInspector({ id }: { id: string }) {
   const linkedAsset = project.siteAssets.find((asset) => asset.id === site.assetId);
   const siteFrame = resolveSiteFrame(site, project.timeline.currentTime);
   const keyframes = [...(site.keyframes ?? [])].sort((a, b) => compareTime(a.time, b.time));
+  const displayIconUrl = site.iconUrl ?? defaultSiteIconUrl;
 
   const onImageFile = async (file?: File) => {
     if (!file) return;
@@ -74,12 +76,10 @@ export function SiteInspector({ id }: { id: string }) {
       </div>
 
       <h3>画像拠点</h3>
-      {site.iconUrl && (
-        <div className="unit-image-preview">
-          <img src={site.iconUrl} alt="" />
-          <span>{linkedAsset ? `登録済み: ${linkedAsset.name}` : "未登録の画像"}</span>
-        </div>
-      )}
+      <div className="unit-image-preview">
+        <img src={displayIconUrl} alt="" />
+        <span>{site.iconUrl ? (linkedAsset ? `登録済み: ${linkedAsset.name}` : "未登録の画像") : "デフォルト画像"}</span>
+      </div>
       <button type="button" onClick={() => imageInputRef.current?.click()}>
         <ImagePlus size={16} />
         画像をアップロード
@@ -100,7 +100,7 @@ export function SiteInspector({ id }: { id: string }) {
           event.currentTarget.value = "";
         }}
       />
-      {site.iconUrl && <ToggleField label="名前を表示" checked={site.showName !== false} onChange={(value) => updateSite(site.id, { showName: value })} />}
+      <ToggleField label="名前を表示" checked={site.showName !== false} onChange={(value) => updateSite(site.id, { showName: value })} />
       {site.iconUrl && !site.assetId && (
         <button type="button" onClick={() => registerSiteAsset(site.id)}>
           アセットとして登録

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva";
 import type Konva from "konva";
+import { defaultSiteIconUrl } from "../../data/defaultAssets";
 import { useProjectStore } from "../../store/projectStore";
 import type { MapLabel, MovableSelectionType, SelectionMoveUpdate, Site, Unit } from "../../types/project";
 import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas } from "../../utils/coordinate";
@@ -68,6 +69,7 @@ async function dataUrlToBytes(dataUrl: string) {
 async function preloadProjectImages(project: ReturnType<typeof useProjectStore.getState>["project"]) {
   const sources = new Set<string>();
   if (project.map.imageDataUrl) sources.add(project.map.imageDataUrl);
+  sources.add(defaultSiteIconUrl);
   for (const site of project.sites) {
     if (site.iconUrl) sources.add(site.iconUrl);
   }
@@ -797,8 +799,8 @@ export function MapCanvas() {
       if (!site) return null;
       const size = site.size ?? 1;
       const position = { x: site.x * mapWidth, y: site.y * mapHeight };
-      const width = (site.iconUrl ? 82 : 68) * size;
-      const height = (site.iconUrl ? 96 : 78) * size;
+      const width = 82 * size;
+      const height = 96 * size;
       return { x: position.x - width / 2, y: position.y - height / 2, width, height };
     }
     if (item.type === "line") {

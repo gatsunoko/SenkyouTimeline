@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Group, Image as KonvaImage, Rect, Text } from "react-konva";
+import { defaultSiteIconUrl } from "../../data/defaultAssets";
 import type { Site } from "../../types/project";
 import { relativeToCanvas } from "../../utils/coordinate";
 import { getCachedImage, loadCachedImage } from "../../utils/imageCache";
@@ -24,27 +25,28 @@ function estimateTextWidth(text: string, fontSize: number) {
 }
 
 export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect, onDragEnd }: SitePieceProps) {
-  const [image, setImage] = useState<HTMLImageElement | null>(() => getCachedImage(site.iconUrl));
+  const displayIconUrl = site.iconUrl ?? defaultSiteIconUrl;
+  const [image, setImage] = useState<HTMLImageElement | null>(() => getCachedImage(displayIconUrl));
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const position = relativeToCanvas(site, mapWidth, mapHeight);
   const size = site.size ?? 1;
   const nameFontSize = site.nameFontSize ?? 14 * size;
-  const hasImage = Boolean(site.iconUrl);
+  const hasImage = Boolean(displayIconUrl);
   const showName = site.showName !== false;
   const nameTextColor = site.nameTextColor ?? "#f5efe3";
 
   useEffect(() => {
-    if (!site.iconUrl) {
+    if (!displayIconUrl) {
       setImage(null);
       return;
     }
-    const cached = getCachedImage(site.iconUrl);
+    const cached = getCachedImage(displayIconUrl);
     if (cached) {
       setImage(cached);
       return;
     }
     let cancelled = false;
-    loadCachedImage(site.iconUrl)
+    loadCachedImage(displayIconUrl)
       .then((nextImage) => {
         if (!cancelled) setImage(nextImage);
       })
@@ -54,7 +56,7 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
     return () => {
       cancelled = true;
     };
-  }, [site.iconUrl]);
+  }, [displayIconUrl]);
 
   const width = hasImage ? 68 * size : 56 * size;
   const bodyHeight = hasImage ? 68 * size : 50 * size;
