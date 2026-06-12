@@ -196,6 +196,8 @@ export interface UnitAsset {
   nameTextColor?: string;
   nameBackgroundEnabled?: boolean;
   nameBackgroundColor?: string;
+  nameOutlineEnabled?: boolean;
+  nameOutlineColor?: string;
 }
 
 export interface SiteAsset {
@@ -208,6 +210,8 @@ export interface SiteAsset {
   nameTextColor?: string;
   nameBackgroundEnabled?: boolean;
   nameBackgroundColor?: string;
+  nameOutlineEnabled?: boolean;
+  nameOutlineColor?: string;
 }
 
 export interface SiteKeyframe {
@@ -265,6 +269,8 @@ export interface Unit {
   nameTextColor?: string;
   nameBackgroundEnabled?: boolean;
   nameBackgroundColor?: string;
+  nameOutlineEnabled?: boolean;
+  nameOutlineColor?: string;
   memo: string;
   sourceNote: string;
   iconUrl?: string;
@@ -288,6 +294,8 @@ export interface Site extends MapPoint {
   nameTextColor?: string;
   nameBackgroundEnabled?: boolean;
   nameBackgroundColor?: string;
+  nameOutlineEnabled?: boolean;
+  nameOutlineColor?: string;
   iconUrl?: string;
   keyframes?: SiteKeyframe[];
 }

@@ -34,6 +34,8 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
   const hasImage = Boolean(displayIconUrl);
   const showName = site.showName !== false;
   const nameTextColor = site.nameTextColor ?? "#f5efe3";
+  const nameOutlineEnabled = site.nameOutlineEnabled ?? false;
+  const nameOutlineColor = site.nameOutlineColor ?? "#111827";
 
   useEffect(() => {
     if (!displayIconUrl) {
@@ -60,12 +62,13 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
 
   const width = hasImage ? 68 * size : 56 * size;
   const bodyHeight = hasImage ? 68 * size : 50 * size;
+  const nameOutlineWidth = nameOutlineEnabled ? Math.max(2, nameFontSize * 0.12) : 0;
   const labelTextWidth = estimateTextWidth(site.name, nameFontSize);
-  const labelWidth = Math.max(24, labelTextWidth + 12);
+  const labelWidth = Math.max(24, labelTextWidth + 12 + nameOutlineWidth * 2);
   const labelTextWidthForKonva = labelWidth + 2;
   const labelY = bodyHeight / 2 + 5;
-  const labelBackgroundHeight = nameFontSize + 6;
-  const labelTextY = labelY - 2 + (labelBackgroundHeight - nameFontSize) / 2 + nameFontSize * 0.06;
+  const labelBackgroundHeight = nameFontSize + 6 + nameOutlineWidth * 2;
+  const labelTextY = labelY - 2 + (labelBackgroundHeight - nameFontSize) / 2 + nameFontSize * 0.06 - nameOutlineWidth;
   const labelHeight = showName ? labelBackgroundHeight + 2 : 0;
   const totalHeight = bodyHeight + labelHeight;
   const imageScale = image ? Math.max(width / image.naturalWidth, bodyHeight / image.naturalHeight) : 1;
@@ -114,6 +117,7 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
         </>
       )}
       {showName && site.nameBackgroundEnabled && <Rect x={-labelWidth / 2} y={labelY - 2} width={labelWidth} height={labelBackgroundHeight} fill={site.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
+      {showName && nameOutlineEnabled && <Text text={site.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fill={nameOutlineColor} stroke={nameOutlineColor} strokeWidth={nameOutlineWidth} wrap="none" ellipsis listening={false} />}
       {showName && <Text text={site.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fill={nameTextColor} wrap="none" ellipsis />}
     </Group>
   );

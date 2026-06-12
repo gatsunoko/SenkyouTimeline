@@ -62,6 +62,8 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
   const showName = unit.showName !== false;
   const size = frame.size ?? unit.size;
   const nameTextColor = unit.nameTextColor ?? "#f5efe3";
+  const nameOutlineEnabled = unit.nameOutlineEnabled ?? false;
+  const nameOutlineColor = unit.nameOutlineColor ?? "#111827";
   const isPentagon = (unit.shape ?? "pentagon") === "pentagon";
   const currentRotation = rotationPreview ?? frame.rotation ?? 0;
   const bodyRotation = isPentagon ? currentRotation : 0;
@@ -126,12 +128,13 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
   const bodySelectionSize = isPentagon ? Math.hypot(width, bodyHeight) : bodyHeight;
   const selectionWidth = isPentagon ? Math.hypot(width, bodyHeight) : width;
   const nameFontSize = unit.nameFontSize ?? 14 * size;
+  const nameOutlineWidth = nameOutlineEnabled ? Math.max(2, nameFontSize * 0.12) : 0;
   const labelTextWidth = estimateTextWidth(unit.name, nameFontSize);
-  const labelWidth = Math.max(24, labelTextWidth + 12);
+  const labelWidth = Math.max(24, labelTextWidth + 12 + nameOutlineWidth * 2);
   const labelTextWidthForKonva = labelWidth + 2;
   const labelY = bodyBottomY + 4;
-  const labelBackgroundHeight = nameFontSize + 6;
-  const labelTextY = labelY - 2 + (labelBackgroundHeight - nameFontSize) / 2 + nameFontSize * 0.06;
+  const labelBackgroundHeight = nameFontSize + 6 + nameOutlineWidth * 2;
+  const labelTextY = labelY - 2 + (labelBackgroundHeight - nameFontSize) / 2 + nameFontSize * 0.06 - nameOutlineWidth;
   const labelHeight = showName ? labelBackgroundHeight + 2 : 0;
   const totalHeight = bodySelectionSize + labelHeight;
   const rotateGuideRadius = bodySelectionSize / 2 + 18;
@@ -289,6 +292,7 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
         </Group>
       )}
       {showName && unit.nameBackgroundEnabled && <Rect x={-labelWidth / 2} y={labelY - 2} width={labelWidth} height={labelBackgroundHeight} fill={unit.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
+      {showName && nameOutlineEnabled && <Text text={unit.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontStyle="bold" fill={nameOutlineColor} stroke={nameOutlineColor} strokeWidth={nameOutlineWidth} wrap="none" listening={false} />}
       {showName && <Text text={unit.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontStyle="bold" fill={nameTextColor} wrap="none" />}
     </Group>
   );

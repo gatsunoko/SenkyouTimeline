@@ -902,6 +902,8 @@ export function MapCanvas() {
       nameTextColor: asset?.nameTextColor ?? "#f5efe3",
       nameBackgroundEnabled: asset?.nameBackgroundEnabled ?? false,
       nameBackgroundColor: asset?.nameBackgroundColor ?? "#111827",
+      nameOutlineEnabled: asset?.nameOutlineEnabled ?? false,
+      nameOutlineColor: asset?.nameOutlineColor ?? "#111827",
       memo: "",
       sourceNote: "",
       keyframes: [],
@@ -946,6 +948,8 @@ export function MapCanvas() {
       nameTextColor: asset?.nameTextColor ?? "#f5efe3",
       nameBackgroundEnabled: asset?.nameBackgroundEnabled ?? false,
       nameBackgroundColor: asset?.nameBackgroundColor ?? "#111827",
+      nameOutlineEnabled: asset?.nameOutlineEnabled ?? false,
+      nameOutlineColor: asset?.nameOutlineColor ?? "#111827",
       iconUrl: asset?.imageDataUrl,
       keyframes: [],
     };

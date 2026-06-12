@@ -690,6 +690,8 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     asset.nameTextColor ||= "#f5efe3";
     asset.nameBackgroundEnabled = asset.nameBackgroundEnabled ?? false;
     asset.nameBackgroundColor ||= "#111827";
+    asset.nameOutlineEnabled = asset.nameOutlineEnabled ?? false;
+    asset.nameOutlineColor ||= "#111827";
   }
   normalized.siteAssets ||= [];
   for (const asset of normalized.siteAssets) {
@@ -700,6 +702,8 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     asset.nameTextColor ||= "#f5efe3";
     asset.nameBackgroundEnabled = asset.nameBackgroundEnabled ?? false;
     asset.nameBackgroundColor ||= "#111827";
+    asset.nameOutlineEnabled = asset.nameOutlineEnabled ?? false;
+    asset.nameOutlineColor ||= "#111827";
   }
   for (const site of normalized.sites ?? []) {
     site.size ||= 1;
@@ -708,6 +712,8 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     site.nameTextColor ||= "#f5efe3";
     site.nameBackgroundEnabled = site.nameBackgroundEnabled ?? false;
     site.nameBackgroundColor ||= "#111827";
+    site.nameOutlineEnabled = site.nameOutlineEnabled ?? false;
+    site.nameOutlineColor ||= "#111827";
     site.keyframes ||= [];
   }
   for (const arrow of normalized.arrows ?? []) {
@@ -738,6 +744,8 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     unit.nameTextColor ||= "#f5efe3";
     unit.nameBackgroundEnabled = unit.nameBackgroundEnabled ?? false;
     unit.nameBackgroundColor ||= "#111827";
+    unit.nameOutlineEnabled = unit.nameOutlineEnabled ?? false;
+    unit.nameOutlineColor ||= "#111827";
     if (unit.route) {
       unit.route = normalizeUnitRoute(normalized, {
         ...unit.route,
@@ -1108,6 +1116,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         nameTextColor: "#f5efe3",
         nameBackgroundEnabled: false,
         nameBackgroundColor: "#111827",
+        nameOutlineEnabled: false,
+        nameOutlineColor: "#111827",
         memo: "",
         sourceNote: "",
         keyframes: [
@@ -1135,6 +1145,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       unit.nameTextColor ||= "#f5efe3";
       unit.nameBackgroundEnabled = unit.nameBackgroundEnabled ?? false;
       unit.nameBackgroundColor ||= "#111827";
+      unit.nameOutlineEnabled = unit.nameOutlineEnabled ?? false;
+      unit.nameOutlineColor ||= "#111827";
     }),
 
   clearUnitImage: (unitId) =>
@@ -1163,6 +1175,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         nameTextColor: unit.nameTextColor ?? "#f5efe3",
         nameBackgroundEnabled: unit.nameBackgroundEnabled ?? false,
         nameBackgroundColor: unit.nameBackgroundColor ?? "#111827",
+        nameOutlineEnabled: unit.nameOutlineEnabled ?? false,
+        nameOutlineColor: unit.nameOutlineColor ?? "#111827",
       };
       if (unit.iconUrl) asset.imageDataUrl = unit.iconUrl;
       project.unitAssets.push(asset);
@@ -1210,6 +1224,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         nameTextColor: asset.nameTextColor ?? "#f5efe3",
         nameBackgroundEnabled: asset.nameBackgroundEnabled ?? false,
         nameBackgroundColor: asset.nameBackgroundColor ?? "#111827",
+        nameOutlineEnabled: asset.nameOutlineEnabled ?? false,
+        nameOutlineColor: asset.nameOutlineColor ?? "#111827",
         memo: "",
         sourceNote: "",
         keyframes: [
@@ -1294,6 +1310,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         nameTextColor: "#f5efe3",
         nameBackgroundEnabled: false,
         nameBackgroundColor: "#111827",
+        nameOutlineEnabled: false,
+        nameOutlineColor: "#111827",
         keyframes: [],
       });
       get().selectObject("site", id);
@@ -1311,6 +1329,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       site.nameTextColor ||= "#f5efe3";
       site.nameBackgroundEnabled = site.nameBackgroundEnabled ?? false;
       site.nameBackgroundColor ||= "#111827";
+      site.nameOutlineEnabled = site.nameOutlineEnabled ?? false;
+      site.nameOutlineColor ||= "#111827";
     }),
 
   clearSiteImage: (siteId) =>
@@ -1337,6 +1357,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         nameTextColor: site.nameTextColor ?? "#f5efe3",
         nameBackgroundEnabled: site.nameBackgroundEnabled ?? false,
         nameBackgroundColor: site.nameBackgroundColor ?? "#111827",
+        nameOutlineEnabled: site.nameOutlineEnabled ?? false,
+        nameOutlineColor: site.nameOutlineColor ?? "#111827",
       };
       project.siteAssets.push(asset);
       site.assetId = asset.id;
@@ -1373,6 +1395,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         nameTextColor: asset.nameTextColor ?? "#f5efe3",
         nameBackgroundEnabled: asset.nameBackgroundEnabled ?? false,
         nameBackgroundColor: asset.nameBackgroundColor ?? "#111827",
+        nameOutlineEnabled: asset.nameOutlineEnabled ?? false,
+        nameOutlineColor: asset.nameOutlineColor ?? "#111827",
         keyframes: [],
       });
       get().selectObject("site", id);

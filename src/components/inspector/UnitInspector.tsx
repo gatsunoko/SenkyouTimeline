@@ -172,6 +172,8 @@ export function UnitInspector({ id }: { id: string }) {
       <ColorField label="名前の文字色" value={unit.nameTextColor ?? "#f5efe3"} onChange={(value) => updateUnit(unit.id, { nameTextColor: value })} />
       <ToggleField label="名前に背景" checked={unit.nameBackgroundEnabled ?? false} onChange={(value) => updateUnit(unit.id, { nameBackgroundEnabled: value })} />
       {unit.nameBackgroundEnabled && <ColorField label="名前背景色" value={unit.nameBackgroundColor ?? "#111827"} onChange={(value) => updateUnit(unit.id, { nameBackgroundColor: value })} />}
+      <ToggleField label="名前にアウトライン" checked={unit.nameOutlineEnabled ?? false} onChange={(value) => updateUnit(unit.id, { nameOutlineEnabled: value })} />
+      {unit.nameOutlineEnabled && <ColorField label="名前アウトライン色" value={unit.nameOutlineColor ?? "#111827"} onChange={(value) => updateUnit(unit.id, { nameOutlineColor: value })} />}
 
       {unit.iconUrl && (
         <div className="unit-image-preview">
