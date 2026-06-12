@@ -23,6 +23,7 @@ export const sampleProjects: ProjectData[] = [
     map: { outputWidth: 1920, outputHeight: 1080, width: 1600, height: 900 },
     unitAssets: [],
     siteAssets: [],
+    imageAssets: [],
     factions: [
       { id: "blue", name: "青軍", color: "#2f7ed8", type: "alliance", memo: "" },
       { id: "red", name: "赤軍", color: "#c3423f", type: "daimyo", memo: "" },
@@ -44,6 +45,7 @@ export const sampleProjects: ProjectData[] = [
         keyframes: [],
       },
     ],
+    images: [],
     units: [
       {
         id: "blue_unit",

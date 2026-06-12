@@ -8,6 +8,7 @@ import {
   FilePlus2,
   FileUp,
   Flag,
+  Image as ImageIcon,
   ImagePlus,
   Maximize2,
   Minimize2,
@@ -32,6 +33,7 @@ const toolButtons: { tool: PrimaryToolMode; label: string; compactLabel: string;
   { tool: "select", label: "選択", compactLabel: "選択", icon: MousePointer2 },
   { tool: "addUnit", label: "コマ追加", compactLabel: "コマ", icon: Flag },
   { tool: "addSite", label: "城追加", compactLabel: "城", icon: Castle },
+  { tool: "addImage", label: "画像追加", compactLabel: "画像", icon: ImageIcon },
   { tool: "drawLine", label: "線を描く", compactLabel: "線", icon: PencilLine },
   { tool: "drawArrow", label: "矢印を描く", compactLabel: "矢印", icon: ArrowDownToLine },
   { tool: "addLabel", label: "ラベル追加", compactLabel: "ラベル", icon: Tags },
@@ -54,6 +56,7 @@ export function Toolbar() {
   const exportProject = useProjectStore((state) => state.exportProject);
   const updateProjectName = useProjectStore((state) => state.updateProjectName);
   const setMapImage = useProjectStore((state) => state.setMapImage);
+  const setImagePlacement = useProjectStore((state) => state.setImagePlacement);
   const selectObject = useProjectStore((state) => state.selectObject);
   const setTool = useProjectStore((state) => state.setTool);
   const undo = useProjectStore((state) => state.undo);
@@ -61,6 +64,7 @@ export function Toolbar() {
   const toolbarRef = useRef<HTMLDivElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const objectImageInputRef = useRef<HTMLInputElement>(null);
   const [exportFpsDraft, setExportFpsDraft] = useState("30");
   const [exportStatus, setExportStatus] = useState("");
   const [exportBusy, setExportBusy] = useState(false);
@@ -113,6 +117,19 @@ export function Toolbar() {
     setMapImage(dataUrl, naturalSize);
     setTool("mapImageEdit");
     selectObject("mapImage", "mapImage");
+    setActiveMenu(null);
+  };
+
+  const onObjectImageFile = async (file?: File) => {
+    if (!file) return;
+    const dataUrl = await readFileAsDataUrl(file);
+    const naturalSize = await readImageDimensions(dataUrl).catch(() => undefined);
+    setImagePlacement({
+      dataUrl,
+      name: file.name.replace(/\.[^.]+$/, "") || "画像",
+      naturalWidth: naturalSize?.width,
+      naturalHeight: naturalSize?.height,
+    });
     setActiveMenu(null);
   };
 
@@ -181,7 +198,19 @@ export function Toolbar() {
 
       <div className="toolbar-tool-group" aria-label="編集ツール">
         {toolButtons.map(({ tool: mode, label, compactLabel, icon: Icon }) => (
-          <button type="button" className={`toolbar-tool-button ${tool === mode ? "is-active" : ""}`} onClick={() => setTool(mode)} title={label} key={mode}>
+          <button
+            type="button"
+            className={`toolbar-tool-button ${tool === mode ? "is-active" : ""}`}
+            onClick={() => {
+              if (mode === "addImage") {
+                objectImageInputRef.current?.click();
+                return;
+              }
+              setTool(mode);
+            }}
+            title={label}
+            key={mode}
+          >
             <Icon size={17} />
             <span>{compactLabel}</span>
           </button>
@@ -307,6 +336,16 @@ export function Toolbar() {
         hidden
         onChange={(event) => {
           void onImageFile(event.target.files?.[0]);
+          event.currentTarget.value = "";
+        }}
+      />
+      <input
+        ref={objectImageInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(event) => {
+          void onObjectImageFile(event.target.files?.[0]);
           event.currentTarget.value = "";
         }}
       />

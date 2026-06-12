@@ -1,34 +1,41 @@
 import { useEffect, useRef, useState } from "react";
-import { Castle, Copy, Flag, Lock, Paintbrush, PanelLeftClose, Plus, Trash2, Unlock } from "lucide-react";
+import { Castle, Copy, Flag, Image as ImageIcon, Lock, Paintbrush, PanelLeftClose, Plus, Trash2, Unlock } from "lucide-react";
 import { defaultSiteIconUrl } from "../../data/defaultAssets";
 import { factionTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
 import { resolveSiteFrame } from "../../utils/interpolation";
 
-type TabKey = "factions" | "units" | "sites";
+type TabKey = "factions" | "units" | "sites" | "images";
 type UnitSidebarView = "units" | "assets";
 type SiteSidebarView = "sites" | "assets";
+type ImageSidebarView = "images" | "assets";
 
 export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const [tab, setTab] = useState<TabKey>("factions");
   const [unitView, setUnitView] = useState<UnitSidebarView>("units");
   const [siteView, setSiteView] = useState<SiteSidebarView>("sites");
+  const [imageView, setImageView] = useState<ImageSidebarView>("images");
   const unitRowRefs = useRef(new Map<string, HTMLButtonElement>());
   const siteRowRefs = useRef(new Map<string, HTMLButtonElement>());
+  const imageRowRefs = useRef(new Map<string, HTMLButtonElement>());
   const project = useProjectStore((state) => state.project);
   const selected = useProjectStore((state) => state.selected);
   const unitPlacementAssetId = useProjectStore((state) => state.unitPlacementAssetId);
   const sitePlacementAssetId = useProjectStore((state) => state.sitePlacementAssetId);
+  const imagePlacementAssetId = useProjectStore((state) => state.imagePlacementAssetId);
   const addFaction = useProjectStore((state) => state.addFaction);
   const deleteFaction = useProjectStore((state) => state.deleteFaction);
   const setUnitPlacementAsset = useProjectStore((state) => state.setUnitPlacementAsset);
   const deleteUnitAsset = useProjectStore((state) => state.deleteUnitAsset);
   const setSitePlacementAsset = useProjectStore((state) => state.setSitePlacementAsset);
   const deleteSiteAsset = useProjectStore((state) => state.deleteSiteAsset);
+  const setImagePlacementAsset = useProjectStore((state) => state.setImagePlacementAsset);
+  const deleteImageAsset = useProjectStore((state) => state.deleteImageAsset);
   const selectObject = useProjectStore((state) => state.selectObject);
   const updateFaction = useProjectStore((state) => state.updateFaction);
   const updateUnit = useProjectStore((state) => state.updateUnit);
   const updateSite = useProjectStore((state) => state.updateSite);
+  const updateImage = useProjectStore((state) => state.updateImage);
 
   useEffect(() => {
     if (!selected.id) return;
@@ -40,6 +47,11 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
     if (selected.type === "site") {
       setTab("sites");
       setSiteView("sites");
+      return;
+    }
+    if (selected.type === "image") {
+      setTab("images");
+      setImageView("images");
     }
   }, [selected.id, selected.type]);
 
@@ -56,6 +68,13 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
       siteRowRefs.current.get(selected.id!)?.scrollIntoView({ block: "center", behavior: "smooth" });
     });
   }, [selected.id, selected.type, tab, siteView, project.sites.length]);
+
+  useEffect(() => {
+    if (selected.type !== "image" || !selected.id || tab !== "images" || imageView !== "images") return;
+    window.requestAnimationFrame(() => {
+      imageRowRefs.current.get(selected.id!)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  }, [selected.id, selected.type, tab, imageView, project.images.length]);
 
   return (
     <aside className="left-sidebar">
@@ -74,6 +93,9 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
         </button>
         <button className={tab === "sites" ? "is-active" : ""} onClick={() => setTab("sites")} type="button">
           拠点
+        </button>
+        <button className={tab === "images" ? "is-active" : ""} onClick={() => setTab("images")} type="button">
+          画像
         </button>
       </div>
 
@@ -303,6 +325,83 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                   </div>
                 );
               })}
+            </>
+          )}
+        </section>
+      )}
+
+      {tab === "images" && (
+        <section className="sidebar-section">
+          <button className={`wide-action ${imageView === "assets" ? "is-active" : ""}`} type="button" onClick={() => setImageView((view) => (view === "assets" ? "images" : "assets"))}>
+            {imageView === "assets" ? <ImageIcon size={16} /> : <Copy size={16} />}
+            {imageView === "assets" ? "画像一覧へ戻る" : "アセット"}
+          </button>
+
+          {imageView === "images" && (
+            <>
+              {project.images.length === 0 && <div className="sidebar-empty">配置済みの画像はありません。</div>}
+              {project.images.map((imageObject) => (
+                <button
+                  className={`list-row ${selected.type === "image" && selected.id === imageObject.id ? "is-selected" : ""}`}
+                  type="button"
+                  key={imageObject.id}
+                  ref={(node) => {
+                    if (node) imageRowRefs.current.set(imageObject.id, node);
+                    else imageRowRefs.current.delete(imageObject.id);
+                  }}
+                  onClick={() => selectObject("image", imageObject.id)}
+                >
+                  <img className="asset-thumb" src={imageObject.imageDataUrl} alt="" />
+                  <span>
+                    <strong>{imageObject.name || "画像"}</strong>
+                    <small>{imageObject.locked ? "ロック中 / 左で解除" : "画像オブジェクト"}</small>
+                  </span>
+                  <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateImage(imageObject.id, { locked: !imageObject.locked }); }}>
+                    {imageObject.locked ? <Lock size={15} /> : <Unlock size={15} />}
+                  </button>
+                  <ImageIcon size={16} />
+                </button>
+              ))}
+            </>
+          )}
+
+          {imageView === "assets" && (
+            <>
+              {project.imageAssets.length === 0 && <div className="sidebar-empty">登録済みの画像アセットはありません。</div>}
+              {project.imageAssets.map((asset) => (
+                <div
+                  className={`list-row asset-row asset-row-clickable ${imagePlacementAssetId === asset.id ? "is-selected" : ""}`}
+                  role="button"
+                  tabIndex={0}
+                  key={asset.id}
+                  onClick={() => setImagePlacementAsset(asset.id)}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setImagePlacementAsset(asset.id);
+                    }
+                  }}
+                >
+                  <img className="asset-thumb" src={asset.imageDataUrl} alt="" />
+                  <span>
+                    <strong>{asset.name || "画像"}</strong>
+                    <small>クリックで配置準備</small>
+                  </span>
+                  <Copy size={16} />
+                  <button
+                    className="icon-only danger"
+                    type="button"
+                    title="アセットを削除"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      deleteImageAsset(asset.id);
+                    }}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ))}
             </>
           )}
         </section>

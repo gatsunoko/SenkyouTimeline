@@ -3,11 +3,11 @@ import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage } from "re
 import type Konva from "konva";
 import { defaultSiteIconUrl } from "../../data/defaultAssets";
 import { useProjectStore } from "../../store/projectStore";
-import type { MapLabel, MovableSelectionType, SelectionMoveUpdate, Site, Unit } from "../../types/project";
+import type { MapLabel, MovableSelectionType, PlacedImage, SelectionMoveUpdate, Site, Unit } from "../../types/project";
 import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas } from "../../utils/coordinate";
 import { downloadBlob, downloadDataUrl } from "../../utils/fileIO";
 import { loadCachedImage } from "../../utils/imageCache";
-import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveCameraFrame, resolveLineKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRouteApproachPoint, resolveUnitRouteExitPoint, resolveUnitRoutePoint } from "../../utils/interpolation";
+import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveCameraFrame, resolveLineKeyframe, resolvePlacedImageFrame, resolveSiteFrame, resolveUnitFrame, resolveUnitRouteApproachPoint, resolveUnitRouteExitPoint, resolveUnitRoutePoint } from "../../utils/interpolation";
 import { createZip, type ZipEntry } from "../../utils/zip";
 import { compareTime, parseTimelineSeconds } from "../../utils/time";
 import { ArrowShape } from "./ArrowShape";
@@ -15,6 +15,7 @@ import { EventMarker } from "./EventMarker";
 import { LabelShape } from "./LabelShape";
 import { LineShape } from "./LineShape";
 import { MarchingAntsRect } from "./SelectionMarchingAnts";
+import { PlacedImageShape, placedImageSize } from "./PlacedImageShape";
 import { SitePiece } from "./SitePiece";
 import { UnitPiece } from "./UnitPiece";
 
@@ -75,6 +76,9 @@ async function preloadProjectImages(project: ReturnType<typeof useProjectStore.g
   }
   for (const unit of project.units) {
     if (unit.iconUrl) sources.add(unit.iconUrl);
+  }
+  for (const image of project.images ?? []) {
+    if (image.imageDataUrl) sources.add(image.imageDataUrl);
   }
   await Promise.all([...sources].map((src) => loadCachedImage(src).catch(() => null)));
 }
@@ -283,6 +287,7 @@ export function MapCanvas() {
   const routePreviewUnitId = useProjectStore((state) => state.routePreviewUnitId);
   const unitPlacementAssetId = useProjectStore((state) => state.unitPlacementAssetId);
   const sitePlacementAssetId = useProjectStore((state) => state.sitePlacementAssetId);
+  const imagePlacement = useProjectStore((state) => state.imagePlacement);
   const canvasView = useProjectStore((state) => state.canvasView);
   const tool = useProjectStore((state) => state.tool);
   const drawingPoints = useProjectStore((state) => state.drawingPoints);
@@ -294,6 +299,7 @@ export function MapCanvas() {
   const updateSite = useProjectStore((state) => state.updateSite);
   const updateLineKeyframe = useProjectStore((state) => state.updateLineKeyframe);
   const updateArrowKeyframe = useProjectStore((state) => state.updateArrowKeyframe);
+  const updateImageKeyframe = useProjectStore((state) => state.updateImageKeyframe);
   const updateLabel = useProjectStore((state) => state.updateLabel);
   const moveSelectionItems = useProjectStore((state) => state.moveSelectionItems);
   const updateMapImagePlacement = useProjectStore((state) => state.updateMapImagePlacement);
@@ -302,6 +308,7 @@ export function MapCanvas() {
   const duplicateUnitFromAsset = useProjectStore((state) => state.duplicateUnitFromAsset);
   const addSite = useProjectStore((state) => state.addSite);
   const duplicateSiteFromAsset = useProjectStore((state) => state.duplicateSiteFromAsset);
+  const addImage = useProjectStore((state) => state.addImage);
   const addLabel = useProjectStore((state) => state.addLabel);
   const addDrawingPoint = useProjectStore((state) => state.addDrawingPoint);
   const setTool = useProjectStore((state) => state.setTool);
@@ -339,7 +346,7 @@ export function MapCanvas() {
   }, [project.map.imageDataUrl]);
 
   useEffect(() => {
-    if (tool !== "addUnit" && tool !== "addSite" && tool !== "addLabel" && tool !== "drawLine" && tool !== "drawArrow") setPreviewPoint(null);
+    if (tool !== "addUnit" && tool !== "addSite" && tool !== "addImage" && tool !== "addLabel" && tool !== "drawLine" && tool !== "drawArrow") setPreviewPoint(null);
   }, [tool]);
 
   useEffect(() => {
@@ -569,6 +576,11 @@ export function MapCanvas() {
       const bounds = getSelectableBounds({ type: "site", id: site.id });
       if (bounds && rectsIntersect(rect, bounds)) items.push({ type: "site", id: site.id });
     }
+    for (const image of project.images) {
+      if (image.locked) continue;
+      const bounds = getSelectableBounds({ type: "image", id: image.id });
+      if (bounds && rectsIntersect(rect, bounds)) items.push({ type: "image", id: image.id });
+    }
     for (const line of project.lines) {
       if (!shouldRenderLine(line)) continue;
       const lineFrameTime = previewRouteTime("line", line.id) ?? project.timeline.currentTime;
@@ -610,7 +622,7 @@ export function MapCanvas() {
   };
 
   const updateDrawingPreview = () => {
-    if (tool === "addUnit" || tool === "addSite" || tool === "addLabel") {
+    if (tool === "addUnit" || tool === "addSite" || tool === "addImage" || tool === "addLabel") {
       setPreviewPoint(pointerToRelative());
       return;
     }
@@ -676,6 +688,11 @@ export function MapCanvas() {
     if (tool === "addSite") {
       if (sitePlacementAssetId) duplicateSiteFromAsset(sitePlacementAssetId, point);
       else addSite(point);
+      setTool("select");
+      return;
+    }
+    if (tool === "addImage") {
+      if (imagePlacement) addImage(point);
       setTool("select");
       return;
     }
@@ -819,6 +836,14 @@ export function MapCanvas() {
       const height = 96 * size;
       return { x: position.x - width / 2, y: position.y - height / 2, width, height };
     }
+    if (item.type === "image") {
+      const image = project.images.find((entry) => entry.id === item.id);
+      if (!image) return null;
+      const frame = resolvePlacedImageFrame(image, project.timeline.currentTime, project.timeline.interpolationMode);
+      const size = placedImageSize(image);
+      const position = { x: frame.x * mapWidth, y: frame.y * mapHeight };
+      return { x: position.x - size.width / 2, y: position.y - size.height / 2, width: size.width, height: size.height };
+    }
     if (item.type === "line") {
       const line = project.lines.find((entry) => entry.id === item.id);
       if (!line || !shouldRenderLine(line)) return null;
@@ -850,7 +875,7 @@ export function MapCanvas() {
     const dy = multiDragDelta?.y ?? 0;
     return { x: left + dx, y: top + dy, width: right - left, height: bottom - top };
   })();
-  const frontSelectedItems = (multiSelected.length > 0 ? multiSelected : selected.type && selected.id && ["unit", "site", "line", "arrow", "label"].includes(selected.type) ? [{ type: selected.type as MovableSelectionType, id: selected.id }] : []).filter(
+  const frontSelectedItems = (multiSelected.length > 0 ? multiSelected : selected.type && selected.id && ["unit", "site", "image", "line", "arrow", "label"].includes(selected.type) ? [{ type: selected.type as MovableSelectionType, id: selected.id }] : []).filter(
     (item, index, items) => items.findIndex((entry) => selectedItemKey(entry) === selectedItemKey(item)) === index,
   );
   const moveSelectedItems = (delta: CanvasPoint) => {
@@ -864,6 +889,10 @@ export function MapCanvas() {
       } else if (item.type === "site") {
         const site = project.sites.find((entry) => entry.id === item.id);
         if (site && !site.locked) updates.push({ type: "site", id: site.id, x: site.x + relativeDelta.x, y: site.y + relativeDelta.y });
+      } else if (item.type === "image") {
+        const image = project.images.find((entry) => entry.id === item.id);
+        const frame = image ? resolvePlacedImageFrame(image, project.timeline.currentTime, project.timeline.interpolationMode) : null;
+        if (image && frame && !image.locked) updates.push({ type: "image", id: image.id, x: frame.x + relativeDelta.x, y: frame.y + relativeDelta.y });
       } else if (item.type === "line") {
         const line = project.lines.find((entry) => entry.id === item.id);
         const frame = line ? resolveLineKeyframe(line, previewRouteTime("line", line.id) ?? project.timeline.currentTime, project.timeline.interpolationMode) : null;
@@ -955,6 +984,31 @@ export function MapCanvas() {
     };
     return { site: previewSite, color: faction?.color ?? "#8a96a8" };
   })();
+  const imagePlacementPreview = (() => {
+    if (exportViewport || tool !== "addImage" || !previewPoint || !imagePlacement) return null;
+    const previewImage: PlacedImage = {
+      id: "image-placement-preview",
+      name: imagePlacement.name || "画像",
+      imageDataUrl: imagePlacement.dataUrl,
+      naturalWidth: imagePlacement.naturalWidth,
+      naturalHeight: imagePlacement.naturalHeight,
+      x: previewPoint.x,
+      y: previewPoint.y,
+      size: imagePlacement.size ?? 1,
+      locked: true,
+      memo: "",
+      keyframes: [],
+    };
+    return {
+      imageObject: previewImage,
+      frame: {
+        time: project.timeline.currentTime,
+        displayDate: project.timeline.frames.find((entry) => entry.time === project.timeline.currentTime)?.displayDate ?? project.timeline.currentTime,
+        x: previewPoint.x,
+        y: previewPoint.y,
+      },
+    };
+  })();
   const labelPlacementPreview = (() => {
     if (exportViewport || tool !== "addLabel" || !previewPoint) return null;
     const previewLabel: MapLabel = {
@@ -1040,6 +1094,36 @@ export function MapCanvas() {
               }}
             >
               <KonvaImage image={mapImage} width={mapImageRect.width} height={mapImageRect.height} opacity={0.95} listening={isMapImageEditing} />
+            </Group>
+          )}
+
+          {withoutSelected(project.images, "image").map((imageObject) => {
+            const frame = resolvePlacedImageFrame(imageObject, project.timeline.currentTime, project.timeline.interpolationMode);
+            return (
+              <PlacedImageShape
+                key={imageObject.id}
+                imageObject={imageObject}
+                frame={frame}
+                selected={isSelected("image", imageObject.id)}
+                mapWidth={mapWidth}
+                mapHeight={mapHeight}
+                onSelect={() => selectSingle("image", imageObject.id)}
+                onDragEnd={(x, y) => updateImageKeyframe(imageObject.id, project.timeline.currentTime, { x, y })}
+              />
+            );
+          })}
+
+          {imagePlacementPreview && (
+            <Group opacity={0.48} listening={false}>
+              <PlacedImageShape
+                imageObject={imagePlacementPreview.imageObject}
+                frame={imagePlacementPreview.frame}
+                selected={false}
+                mapWidth={mapWidth}
+                mapHeight={mapHeight}
+                onSelect={() => undefined}
+                onDragEnd={() => undefined}
+              />
             </Group>
           )}
 
@@ -1272,6 +1356,24 @@ export function MapCanvas() {
                 const siteFrame = resolveSiteFrame(site, project.timeline.currentTime);
                 const faction = project.factions.find((entry) => entry.id === siteFrame.effectiveFactionId);
                 return <SitePiece key={`${site.id}-selected-front`} site={displaySite} color={faction?.color ?? "#8a96a8"} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectSingle("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
+              }
+              if (item.type === "image") {
+                const imageObject = project.images.find((entry) => entry.id === item.id);
+                if (!imageObject) return null;
+                const frame = resolvePlacedImageFrame(imageObject, project.timeline.currentTime, project.timeline.interpolationMode);
+                const displayFrame = multiDragDelta && isMultiSelected("image", imageObject.id) ? offsetPoint(frame) : frame;
+                return (
+                  <PlacedImageShape
+                    key={`${imageObject.id}-selected-front`}
+                    imageObject={imageObject}
+                    frame={displayFrame}
+                    selected
+                    mapWidth={mapWidth}
+                    mapHeight={mapHeight}
+                    onSelect={() => selectSingle("image", imageObject.id)}
+                    onDragEnd={(x, y) => updateImageKeyframe(imageObject.id, project.timeline.currentTime, { x, y })}
+                  />
+                );
               }
               if (item.type === "label") {
                 const label = project.labels.find((entry) => entry.id === item.id);

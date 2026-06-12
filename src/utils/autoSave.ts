@@ -62,6 +62,8 @@ function createSnapshot(): AutoSaveSnapshot {
     routePreviewUnitId: state.routePreviewUnitId,
     unitPlacementAssetId: state.unitPlacementAssetId,
     sitePlacementAssetId: state.sitePlacementAssetId,
+    imagePlacementAssetId: state.imagePlacementAssetId,
+    imagePlacement: state.imagePlacement,
     tool: state.tool,
     drawingPoints: state.drawingPoints.map((point) => ({ ...point })),
     canvasView: { ...state.canvasView },

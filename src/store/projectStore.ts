@@ -8,8 +8,11 @@ import type {
   Certainty,
   ExportCamera,
   Faction,
+  ImageAsset,
   MapLabel,
   MapPoint,
+  PlacedImage,
+  PlacedImageKeyframe,
   ProjectData,
   SelectionState,
   SelectionMoveUpdate,
@@ -27,7 +30,7 @@ import { clampPoint } from "../utils/coordinate";
 import { createId } from "../utils/id";
 import { compareTime, formatTimelineLabel, getCurrentFrame, nextFrameTime, parseTimelineSeconds, sortedFrames } from "../utils/time";
 import { cloneProject, trimHistory } from "./historyStore";
-import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveArrowRoutePoints, resolveCameraFrame, resolveLineKeyframe, resolveLineRoutePoints, resolveSiteFrame, resolveUnitFrame, resolveUnitRoutePoint } from "../utils/interpolation";
+import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveArrowRoutePoints, resolveCameraFrame, resolveLineKeyframe, resolveLineRoutePoints, resolvePlacedImageFrame, resolveSiteFrame, resolveUnitFrame, resolveUnitRoutePoint } from "../utils/interpolation";
 
 const emptyProject: ProjectData = {
   version: "1.0.0",
@@ -49,11 +52,13 @@ const emptyProject: ProjectData = {
   map: { outputWidth: 1920, outputHeight: 1080 },
   unitAssets: [],
   siteAssets: [],
+  imageAssets: [],
   factions: [
     { id: "faction_default_a", name: "織田・徳川連合", color: "#2f7ed8", type: "alliance", memo: "" },
     { id: "faction_default_b", name: "武田家", color: "#c3423f", type: "daimyo", memo: "" },
   ],
   sites: [],
+  images: [],
   units: [],
   lines: [],
   arrows: [],
@@ -83,7 +88,9 @@ function createBlankProject(): ProjectData {
     },
     unitAssets: [],
     siteAssets: [],
+    imageAssets: [],
     sites: [],
+    images: [],
     units: [],
     lines: [],
     arrows: [],
@@ -105,6 +112,8 @@ interface ProjectStore {
   routePreviewUnitId: string | null;
   unitPlacementAssetId: string | null;
   sitePlacementAssetId: string | null;
+  imagePlacementAssetId: string | null;
+  imagePlacement: { dataUrl: string; name: string; naturalWidth?: number; naturalHeight?: number; assetId?: string; size?: number } | null;
   tool: ToolMode;
   drawingPoints: MapPoint[];
   canvasView: CanvasViewState;
@@ -141,6 +150,13 @@ interface ProjectStore {
   updateSiteKeyframe: (siteId: string, time: string, patch: { factionId: string }) => void;
   deleteSiteKeyframe: (siteId: string, time: string) => void;
   deleteSite: (id: string) => void;
+  addImage: (point?: MapPoint) => void;
+  updateImage: (id: string, patch: Partial<PlacedImage>) => void;
+  registerImageAsset: (imageId: string) => void;
+  deleteImageAsset: (assetId: string) => void;
+  updateImageKeyframe: (imageId: string, time: string, keyframe: Partial<PlacedImageKeyframe>) => void;
+  deleteImageKeyframe: (imageId: string, time: string) => void;
+  deleteImage: (id: string) => void;
   addLine: (points?: MapPoint[]) => void;
   updateLine: (id: string, patch: Partial<BattleLine>) => void;
   updateLineKeyframe: (lineId: string, time: string, points: MapPoint[]) => void;
@@ -177,6 +193,8 @@ interface ProjectStore {
   setTool: (tool: ToolMode) => void;
   setUnitPlacementAsset: (assetId: string | null) => void;
   setSitePlacementAsset: (assetId: string | null) => void;
+  setImagePlacement: (placement: { dataUrl: string; name: string; naturalWidth?: number; naturalHeight?: number; assetId?: string; size?: number } | null) => void;
+  setImagePlacementAsset: (assetId: string | null) => void;
   setCanvasView: (view: Partial<CanvasViewState>) => void;
   addDrawingPoint: (point: MapPoint) => void;
   cancelDrawing: () => void;
@@ -490,6 +508,28 @@ function applyArrowPointsKeyframe(project: ProjectData, arrowId: string, time: s
   }
 }
 
+function applyPlacedImagePositionKeyframe(project: ProjectData, imageId: string, time: string, point: MapPoint) {
+  const image = project.images.find((entry) => entry.id === imageId);
+  if (!image) return;
+  const frame = ensureTimelineFrame(project, time);
+  const keyframeTime = frame.time;
+  const targetSeconds = parseTimelineSeconds(keyframeTime);
+  const existing = image.keyframes.find((entry) => Math.abs(parseTimelineSeconds(entry.time) - targetSeconds) < 0.05);
+  const resolved = resolvePlacedImageFrame(image, keyframeTime, project.timeline.interpolationMode);
+  const normalizedPoint = clampPoint(point);
+  const next: PlacedImageKeyframe = {
+    time: keyframeTime,
+    displayDate: frame.displayDate ?? formatTimelineLabel(keyframeTime),
+    x: normalizedPoint.x ?? resolved.x,
+    y: normalizedPoint.y ?? resolved.y,
+  };
+  if (existing) Object.assign(existing, next);
+  else image.keyframes.push(next);
+  image.x = next.x;
+  image.y = next.y;
+  image.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+}
+
 function isSameTime(a: string, b: string) {
   return Math.abs(parseTimelineSeconds(a) - parseTimelineSeconds(b)) < 0.05;
 }
@@ -524,6 +564,7 @@ function hasObjectKeyAtTime(project: ProjectData, time: string) {
   return (
     project.units.some((unit) => unit.keyframes.some((keyframe) => isSameTime(keyframe.time, time))) ||
     project.sites.some((site) => (site.keyframes ?? []).some((keyframe) => isSameTime(keyframe.time, time))) ||
+    project.images.some((image) => (image.keyframes ?? []).some((keyframe) => isSameTime(keyframe.time, time))) ||
     project.lines.some((line) => line.keyframes.some((keyframe) => isSameTime(keyframe.time, time))) ||
     project.arrows.some((arrow) => (arrow.keyframes ?? []).some((keyframe) => isSameTime(keyframe.time, time))) ||
     (project.map.exportCamera?.keyframes ?? []).some((keyframe) => isSameTime(keyframe.time, time))
@@ -705,6 +746,11 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     asset.nameOutlineEnabled = asset.nameOutlineEnabled ?? false;
     asset.nameOutlineColor ||= "#111827";
   }
+  normalized.imageAssets ||= [];
+  for (const asset of normalized.imageAssets) {
+    asset.name ??= "画像";
+    asset.size ||= 1;
+  }
   for (const site of normalized.sites ?? []) {
     site.size ||= 1;
     site.nameFontSize ||= 14 * site.size;
@@ -715,6 +761,23 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     site.nameOutlineEnabled = site.nameOutlineEnabled ?? false;
     site.nameOutlineColor ||= "#111827";
     site.keyframes ||= [];
+  }
+  normalized.images ||= [];
+  for (const image of normalized.images) {
+    image.name ??= "画像";
+    image.size ||= 1;
+    image.locked = image.locked ?? false;
+    image.memo ||= "";
+    image.x = Number.isFinite(image.x) ? image.x : image.keyframes?.[0]?.x ?? 0.5;
+    image.y = Number.isFinite(image.y) ? image.y : image.keyframes?.[0]?.y ?? 0.5;
+    image.keyframes ||= [
+      {
+        time: normalized.timeline.currentTime || normalized.timeline.start || "0",
+        displayDate: formatTimelineLabel(normalized.timeline.currentTime || normalized.timeline.start || "0"),
+        x: image.x,
+        y: image.y,
+      },
+    ];
   }
   for (const arrow of normalized.arrows ?? []) {
     arrow.curveMode ||= "straight";
@@ -773,6 +836,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   routePreviewUnitId: null,
   unitPlacementAssetId: null,
   sitePlacementAssetId: null,
+  imagePlacementAssetId: null,
+  imagePlacement: null,
   tool: "select",
   drawingPoints: [],
   canvasView: defaultCanvasView,
@@ -789,6 +854,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       routePreviewUnitId: null,
       unitPlacementAssetId: null,
       sitePlacementAssetId: null,
+      imagePlacementAssetId: null,
+      imagePlacement: null,
       tool: "select",
       drawingPoints: [],
       canvasView: defaultCanvasView,
@@ -806,6 +873,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       routePreviewUnitId: null,
       unitPlacementAssetId: null,
       sitePlacementAssetId: null,
+      imagePlacementAssetId: null,
+      imagePlacement: null,
       tool: "select",
       drawingPoints: [],
       canvasView: defaultCanvasView,
@@ -822,6 +891,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       routePreviewUnitId: snapshot.routePreviewUnitId ?? null,
       unitPlacementAssetId: snapshot.unitPlacementAssetId ?? null,
       sitePlacementAssetId: snapshot.sitePlacementAssetId ?? null,
+      imagePlacementAssetId: snapshot.imagePlacementAssetId ?? null,
+      imagePlacement: snapshot.imagePlacement ?? null,
       tool: snapshot.tool ?? "select",
       drawingPoints: snapshot.drawingPoints ?? [],
       canvasView: normalizeCanvasView(snapshot.canvasView),
@@ -914,6 +985,23 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           if (existing) Object.assign(existing, keyframe);
           else unit.keyframes.push(keyframe);
           unit.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+        }
+      }
+
+      if (selected.type === "image" && selected.id) {
+        const image = project.images.find((entry) => entry.id === selected.id);
+        if (image) {
+          const resolved = resolvePlacedImageFrame(image, time, project.timeline.interpolationMode);
+          const existing = image.keyframes.find((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) < 0.05);
+          const keyframe = {
+            time,
+            displayDate: formatTimelineLabel(time),
+            x: resolved.x,
+            y: resolved.y,
+          };
+          if (existing) Object.assign(existing, keyframe);
+          else image.keyframes.push(keyframe);
+          image.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
         }
       }
 
@@ -1029,6 +1117,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         for (const label of project.labels) {
           if (label.startTime && Math.abs(parseTimelineSeconds(label.startTime) - oldSeconds) < 0.05) label.startTime = nextTime;
           if (label.endTime && Math.abs(parseTimelineSeconds(label.endTime) - oldSeconds) < 0.05) label.endTime = nextTime;
+        }
+
+        for (const image of project.images) {
+          for (const keyframe of image.keyframes ?? []) {
+            if (Math.abs(parseTimelineSeconds(keyframe.time) - oldSeconds) < 0.05) {
+              keyframe.time = nextTime;
+              keyframe.displayDate = formatTimelineLabel(nextTime);
+            }
+          }
+          image.keyframes?.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
         }
 
         if (Math.abs(parseTimelineSeconds(project.timeline.currentTime) - oldSeconds) < 0.05) project.timeline.currentTime = nextTime;
@@ -1441,6 +1539,95 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }),
   deleteSite: (id) => commit(set, get, (project) => (project.sites = project.sites.filter((site) => site.id !== id))),
 
+  addImage: (point = { x: 0.5, y: 0.5 }) =>
+    commit(set, get, (project) => {
+      const placement = get().imagePlacement;
+      if (!placement) return;
+      const frame = currentFrame(project);
+      const time = frame?.time ?? project.timeline.currentTime;
+      const displayDate = frame?.displayDate ?? formatTimelineLabel(time);
+      const id = createId("image");
+      const position = clampPoint(point);
+      project.images ||= [];
+      project.images.push({
+        id,
+        name: placement.name.trim() || "画像",
+        imageDataUrl: placement.dataUrl,
+        naturalWidth: placement.naturalWidth,
+        naturalHeight: placement.naturalHeight,
+        assetId: placement.assetId,
+        size: placement.size ?? 1,
+        locked: false,
+        memo: "",
+        ...position,
+        keyframes: [
+          {
+            time,
+            displayDate,
+            ...position,
+          },
+        ],
+      });
+      get().selectObject("image", id);
+    }),
+
+  updateImage: (id, patch) => commit(set, get, (project) => applyListPatch(project.images, id, patch)),
+
+  registerImageAsset: (imageId) =>
+    commit(set, get, (project) => {
+      project.imageAssets ||= [];
+      const image = project.images.find((entry) => entry.id === imageId);
+      if (!image) return;
+      const asset: ImageAsset = {
+        id: createId("image_asset"),
+        name: image.name,
+        imageDataUrl: image.imageDataUrl,
+        naturalWidth: image.naturalWidth,
+        naturalHeight: image.naturalHeight,
+        size: image.size ?? 1,
+      };
+      project.imageAssets.push(asset);
+      image.assetId = asset.id;
+    }),
+
+  deleteImageAsset: (assetId) => {
+    commit(set, get, (project) => {
+      project.imageAssets = (project.imageAssets ?? []).filter((asset) => asset.id !== assetId);
+      for (const image of project.images) {
+        if (image.assetId === assetId) image.assetId = undefined;
+      }
+    });
+    if (get().imagePlacementAssetId === assetId) set({ imagePlacementAssetId: null, imagePlacement: null });
+  },
+
+  updateImageKeyframe: (imageId, time, keyframe) =>
+    commit(set, get, (project) => {
+      const image = project.images.find((entry) => entry.id === imageId);
+      if (!image) return;
+      const resolved = resolvePlacedImageFrame(image, time, project.timeline.interpolationMode);
+      applyPlacedImagePositionKeyframe(project, imageId, time, {
+        x: keyframe.x ?? resolved.x,
+        y: keyframe.y ?? resolved.y,
+      });
+    }),
+
+  deleteImageKeyframe: (imageId, time) =>
+    commit(set, get, (project) => {
+      const image = project.images.find((entry) => entry.id === imageId);
+      if (!image) return;
+      const targetSeconds = parseTimelineSeconds(time);
+      const resolvedBeforeDelete = resolvePlacedImageFrame(image, time, project.timeline.interpolationMode);
+      image.keyframes = image.keyframes.filter((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) >= 0.05);
+      if (image.keyframes.length === 0) {
+        image.x = resolvedBeforeDelete.x;
+        image.y = resolvedBeforeDelete.y;
+      }
+      image.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+      cleanupEmptyTimelineFrames(project);
+    }),
+
+  deleteImage: (id) => commit(set, get, (project) => (project.images = project.images.filter((image) => image.id !== id))),
+
   addLine: (points = []) =>
     commit(set, get, (project) => {
       const frame = currentFrame(project);
@@ -1684,6 +1871,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         } else if (update.type === "site") {
           const site = project.sites.find((entry) => entry.id === update.id);
           if (site && !site.locked) Object.assign(site, clampPoint({ x: update.x, y: update.y }));
+        } else if (update.type === "image") {
+          const image = project.images.find((entry) => entry.id === update.id);
+          if (image && !image.locked) applyPlacedImagePositionKeyframe(project, update.id, project.timeline.currentTime, { x: update.x, y: update.y });
         } else if (update.type === "label") {
           const label = project.labels.find((entry) => entry.id === update.id);
           if (label && !label.locked) Object.assign(label, clampPoint({ x: update.x, y: update.y }));
@@ -1894,6 +2084,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       tool,
       unitPlacementAssetId: null,
       sitePlacementAssetId: null,
+      imagePlacementAssetId: tool === "addImage" ? state.imagePlacementAssetId : null,
+      imagePlacement: tool === "addImage" ? state.imagePlacement : null,
       drawingPoints: tool === "drawLine" || tool === "drawArrow" ? state.drawingPoints : [],
       selected: tool !== "mapImageEdit" && state.selected.type === "mapImage" ? { type: null, id: null } : state.selected,
     })),
@@ -1902,6 +2094,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       tool: "addUnit",
       unitPlacementAssetId: assetId,
       sitePlacementAssetId: null,
+      imagePlacementAssetId: null,
+      imagePlacement: null,
       drawingPoints: [],
     }),
   setSitePlacementAsset: (assetId) =>
@@ -1909,7 +2103,39 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       tool: "addSite",
       unitPlacementAssetId: null,
       sitePlacementAssetId: assetId,
+      imagePlacementAssetId: null,
+      imagePlacement: null,
       drawingPoints: [],
+    }),
+  setImagePlacement: (placement) =>
+    set({
+      tool: placement ? "addImage" : "select",
+      unitPlacementAssetId: null,
+      sitePlacementAssetId: null,
+      imagePlacementAssetId: placement?.assetId ?? null,
+      imagePlacement: placement,
+      drawingPoints: [],
+    }),
+  setImagePlacementAsset: (assetId) =>
+    set((state) => {
+      const asset = assetId ? state.project.imageAssets.find((entry) => entry.id === assetId) : null;
+      return {
+        tool: asset ? "addImage" : "select",
+        unitPlacementAssetId: null,
+        sitePlacementAssetId: null,
+        imagePlacementAssetId: asset?.id ?? null,
+        imagePlacement: asset
+          ? {
+              dataUrl: asset.imageDataUrl,
+              name: asset.name,
+              naturalWidth: asset.naturalWidth,
+              naturalHeight: asset.naturalHeight,
+              assetId: asset.id,
+              size: asset.size,
+            }
+          : null,
+        drawingPoints: [],
+      };
     }),
   setCanvasView: (view) =>
     set((state) => {
@@ -1918,7 +2144,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       return { canvasView };
     }),
   addDrawingPoint: (point) => set({ drawingPoints: [...get().drawingPoints, clampPoint(point)] }),
-  cancelDrawing: () => set({ drawingPoints: [], tool: "select", unitPlacementAssetId: null, sitePlacementAssetId: null }),
+  cancelDrawing: () => set({ drawingPoints: [], tool: "select", unitPlacementAssetId: null, sitePlacementAssetId: null, imagePlacementAssetId: null, imagePlacement: null }),
   finishDrawing: () => {
     const { tool, drawingPoints } = get();
     if (drawingPoints.length < 2) {
@@ -1927,7 +2153,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }
     if (tool === "drawLine") get().addLine(drawingPoints);
     if (tool === "drawArrow") get().addArrow(drawingPoints);
-    set({ drawingPoints: [], tool: "select" });
+    set({ drawingPoints: [], tool: "select", imagePlacementAssetId: null, imagePlacement: null });
   },
 
   deleteSelected: () => {
@@ -1964,7 +2190,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (selected.type === "arrow") get().deleteArrow(selected.id);
     if (selected.type === "event") get().deleteEvent(selected.id);
     if (selected.type === "label") get().deleteLabel(selected.id);
-    set({ selected: { type: null, id: null }, selectedLinePointIndices: [], selectedArrowPointIndices: [], routePreviewUnitId: null, unitPlacementAssetId: null, sitePlacementAssetId: null });
+    if (selected.type === "image") get().deleteImage(selected.id);
+    set({ selected: { type: null, id: null }, selectedLinePointIndices: [], selectedArrowPointIndices: [], routePreviewUnitId: null, unitPlacementAssetId: null, sitePlacementAssetId: null, imagePlacementAssetId: null, imagePlacement: null });
   },
 
   undo: () => {
@@ -1981,6 +2208,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       routePreviewUnitId: null,
       unitPlacementAssetId: null,
       sitePlacementAssetId: null,
+      imagePlacementAssetId: null,
+      imagePlacement: null,
     });
   },
 
@@ -1998,6 +2227,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       routePreviewUnitId: null,
       unitPlacementAssetId: null,
       sitePlacementAssetId: null,
+      imagePlacementAssetId: null,
+      imagePlacement: null,
     });
   },
 }));

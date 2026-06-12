@@ -16,6 +16,8 @@ export interface AutoSaveSnapshot {
   routePreviewUnitId: string | null;
   unitPlacementAssetId: string | null;
   sitePlacementAssetId: string | null;
+  imagePlacementAssetId: string | null;
+  imagePlacement: { dataUrl: string; name: string; naturalWidth?: number; naturalHeight?: number; assetId?: string; size?: number } | null;
   tool: ToolMode;
   drawingPoints: MapPoint[];
   canvasView: CanvasViewState;

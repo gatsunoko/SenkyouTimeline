@@ -120,8 +120,8 @@ export type EventType =
   | "peace"
   | "other";
 
-export type SelectableType = "faction" | "unit" | "site" | "line" | "arrow" | "event" | "label" | "frame" | "camera" | "mapImage";
-export type ToolMode = "select" | "addUnit" | "addSite" | "drawLine" | "drawArrow" | "addLabel" | "mapImageEdit";
+export type SelectableType = "faction" | "unit" | "site" | "image" | "line" | "arrow" | "event" | "label" | "frame" | "camera" | "mapImage";
+export type ToolMode = "select" | "addUnit" | "addSite" | "addImage" | "drawLine" | "drawArrow" | "addLabel" | "mapImageEdit";
 
 export interface MapPoint {
   x: number;
@@ -214,10 +214,24 @@ export interface SiteAsset {
   nameOutlineColor?: string;
 }
 
+export interface ImageAsset {
+  id: string;
+  name: string;
+  imageDataUrl: string;
+  naturalWidth?: number;
+  naturalHeight?: number;
+  size: number;
+}
+
 export interface SiteKeyframe {
   time: string;
   displayDate: string;
   factionId: string;
+}
+
+export interface PlacedImageKeyframe extends MapPoint {
+  time: string;
+  displayDate: string;
 }
 
 export interface UnitKeyframe extends MapPoint {
@@ -298,6 +312,19 @@ export interface Site extends MapPoint {
   nameOutlineColor?: string;
   iconUrl?: string;
   keyframes?: SiteKeyframe[];
+}
+
+export interface PlacedImage extends MapPoint {
+  id: string;
+  name: string;
+  imageDataUrl: string;
+  naturalWidth?: number;
+  naturalHeight?: number;
+  assetId?: string;
+  size: number;
+  locked: boolean;
+  memo: string;
+  keyframes: PlacedImageKeyframe[];
 }
 
 export interface LineKeyframe {
@@ -391,8 +418,10 @@ export interface ProjectData {
   map: ProjectMap;
   unitAssets: UnitAsset[];
   siteAssets: SiteAsset[];
+  imageAssets: ImageAsset[];
   factions: Faction[];
   sites: Site[];
+  images: PlacedImage[];
   units: Unit[];
   lines: BattleLine[];
   arrows: BattleArrow[];
@@ -405,11 +434,12 @@ export interface SelectionState {
   id: string | null;
 }
 
-export type MovableSelectionType = "unit" | "site" | "line" | "arrow" | "label";
+export type MovableSelectionType = "unit" | "site" | "image" | "line" | "arrow" | "label";
 
 export type SelectionMoveUpdate =
   | { type: "unit"; id: string; x: number; y: number }
   | { type: "site"; id: string; x: number; y: number }
+  | { type: "image"; id: string; x: number; y: number }
   | { type: "label"; id: string; x: number; y: number }
   | { type: "line"; id: string; points: MapPoint[] }
   | { type: "arrow"; id: string; points: MapPoint[] };

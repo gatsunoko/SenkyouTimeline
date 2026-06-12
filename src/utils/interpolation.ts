@@ -1,4 +1,4 @@
-import type { ArrowKeyframe, BattleArrow, BattleLine, CameraKeyframe, ExportCamera, InterpolationMode, LineKeyframe, MapPoint, Site, SiteKeyframe, Unit, UnitKeyframe, UnitRoute, UnitRouteSegment } from "../types/project";
+import type { ArrowKeyframe, BattleArrow, BattleLine, CameraKeyframe, ExportCamera, InterpolationMode, LineKeyframe, MapPoint, PlacedImage, PlacedImageKeyframe, Site, SiteKeyframe, Unit, UnitKeyframe, UnitRoute, UnitRouteSegment } from "../types/project";
 import { compareTime, parseTimelineSeconds } from "./time";
 
 export interface ResolvedUnitFrame extends UnitKeyframe {
@@ -15,6 +15,8 @@ export interface ResolvedCameraFrame extends CameraKeyframe {
   height: number;
   scale: number;
 }
+
+export type ResolvedPlacedImageFrame = PlacedImageKeyframe;
 
 function orderedUnitKeyframes(unit: Unit) {
   return [...unit.keyframes].sort((a, b) => compareTime(a.time, b.time));
@@ -457,6 +459,36 @@ export function resolveSiteFrame(site: Site, currentTime: string): ResolvedSiteF
   return {
     ...base,
     effectiveFactionId: base.factionId || site.factionId,
+  };
+}
+
+export function resolvePlacedImageFrame(image: PlacedImage, currentTime: string, mode: InterpolationMode): ResolvedPlacedImageFrame {
+  const keyframes = [...(image.keyframes ?? [])].sort((a, b) => compareTime(a.time, b.time));
+  const fallback: PlacedImageKeyframe = {
+    time: currentTime,
+    displayDate: currentTime,
+    x: image.x,
+    y: image.y,
+  };
+  if (keyframes.length === 0) return fallback;
+
+  const previous = [...keyframes].reverse().find((frame) => compareTime(frame.time, currentTime) <= 0);
+  const next = keyframes.find((frame) => compareTime(frame.time, currentTime) >= 0);
+  const base = previous ?? next ?? fallback;
+
+  if (mode !== "linear" || !previous || !next || previous.time === next.time) return { ...base };
+
+  const start = parseTimelineSeconds(previous.time);
+  const end = parseTimelineSeconds(next.time);
+  const current = parseTimelineSeconds(currentTime);
+  if (Number.isNaN(start) || Number.isNaN(end) || Number.isNaN(current) || end <= start) return { ...base };
+
+  const t = Math.min(1, Math.max(0, (current - start) / (end - start)));
+  return {
+    time: currentTime,
+    displayDate: base.displayDate,
+    x: previous.x + (next.x - previous.x) * t,
+    y: previous.y + (next.y - previous.y) * t,
   };
 }
 
