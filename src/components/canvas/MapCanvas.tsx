@@ -304,6 +304,7 @@ export function MapCanvas() {
   const duplicateSiteFromAsset = useProjectStore((state) => state.duplicateSiteFromAsset);
   const addLabel = useProjectStore((state) => state.addLabel);
   const addDrawingPoint = useProjectStore((state) => state.addDrawingPoint);
+  const setTool = useProjectStore((state) => state.setTool);
   const setCanvasView = useProjectStore((state) => state.setCanvasView);
 
   useEffect(() => {
@@ -669,16 +670,19 @@ export function MapCanvas() {
     if (tool === "addUnit") {
       if (unitPlacementAssetId) duplicateUnitFromAsset(unitPlacementAssetId, point);
       else addUnit(point);
+      setTool("select");
       return;
     }
     if (tool === "addSite") {
       if (sitePlacementAssetId) duplicateSiteFromAsset(sitePlacementAssetId, point);
       else addSite(point);
+      setTool("select");
       return;
     }
     if (event.target !== event.target.getStage()) return;
     if (tool === "addLabel") {
       addLabel(point);
+      window.setTimeout(() => setTool("select"), 0);
     } else if (tool === "drawLine" || tool === "drawArrow") {
       addDrawingPoint(point);
     } else if (tool === "mapImageEdit") {
