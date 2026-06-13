@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text } from "react-konva";
 import type Konva from "konva";
+import { UI_FONT_FAMILY } from "../../constants/fonts";
 import { defaultSiteIconUrl } from "../../data/defaultAssets";
 import { useProjectStore } from "../../store/projectStore";
 import type { MapLabel, MapRegion, MovableSelectionType, PlacedImage, SelectionMoveUpdate, Site, Unit } from "../../types/project";
-import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas } from "../../utils/coordinate";
+import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas, relativeToCanvas } from "../../utils/coordinate";
 import { downloadBlob, downloadDataUrl } from "../../utils/fileIO";
 import { loadCachedImage } from "../../utils/imageCache";
 import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveCameraFrame, resolveLineKeyframe, resolvePlacedImageFrame, resolveRegionKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRouteApproachPoint, resolveUnitRouteExitPoint, resolveUnitRoutePoint } from "../../utils/interpolation";
@@ -296,6 +297,7 @@ export function MapCanvas() {
   const selectObject = useProjectStore((state) => state.selectObject);
   const clearSelection = useProjectStore((state) => state.clearSelection);
   const toggleRegionPointSelection = useProjectStore((state) => state.toggleRegionPointSelection);
+  const setRegionPointSelection = useProjectStore((state) => state.setRegionPointSelection);
   const toggleLinePointSelection = useProjectStore((state) => state.toggleLinePointSelection);
   const toggleArrowPointSelection = useProjectStore((state) => state.toggleArrowPointSelection);
   const updateUnitKeyframe = useProjectStore((state) => state.updateUnitKeyframe);
@@ -571,6 +573,22 @@ export function MapCanvas() {
       clearSelection();
       return;
     }
+    if (selected.type === "region" && selected.id) {
+      const region = project.regions.find((entry) => entry.id === selected.id);
+      const frame = region ? resolveRegionKeyframe(region, project.timeline.currentTime, project.timeline.interpolationMode) : null;
+      if (region && frame) {
+        const hitRect = expandRect(rect, 8);
+        const pointIndices = frame.points
+          .map((point, index) => ({ index, point: relativeToCanvas(point, mapWidth, mapHeight) }))
+          .filter(({ point }) => pointInRect(point, hitRect))
+          .map(({ index }) => index)
+          .slice(0, 2);
+        setMultiSelected([]);
+        setMultiDragDelta(null);
+        setRegionPointSelection(region.id, pointIndices);
+        return;
+      }
+    }
     const items: MultiSelectionItem[] = [];
     for (const unit of project.units) {
       const bounds = getSelectableBounds({ type: "unit", id: unit.id });
@@ -805,6 +823,8 @@ export function MapCanvas() {
   const isMultiSelected = (type: typeof selected.type, id: string) => multiSelected.some((item) => item.type === type && item.id === id);
   const isSelected = (type: typeof selected.type, id: string) => !exportViewport && ((selected.type === type && selected.id === id) || isMultiSelected(type, id));
   const isMapImageEditing = !exportViewport && tool === "mapImageEdit" && selected.type === "mapImage" && selected.id === "mapImage";
+  const drawingToolActive = tool === "drawRegion" || tool === "drawLine" || tool === "drawArrow";
+  const objectDragEnabled = !drawingToolActive;
   const cameraHandleOffset = { x: -40, y: -36 };
   const routePreviewUnit = routePreviewUnitId ? project.units.find((unit) => unit.id === routePreviewUnitId) : undefined;
   const activePreviewRoute = routePreviewUnit?.route;
@@ -1134,7 +1154,9 @@ export function MapCanvas() {
             middlePanRef.current = { active: true, x: event.evt.clientX, y: event.evt.clientY };
             return;
           }
-          if (!exportViewport && event.evt.button === 0 && event.target === event.target.getStage() && tool === "select" && !spacePressed) {
+          const isStageTarget = event.target === event.target.getStage();
+          const isSelectedRegionFill = selected.type === "region" && event.target.name() === "selected-region-fill";
+          if (!exportViewport && event.evt.button === 0 && (isStageTarget || isSelectedRegionFill) && tool === "select" && !spacePressed) {
             const start = pointerToCanvasPoint();
             selectionStartRef.current = start;
             setSelectionRect({ x: start.x, y: start.y, width: 0, height: 0 });
@@ -1198,6 +1220,7 @@ export function MapCanvas() {
                   mapHeight={mapHeight}
                   maskPolygons={regionMaskPolygons(region.id)}
                   selectedPointIndices={isSelected("region", region.id) ? selectedRegionPointIndices : []}
+                  dragEnabled={objectDragEnabled}
                   onSelect={() => selectSingle("region", region.id)}
                   onPointSelect={(pointIndex) => toggleRegionPointSelection(region.id, pointIndex)}
                   onPointDragEnd={(pointIndex, x, y) => {
@@ -1218,6 +1241,7 @@ export function MapCanvas() {
                 selected={isSelected("image", imageObject.id)}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
+                dragEnabled={objectDragEnabled}
                 onSelect={() => selectSingle("image", imageObject.id)}
                 onDragEnd={(x, y) => updateImageKeyframe(imageObject.id, project.timeline.currentTime, { x, y })}
               />
@@ -1232,6 +1256,7 @@ export function MapCanvas() {
                 selected={false}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
+                dragEnabled={false}
                 onSelect={() => undefined}
                 onDragEnd={() => undefined}
               />
@@ -1252,6 +1277,7 @@ export function MapCanvas() {
                 selectedPointIndices={isSelected("line", line.id) ? selectedLinePointIndices : []}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
+                dragEnabled={objectDragEnabled}
                 onSelect={() => selectSingle("line", line.id)}
                 onPointSelect={(pointIndex) => toggleLinePointSelection(line.id, pointIndex)}
                 onPointDragEnd={(pointIndex, x, y) => {
@@ -1279,6 +1305,7 @@ export function MapCanvas() {
                 selectedPointIndices={isSelected("arrow", arrow.id) ? selectedArrowPointIndices : []}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
+                dragEnabled={objectDragEnabled}
                 onSelect={() => selectSingle("arrow", arrow.id)}
                 onPointSelect={(pointIndex) => toggleArrowPointSelection(arrow.id, pointIndex)}
                 onPointDragEnd={(pointIndex, x, y) => {
@@ -1329,7 +1356,7 @@ export function MapCanvas() {
           {withoutSelected(project.sites, "site").map((site) => {
             const siteFrame = resolveSiteFrame(site, project.timeline.currentTime);
             const faction = project.factions.find((entry) => entry.id === siteFrame.effectiveFactionId);
-            return <SitePiece key={site.id} site={site} color={faction?.color ?? "#8a96a8"} selected={isSelected("site", site.id)} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectSingle("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
+            return <SitePiece key={site.id} site={site} color={faction?.color ?? "#8a96a8"} selected={isSelected("site", site.id)} mapWidth={mapWidth} mapHeight={mapHeight} dragEnabled={objectDragEnabled} onSelect={() => selectSingle("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
           })}
 
           {sitePlacementPreview && (
@@ -1340,6 +1367,7 @@ export function MapCanvas() {
                 selected={false}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
+                dragEnabled={false}
                 onSelect={() => undefined}
                 onDragEnd={() => undefined}
               />
@@ -1359,6 +1387,7 @@ export function MapCanvas() {
                 selected={isSelected("unit", unit.id)}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
+                dragEnabled={objectDragEnabled}
                 onSelect={() => selectSingle("unit", unit.id)}
                 onDragEnd={(x, y) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x, y, status: unit.status })}
                 onRotateEnd={(rotation) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: frame.x, y: frame.y, rotation, status: unit.status })}
@@ -1375,6 +1404,7 @@ export function MapCanvas() {
                 selected={false}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
+                dragEnabled={false}
                 onSelect={() => undefined}
                 onDragEnd={() => undefined}
                 onRotateEnd={() => undefined}
@@ -1391,7 +1421,7 @@ export function MapCanvas() {
           {withoutSelected(project.labels, "label")
             .filter((label) => (!label.startTime || compareTime(label.startTime, project.timeline.currentTime) <= 0) && (!label.endTime || compareTime(label.endTime, project.timeline.currentTime) >= 0))
             .map((label) => (
-              <LabelShape key={label.id} label={label} selected={isSelected("label", label.id)} mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectSingle("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />
+              <LabelShape key={label.id} label={label} selected={isSelected("label", label.id)} mapWidth={mapWidth} mapHeight={mapHeight} dragEnabled={objectDragEnabled} onSelect={() => selectSingle("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />
             ))}
 
           {labelPlacementPreview && (
@@ -1401,6 +1431,7 @@ export function MapCanvas() {
                 selected={false}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
+                dragEnabled={false}
                 onSelect={() => undefined}
                 onDragEnd={() => undefined}
               />
@@ -1440,6 +1471,7 @@ export function MapCanvas() {
                     mapHeight={mapHeight}
                     maskPolygons={regionMaskPolygons(region.id)}
                     selectedPointIndices={multiSelected.length === 0 ? selectedRegionPointIndices : []}
+                    dragEnabled={objectDragEnabled}
                     onSelect={() => selectSingle("region", region.id)}
                     onPointSelect={(pointIndex) => toggleRegionPointSelection(region.id, pointIndex)}
                     onPointDragEnd={(pointIndex, x, y) => {
@@ -1465,6 +1497,7 @@ export function MapCanvas() {
                     selectedPointIndices={multiSelected.length === 0 ? selectedLinePointIndices : []}
                     mapWidth={mapWidth}
                     mapHeight={mapHeight}
+                    dragEnabled={objectDragEnabled}
                     onSelect={() => selectSingle("line", line.id)}
                     onPointSelect={(pointIndex) => toggleLinePointSelection(line.id, pointIndex)}
                     onPointDragEnd={(pointIndex, x, y) => {
@@ -1492,6 +1525,7 @@ export function MapCanvas() {
                     selectedPointIndices={multiSelected.length === 0 ? selectedArrowPointIndices : []}
                     mapWidth={mapWidth}
                     mapHeight={mapHeight}
+                    dragEnabled={objectDragEnabled}
                     onSelect={() => selectSingle("arrow", arrow.id)}
                     onPointSelect={(pointIndex) => toggleArrowPointSelection(arrow.id, pointIndex)}
                     onPointDragEnd={(pointIndex, x, y) => {
@@ -1507,7 +1541,7 @@ export function MapCanvas() {
                 const displaySite = multiDragDelta && isMultiSelected("site", site.id) ? offsetPoint(site) : site;
                 const siteFrame = resolveSiteFrame(site, project.timeline.currentTime);
                 const faction = project.factions.find((entry) => entry.id === siteFrame.effectiveFactionId);
-                return <SitePiece key={`${site.id}-selected-front`} site={displaySite} color={faction?.color ?? "#8a96a8"} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectSingle("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
+                return <SitePiece key={`${site.id}-selected-front`} site={displaySite} color={faction?.color ?? "#8a96a8"} selected mapWidth={mapWidth} mapHeight={mapHeight} dragEnabled={objectDragEnabled} onSelect={() => selectSingle("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
               }
               if (item.type === "image") {
                 const imageObject = project.images.find((entry) => entry.id === item.id);
@@ -1522,6 +1556,7 @@ export function MapCanvas() {
                     selected
                     mapWidth={mapWidth}
                     mapHeight={mapHeight}
+                    dragEnabled={objectDragEnabled}
                     onSelect={() => selectSingle("image", imageObject.id)}
                     onDragEnd={(x, y) => updateImageKeyframe(imageObject.id, project.timeline.currentTime, { x, y })}
                   />
@@ -1531,7 +1566,7 @@ export function MapCanvas() {
                 const label = project.labels.find((entry) => entry.id === item.id);
                 if (!label || (label.startTime && compareTime(label.startTime, project.timeline.currentTime) > 0) || (label.endTime && compareTime(label.endTime, project.timeline.currentTime) < 0)) return null;
                 const displayLabel = multiDragDelta && isMultiSelected("label", label.id) ? offsetPoint(label) : label;
-                return <LabelShape key={`${label.id}-selected-front`} label={displayLabel} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectSingle("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />;
+                return <LabelShape key={`${label.id}-selected-front`} label={displayLabel} selected mapWidth={mapWidth} mapHeight={mapHeight} dragEnabled={objectDragEnabled} onSelect={() => selectSingle("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />;
               }
               const unit = project.units.find((entry) => entry.id === item.id);
               if (!unit) return null;
@@ -1548,6 +1583,7 @@ export function MapCanvas() {
                   selected
                   mapWidth={mapWidth}
                   mapHeight={mapHeight}
+                  dragEnabled={objectDragEnabled}
                   onSelect={() => selectSingle("unit", unit.id)}
                   onDragEnd={(x, y) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x, y, status: unit.status })}
                   onRotateEnd={(rotation) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: frame.x, y: frame.y, rotation, status: unit.status })}
@@ -1555,7 +1591,7 @@ export function MapCanvas() {
               );
             })}
 
-          {!exportViewport && multiSelected.length > 1 && selectedBounds && (
+          {!exportViewport && tool === "select" && multiSelected.length > 1 && selectedBounds && (
             <>
               <Rect
                 x={selectedBounds.x - 10}
@@ -1623,7 +1659,7 @@ export function MapCanvas() {
                       stroke={faction.cameraLegendTextOutlineColor ?? "#111827"}
                       strokeWidth={cameraLegendOverlay.textStrokeWidth}
                       fontSize={cameraLegendOverlay.fontSize}
-                      fontFamily={'"Yu Gothic UI", "Meiryo", system-ui, sans-serif'}
+                      fontFamily={UI_FONT_FAMILY}
                       fontStyle="bold"
                       verticalAlign="middle"
                     />

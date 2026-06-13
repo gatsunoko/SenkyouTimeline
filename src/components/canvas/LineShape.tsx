@@ -17,9 +17,10 @@ interface LineShapeProps {
   selectedPointIndices?: number[];
   onPointSelect?: (pointIndex: number) => void;
   onPointDragEnd?: (pointIndex: number, x: number, y: number) => void;
+  dragEnabled?: boolean;
 }
 
-export function LineShape({ line, frame, selected, preview = false, selectedPointIndices = [], mapWidth, mapHeight, onSelect, onPointSelect, onPointDragEnd }: LineShapeProps) {
+export function LineShape({ line, frame, selected, preview = false, selectedPointIndices = [], mapWidth, mapHeight, onSelect, onPointSelect, onPointDragEnd, dragEnabled = true }: LineShapeProps) {
   const [dragPoints, setDragPoints] = useState<MapPoint[] | null>(null);
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const activePoints = dragPoints ?? frame.points;
@@ -71,7 +72,7 @@ export function LineShape({ line, frame, selected, preview = false, selectedPoin
               stroke={pointSelected ? "#f46f5e" : "#1b1f29"}
               strokeWidth={pointSelected ? 3 : 2}
               hitStrokeWidth={14}
-              draggable={!line.locked}
+              draggable={dragEnabled && !line.locked}
               onMouseDown={updateDragButton}
               onClick={(event) => {
                 event.cancelBubble = true;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Group, Image as KonvaImage, Rect, Text } from "react-konva";
+import { UI_FONT_FAMILY } from "../../constants/fonts";
 import { defaultSiteIconUrl } from "../../data/defaultAssets";
 import type { Site } from "../../types/project";
 import { relativeToCanvas } from "../../utils/coordinate";
@@ -15,6 +16,7 @@ interface SitePieceProps {
   mapHeight: number;
   onSelect: () => void;
   onDragEnd: (x: number, y: number) => void;
+  dragEnabled?: boolean;
 }
 
 function estimateTextWidth(text: string, fontSize: number) {
@@ -24,7 +26,7 @@ function estimateTextWidth(text: string, fontSize: number) {
   }, 0);
 }
 
-export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect, onDragEnd }: SitePieceProps) {
+export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect, onDragEnd, dragEnabled = true }: SitePieceProps) {
   const displayIconUrl = site.iconUrl ?? defaultSiteIconUrl;
   const [image, setImage] = useState<HTMLImageElement | null>(() => getCachedImage(displayIconUrl));
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
@@ -80,7 +82,7 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
       x={position.x}
       y={position.y}
       opacity={hasImage ? 1 : 0.94}
-      draggable={!site.locked}
+      draggable={dragEnabled && !site.locked}
       onClick={onSelect}
       onTap={onSelect}
       onMouseDown={updateDragButton}
@@ -113,12 +115,12 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
       ) : (
         <>
           <Rect x={-width / 2} y={-bodyHeight / 2} width={width} height={bodyHeight} fill="#101822" stroke={color} strokeWidth={3} cornerRadius={7} shadowBlur={8} shadowColor="#000" shadowOpacity={0.28} />
-          <Text text="城" x={-width / 2 + 4} y={-bodyHeight / 2 + 8 * size} width={width - 8} align="center" fontSize={20 * size} fontStyle="bold" fill="#fff7e6" />
+          <Text text="城" x={-width / 2 + 4} y={-bodyHeight / 2 + 8 * size} width={width - 8} align="center" fontSize={20 * size} fontFamily={UI_FONT_FAMILY} fontStyle="bold" fill="#fff7e6" />
         </>
       )}
       {showName && site.nameBackgroundEnabled && <Rect x={-labelWidth / 2} y={labelY - 2} width={labelWidth} height={labelBackgroundHeight} fill={site.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
-      {showName && nameOutlineEnabled && <Text text={site.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fill={nameOutlineColor} stroke={nameOutlineColor} strokeWidth={nameOutlineWidth} wrap="none" ellipsis listening={false} />}
-      {showName && <Text text={site.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fill={nameTextColor} wrap="none" ellipsis />}
+      {showName && nameOutlineEnabled && <Text text={site.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontFamily={UI_FONT_FAMILY} fill={nameOutlineColor} stroke={nameOutlineColor} strokeWidth={nameOutlineWidth} wrap="none" ellipsis listening={false} />}
+      {showName && <Text text={site.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontFamily={UI_FONT_FAMILY} fill={nameTextColor} wrap="none" ellipsis />}
     </Group>
   );
 }

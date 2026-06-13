@@ -17,6 +17,7 @@ interface ArrowShapeProps {
   selectedPointIndices?: number[];
   onPointSelect?: (pointIndex: number) => void;
   onPointDragEnd?: (pointIndex: number, x: number, y: number) => void;
+  dragEnabled?: boolean;
 }
 
 function pointDistance(a: MapPoint, b: MapPoint) {
@@ -128,7 +129,7 @@ function trimPointsAlongPath(points: MapPoint[], progress: number) {
   return trimmed;
 }
 
-export function ArrowShape({ arrow, frame, selected, preview = false, revealProgress = 1, selectedPointIndices = [], mapWidth, mapHeight, onSelect, onPointSelect, onPointDragEnd }: ArrowShapeProps) {
+export function ArrowShape({ arrow, frame, selected, preview = false, revealProgress = 1, selectedPointIndices = [], mapWidth, mapHeight, onSelect, onPointSelect, onPointDragEnd, dragEnabled = true }: ArrowShapeProps) {
   const [dragPoints, setDragPoints] = useState<MapPoint[] | null>(null);
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const activePoints = dragPoints ?? frame.points;
@@ -196,7 +197,7 @@ export function ArrowShape({ arrow, frame, selected, preview = false, revealProg
               stroke={pointSelected ? "#f46f5e" : "#1b1f29"}
               strokeWidth={pointSelected ? 3 : 2}
               hitStrokeWidth={14}
-              draggable={!arrow.locked}
+              draggable={dragEnabled && !arrow.locked}
               onMouseDown={updateDragButton}
               onClick={(event) => {
                 event.cancelBubble = true;

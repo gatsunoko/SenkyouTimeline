@@ -1,4 +1,5 @@
 import { Group, Rect, Shape } from "react-konva";
+import { UI_FONT_FAMILY } from "../../constants/fonts";
 import type { MapLabel } from "../../types/project";
 import { relativeToCanvas } from "../../utils/coordinate";
 import { MarchingAntsRect } from "./SelectionMarchingAnts";
@@ -11,6 +12,7 @@ interface LabelShapeProps {
   mapHeight: number;
   onSelect: () => void;
   onDragEnd: (x: number, y: number) => void;
+  dragEnabled?: boolean;
 }
 
 function estimateTextWidth(text: string, fontSize: number) {
@@ -21,7 +23,7 @@ function estimateTextWidth(text: string, fontSize: number) {
 }
 
 function labelFont(fontSize: number) {
-  return `normal ${fontSize}px "Yu Gothic UI", "Meiryo", system-ui, sans-serif`;
+  return `normal ${fontSize}px ${UI_FONT_FAMILY}`;
 }
 
 function measureLabelTextWidth(text: string, fontSize: number) {
@@ -33,7 +35,7 @@ function measureLabelTextWidth(text: string, fontSize: number) {
   return context.measureText(text).width;
 }
 
-export function LabelShape({ label, selected, mapWidth, mapHeight, onSelect, onDragEnd }: LabelShapeProps) {
+export function LabelShape({ label, selected, mapWidth, mapHeight, onSelect, onDragEnd, dragEnabled = true }: LabelShapeProps) {
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const position = relativeToCanvas(label, mapWidth, mapHeight);
   const horizontalPadding = 11;
@@ -46,7 +48,7 @@ export function LabelShape({ label, selected, mapWidth, mapHeight, onSelect, onD
       x={position.x}
       y={position.y}
       opacity={label.opacity}
-      draggable={!label.locked}
+      draggable={dragEnabled && !label.locked}
       onClick={onSelect}
       onTap={onSelect}
       onMouseDown={updateDragButton}

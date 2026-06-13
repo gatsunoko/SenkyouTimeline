@@ -1,5 +1,6 @@
 import { Circle, Group, Shape, Text } from "react-konva";
 import { useEffect, useState } from "react";
+import { UI_FONT_FAMILY } from "../../constants/fonts";
 import type { MapPoint, MapRegion } from "../../types/project";
 import { canvasToRelative, pointsToCanvas, relativeToCanvas } from "../../utils/coordinate";
 import { MarchingAntsLine } from "./SelectionMarchingAnts";
@@ -17,6 +18,7 @@ interface RegionShapeProps {
   onSelect: () => void;
   onPointSelect?: (pointIndex: number) => void;
   onPointDragEnd?: (pointIndex: number, x: number, y: number) => void;
+  dragEnabled?: boolean;
 }
 
 function regionCentroid(points: MapPoint[]) {
@@ -94,7 +96,7 @@ function polygonBounds(polygons: number[][], padding: number) {
   };
 }
 
-export function RegionShape({ region, fillColor, selected, editable = true, mapWidth, mapHeight, maskPolygons = [], selectedPointIndices = [], onSelect, onPointSelect, onPointDragEnd }: RegionShapeProps) {
+export function RegionShape({ region, fillColor, selected, editable = true, mapWidth, mapHeight, maskPolygons = [], selectedPointIndices = [], onSelect, onPointSelect, onPointDragEnd, dragEnabled = true }: RegionShapeProps) {
   const [dragPoints, setDragPoints] = useState<MapPoint[] | null>(null);
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const activePoints = dragPoints ?? region.points;
@@ -111,6 +113,7 @@ export function RegionShape({ region, fillColor, selected, editable = true, mapW
   return (
     <Group>
       <Shape
+        name={selected ? "selected-region-fill" : "region-fill"}
         onClick={editable || !region.locked ? onSelect : undefined}
         onTap={editable || !region.locked ? onSelect : undefined}
         listening={editable || !region.locked}
@@ -176,7 +179,7 @@ export function RegionShape({ region, fillColor, selected, editable = true, mapW
           stroke="#111827"
           strokeWidth={1.2}
           fontSize={22}
-          fontFamily={'"Yu Gothic UI", "Meiryo", system-ui, sans-serif'}
+          fontFamily={UI_FONT_FAMILY}
           fontStyle="bold"
           listening={false}
         />
@@ -195,7 +198,7 @@ export function RegionShape({ region, fillColor, selected, editable = true, mapW
               stroke={pointSelected ? "#f46f5e" : "#111827"}
               strokeWidth={pointSelected ? 3 : 2}
               hitStrokeWidth={14}
-              draggable={editable && !region.locked}
+              draggable={dragEnabled && editable && !region.locked}
               onMouseDown={updateDragButton}
               onClick={(event) => {
                 event.cancelBubble = true;

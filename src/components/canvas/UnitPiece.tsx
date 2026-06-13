@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type Konva from "konva";
 import { Circle, Group, Image as KonvaImage, Line, Rect, Text } from "react-konva";
+import { UI_FONT_FAMILY } from "../../constants/fonts";
 import type { Unit } from "../../types/project";
 import type { ResolvedUnitFrame } from "../../utils/interpolation";
 import { relativeToCanvas } from "../../utils/coordinate";
@@ -18,6 +19,7 @@ interface UnitPieceProps {
   onSelect: () => void;
   onDragEnd: (x: number, y: number) => void;
   onRotateEnd: (rotation: number) => void;
+  dragEnabled?: boolean;
 }
 
 type RotationDragState = {
@@ -50,7 +52,7 @@ function rotatedPoint(point: { x: number; y: number }, degrees: number) {
   };
 }
 
-export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, onSelect, onDragEnd, onRotateEnd }: UnitPieceProps) {
+export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, onSelect, onDragEnd, onRotateEnd, dragEnabled = true }: UnitPieceProps) {
   const [image, setImage] = useState<HTMLImageElement | null>(() => getCachedImage(unit.iconUrl));
   const [rotationPreview, setRotationPreview] = useState<number | null>(null);
   const [rotationHandlePreview, setRotationHandlePreview] = useState<{ x: number; y: number } | null>(null);
@@ -181,7 +183,7 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
       ref={rootGroupRef}
       x={position.x}
       y={position.y}
-      draggable={!unit.locked}
+      draggable={dragEnabled && !unit.locked}
       opacity={hasImage ? 1 : 0.96}
       onClick={onSelect}
       onTap={onSelect}
@@ -199,7 +201,7 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
       }}
     >
       {selected && <MarchingAntsRect x={-selectionWidth / 2 - 6} y={-bodySelectionSize / 2 - 6} width={selectionWidth + 12} height={totalHeight + 12} cornerRadius={8} />}
-      {selected && isPentagon && !unit.locked && (
+      {selected && isPentagon && dragEnabled && !unit.locked && (
         <>
           <MarchingAntsCircle radius={rotateGuideRadius} opacity={0.72} />
           <MarchingAntsLine points={[0, 0, rotationHandlePosition.x, rotationHandlePosition.y]} strokeWidth={2} />
@@ -292,8 +294,8 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
         </Group>
       )}
       {showName && unit.nameBackgroundEnabled && <Rect x={-labelWidth / 2} y={labelY - 2} width={labelWidth} height={labelBackgroundHeight} fill={unit.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
-      {showName && nameOutlineEnabled && <Text text={unit.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontStyle="bold" fill={nameOutlineColor} stroke={nameOutlineColor} strokeWidth={nameOutlineWidth} wrap="none" listening={false} />}
-      {showName && <Text text={unit.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontStyle="bold" fill={nameTextColor} wrap="none" />}
+      {showName && nameOutlineEnabled && <Text text={unit.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontFamily={UI_FONT_FAMILY} fontStyle="bold" fill={nameOutlineColor} stroke={nameOutlineColor} strokeWidth={nameOutlineWidth} wrap="none" listening={false} />}
+      {showName && <Text text={unit.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontFamily={UI_FONT_FAMILY} fontStyle="bold" fill={nameTextColor} wrap="none" />}
     </Group>
   );
 }

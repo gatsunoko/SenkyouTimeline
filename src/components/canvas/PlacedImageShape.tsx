@@ -14,6 +14,7 @@ interface PlacedImageShapeProps {
   mapHeight: number;
   onSelect: () => void;
   onDragEnd: (x: number, y: number) => void;
+  dragEnabled?: boolean;
 }
 
 export function placedImageSize(imageObject: Pick<PlacedImage, "naturalWidth" | "naturalHeight" | "size">) {
@@ -26,7 +27,7 @@ export function placedImageSize(imageObject: Pick<PlacedImage, "naturalWidth" | 
   };
 }
 
-export function PlacedImageShape({ imageObject, frame, selected, mapWidth, mapHeight, onSelect, onDragEnd }: PlacedImageShapeProps) {
+export function PlacedImageShape({ imageObject, frame, selected, mapWidth, mapHeight, onSelect, onDragEnd, dragEnabled = true }: PlacedImageShapeProps) {
   const [image, setImage] = useState<HTMLImageElement | null>(() => getCachedImage(imageObject.imageDataUrl));
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const position = relativeToCanvas(frame, mapWidth, mapHeight);
@@ -56,7 +57,7 @@ export function PlacedImageShape({ imageObject, frame, selected, mapWidth, mapHe
       x={position.x}
       y={position.y}
       listening={!imageObject.locked}
-      draggable={!imageObject.locked}
+      draggable={dragEnabled && !imageObject.locked}
       onClick={onSelect}
       onTap={onSelect}
       onMouseDown={updateDragButton}

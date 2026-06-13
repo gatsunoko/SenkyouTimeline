@@ -188,6 +188,7 @@ interface ProjectStore {
   moveSelectionItems: (updates: SelectionMoveUpdate[]) => void;
   selectObject: (type: SelectionState["type"], id: string | null) => void;
   toggleRegionPointSelection: (regionId: string, pointIndex: number) => void;
+  setRegionPointSelection: (regionId: string, pointIndices: number[]) => void;
   toggleLinePointSelection: (lineId: string, pointIndex: number) => void;
   toggleArrowPointSelection: (arrowId: string, pointIndex: number) => void;
   clearRegionPointSelection: () => void;
@@ -2117,6 +2118,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         selectedLinePointIndices: [],
         selectedArrowPointIndices: [],
       };
+    }),
+  setRegionPointSelection: (regionId, pointIndices) =>
+    set({
+      selected: { type: "region", id: regionId },
+      selectedRegionPointIndices: [...new Set(pointIndices)].slice(0, 2),
+      selectedLinePointIndices: [],
+      selectedArrowPointIndices: [],
     }),
   toggleLinePointSelection: (lineId, pointIndex) =>
     set((state) => {
