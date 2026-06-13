@@ -369,6 +369,8 @@ export interface BattleArrow {
   dashed: boolean;
   curveMode?: LineCurveMode;
   hideWhenRoute?: boolean;
+  revealAlongPath?: boolean;
+  revealDurationSeconds?: number;
   startTime: string;
   endTime: string;
   points: MapPoint[];

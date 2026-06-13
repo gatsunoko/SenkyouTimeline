@@ -821,6 +821,11 @@ export function MapCanvas() {
   };
   const shouldRenderLine = (line: (typeof project.lines)[number]) => !line.hideWhenRoute || isPreviewRouteSource("line", line.id);
   const shouldRenderArrow = (arrow: (typeof project.arrows)[number]) => !arrow.hideWhenRoute || isPreviewRouteSource("arrow", arrow.id);
+  const arrowRevealProgress = (arrow: (typeof project.arrows)[number], time: string) => {
+    if (!arrow.revealAlongPath) return 1;
+    const duration = Math.max(0.1, arrow.revealDurationSeconds ?? 1);
+    return (parseTimelineSeconds(time) - parseTimelineSeconds(arrow.startTime)) / duration;
+  };
   const shouldRenderRegion = (region: MapRegion) => (!region.displayStartTime || compareTime(region.displayStartTime, project.timeline.currentTime) <= 0) && (!region.displayEndTime || compareTime(region.displayEndTime, project.timeline.currentTime) >= 0);
   const regionFillColor = (region: MapRegion) => {
     if (!region.useFactionColor) return region.fillColor;
@@ -1259,6 +1264,7 @@ export function MapCanvas() {
                 frame={frame}
                 selected={isSelected("arrow", arrow.id)}
                 preview={isPreviewRouteSource("arrow", arrow.id)}
+                revealProgress={arrowRevealProgress(arrow, arrowFrameTime)}
                 selectedPointIndices={isSelected("arrow", arrow.id) ? selectedArrowPointIndices : []}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
@@ -1469,6 +1475,7 @@ export function MapCanvas() {
                     frame={displayFrame}
                     selected
                     preview={isPreviewRouteSource("arrow", arrow.id)}
+                    revealProgress={arrowRevealProgress(arrow, arrowFrameTime)}
                     selectedPointIndices={multiSelected.length === 0 ? selectedArrowPointIndices : []}
                     mapWidth={mapWidth}
                     mapHeight={mapHeight}

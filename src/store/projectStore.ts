@@ -822,6 +822,8 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   for (const arrow of normalized.arrows ?? []) {
     arrow.curveMode ||= "straight";
     arrow.hideWhenRoute = arrow.hideWhenRoute ?? false;
+    arrow.revealAlongPath = arrow.revealAlongPath ?? false;
+    arrow.revealDurationSeconds = Math.max(0.1, Number.isFinite(arrow.revealDurationSeconds) ? arrow.revealDurationSeconds ?? 1 : 1);
     arrow.arrowHeadSize ||= 1;
     arrow.startTime ||= normalized.timeline.start || normalized.timeline.currentTime || "0";
     arrow.endTime ||= normalized.timeline.end || arrow.startTime;
@@ -1827,6 +1829,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         dashed: false,
         curveMode: "straight",
         hideWhenRoute: false,
+        revealAlongPath: false,
+        revealDurationSeconds: 1,
         startTime: project.timeline.currentTime,
         endTime: project.timeline.end,
         points,

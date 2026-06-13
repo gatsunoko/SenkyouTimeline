@@ -71,6 +71,8 @@ export function ArrowInspector({ id }: { id: string }) {
         </select>
       </label>
       <ToggleField label="通常は非表示（ルート確認で表示）" checked={arrow.hideWhenRoute ?? false} onChange={(value) => updateArrow(arrow.id, { hideWhenRoute: value })} />
+      <ToggleField label="始点から終点に沿って表示" checked={arrow.revealAlongPath ?? false} onChange={(value) => updateArrow(arrow.id, { revealAlongPath: value })} />
+      {arrow.revealAlongPath && <NumberField label="表示にかける秒数" value={arrow.revealDurationSeconds ?? 1} min={0.1} step={0.1} onChange={(value) => updateArrow(arrow.id, { revealDurationSeconds: value })} />}
 
       <h3>表示期間</h3>
       <label>
