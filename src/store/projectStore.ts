@@ -626,8 +626,9 @@ function hasObjectKeyAtTime(project: ProjectData, time: string) {
 function cleanupEmptyTimelineFrames(project: ProjectData) {
   if (project.timeline.frames.length <= 1) return;
   const originalFrames = sortedFrames(project.timeline.frames);
-  const keyedFrames = originalFrames.filter((frame) => hasObjectKeyAtTime(project, frame.time));
-  if (keyedFrames.length === originalFrames.length) return;
+  const lastFrameIndex = originalFrames.length - 1;
+  const retainedFrames = originalFrames.filter((frame, index) => index === 0 || index === lastFrameIndex || hasObjectKeyAtTime(project, frame.time));
+  if (retainedFrames.length === originalFrames.length) return;
 
   const currentSeconds = parseTimelineSeconds(project.timeline.currentTime);
   const fallbackFrame =
@@ -636,7 +637,7 @@ function cleanupEmptyTimelineFrames(project: ProjectData) {
       const frameDistance = Math.abs(parseTimelineSeconds(frame.time) - currentSeconds);
       return frameDistance < nearestDistance ? frame : nearest;
     }, originalFrames[0]) ?? originalFrames[0];
-  const nextFrames = keyedFrames.length > 0 ? keyedFrames : [fallbackFrame];
+  const nextFrames = retainedFrames.length > 0 ? retainedFrames : [fallbackFrame];
   project.timeline.frames = nextFrames.map((frame, index) => ({ ...frame, order: index + 1 }));
 
   if (!project.timeline.frames.some((frame) => isSameTime(frame.time, project.timeline.currentTime))) {

@@ -500,6 +500,20 @@ textarea {
   justify-content: center;
 }
 
+.object-list-text.is-visible-now,
+.object-list-text.is-visible-now small {
+  color: #f8fafc;
+}
+
+.object-list-text.is-hidden-now,
+.object-list-text.is-hidden-now small {
+  color: #778397;
+}
+
+.object-display-period {
+  font-variant-numeric: tabular-nums;
+}
+
 .line-color-chip {
   display: inline-block;
   width: 15px;

@@ -3,12 +3,15 @@ import { ArrowRight, Castle, Copy, Flag, Image as ImageIcon, Lock, Paintbrush, P
 import { defaultSiteIconUrl } from "../../data/defaultAssets";
 import { arrowTypeLabels, lineTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
-import { resolveSiteFrame } from "../../utils/interpolation";
+import { getUnitRouteTimeRange, resolveSiteFrame } from "../../utils/interpolation";
+import { compareTime, formatTimelineLabel } from "../../utils/time";
 
 type TabKey = "factions" | "units" | "sites" | "images" | "regions" | "lines" | "arrows" | "labels";
 type UnitSidebarView = "units" | "assets";
 type SiteSidebarView = "sites" | "assets";
 type ImageSidebarView = "images" | "assets";
+type DisplayPeriod = { start?: string; end?: string };
+type TimedEntry = { time: string };
 
 export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const [tab, setTab] = useState<TabKey>("factions");
@@ -45,6 +48,14 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const updateArrow = useProjectStore((state) => state.updateArrow);
   const updateLabel = useProjectStore((state) => state.updateLabel);
   const lockButtonClass = (locked: boolean) => `icon-only lock-toggle-button ${locked ? "is-locked" : ""}`;
+  const timelineStart = project.timeline.start ?? project.timeline.frames[0]?.time ?? "0";
+  const timelineEnd = project.timeline.end ?? timelineStart;
+  const currentTime = project.timeline.currentTime;
+  const firstKeyframeTime = (frames?: TimedEntry[]) => [...(frames ?? [])].sort((a, b) => compareTime(a.time, b.time))[0]?.time;
+  const formatPeriodTime = (time?: string) => (time ? formatTimelineLabel(time) : "--:--.-");
+  const displayPeriodText = (period: DisplayPeriod) => `表示 ${formatPeriodTime(period.start)} - ${formatPeriodTime(period.end)}`;
+  const isPeriodActive = (period: DisplayPeriod) => (!period.start || compareTime(period.start, currentTime) <= 0) && (!period.end || compareTime(period.end, currentTime) >= 0);
+  const objectTextClass = (period: DisplayPeriod) => `object-list-text ${isPeriodActive(period) ? "is-visible-now" : "is-hidden-now"}`;
 
   useEffect(() => {
     if (!selected.id) return;
@@ -226,6 +237,12 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
             <>
               {project.units.map((unit) => {
                 const faction = project.factions.find((entry) => entry.id === unit.factionId);
+                const routeRange = getUnitRouteTimeRange(unit.route);
+                const unitFirstKeyframeTime = firstKeyframeTime(unit.keyframes);
+                const period = {
+                  start: unit.displayStartTime ?? unitFirstKeyframeTime ?? routeRange?.startTime ?? timelineStart,
+                  end: unit.displayEndTime ?? timelineEnd,
+                };
                 return (
                   <button
                     className={`list-row ${selected.type === "unit" && selected.id === unit.id ? "is-selected" : ""}`}
@@ -238,9 +255,10 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                     onClick={() => selectObject("unit", unit.id)}
                   >
                     {unit.iconUrl ? <img className="asset-thumb" src={unit.iconUrl} alt="" /> : <Flag size={17} style={{ color: faction?.color }} />}
-                    <span>
+                    <span className={objectTextClass(period)}>
                       <strong>{unit.name}</strong>
                       <small>{faction?.name ?? "陣営なし"}</small>
+                      <small className="object-display-period">{displayPeriodText(period)}</small>
                     </span>
                     <button className={lockButtonClass(unit.locked)} type="button" onClick={(event) => { event.stopPropagation(); updateUnit(unit.id, { locked: !unit.locked }); }}>
                       {unit.locked ? <Lock size={15} /> : <Unlock size={15} />}
@@ -317,6 +335,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                   const siteFrame = resolveSiteFrame(site, project.timeline.currentTime);
                   const faction = project.factions.find((entry) => entry.id === siteFrame.effectiveFactionId);
                   const factionColor = faction?.color ?? "#8a96a8";
+                  const period = { start: timelineStart, end: timelineEnd };
                   return (
                     <button
                       className={`list-row ${selected.type === "site" && selected.id === site.id ? "is-selected" : ""}`}
@@ -331,9 +350,10 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                       <span className="site-list-icon" style={{ backgroundColor: factionColor }}>
                         <img src={site.iconUrl ?? defaultSiteIconUrl} alt="" />
                       </span>
-                      <span>
+                      <span className={objectTextClass(period)}>
                         <strong>{site.name}</strong>
                         <small>{faction?.name ?? "陣営なし"}</small>
+                        <small className="object-display-period">{displayPeriodText(period)}</small>
                       </span>
                       <button className={lockButtonClass(site.locked)} type="button" onClick={(event) => { event.stopPropagation(); updateSite(site.id, { locked: !site.locked }); }}>
                         {site.locked ? <Lock size={15} /> : <Unlock size={15} />}
@@ -404,28 +424,32 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
           {imageView === "images" && (
             <>
               {project.images.length === 0 && <div className="sidebar-empty">配置済みの画像はありません。</div>}
-              {project.images.map((imageObject) => (
-                <button
-                  className={`list-row ${selected.type === "image" && selected.id === imageObject.id ? "is-selected" : ""}`}
-                  type="button"
-                  key={imageObject.id}
-                  ref={(node) => {
-                    if (node) imageRowRefs.current.set(imageObject.id, node);
-                    else imageRowRefs.current.delete(imageObject.id);
-                  }}
-                  onClick={() => selectObject("image", imageObject.id)}
-                >
-                  <img className="asset-thumb" src={imageObject.imageDataUrl} alt="" />
-                  <span>
-                    <strong>{imageObject.name || "画像"}</strong>
-                    <small>{imageObject.locked ? "ロック中 / 左で解除" : "画像オブジェクト"}</small>
-                  </span>
-                  <button className={lockButtonClass(imageObject.locked)} type="button" onClick={(event) => { event.stopPropagation(); updateImage(imageObject.id, { locked: !imageObject.locked }); }}>
-                    {imageObject.locked ? <Lock size={15} /> : <Unlock size={15} />}
+              {project.images.map((imageObject) => {
+                const period = { start: timelineStart, end: timelineEnd };
+                return (
+                  <button
+                    className={`list-row ${selected.type === "image" && selected.id === imageObject.id ? "is-selected" : ""}`}
+                    type="button"
+                    key={imageObject.id}
+                    ref={(node) => {
+                      if (node) imageRowRefs.current.set(imageObject.id, node);
+                      else imageRowRefs.current.delete(imageObject.id);
+                    }}
+                    onClick={() => selectObject("image", imageObject.id)}
+                  >
+                    <img className="asset-thumb" src={imageObject.imageDataUrl} alt="" />
+                    <span className={objectTextClass(period)}>
+                      <strong>{imageObject.name || "画像"}</strong>
+                      <small>{imageObject.locked ? "ロック中 / 左で解除" : "画像オブジェクト"}</small>
+                      <small className="object-display-period">{displayPeriodText(period)}</small>
+                    </span>
+                    <button className={lockButtonClass(imageObject.locked)} type="button" onClick={(event) => { event.stopPropagation(); updateImage(imageObject.id, { locked: !imageObject.locked }); }}>
+                      {imageObject.locked ? <Lock size={15} /> : <Unlock size={15} />}
+                    </button>
+                    <ImageIcon size={16} />
                   </button>
-                  <ImageIcon size={16} />
-                </button>
-              ))}
+                );
+              })}
             </>
           )}
 
@@ -477,6 +501,10 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
           {project.regions.map((region) => {
             const faction = project.factions.find((entry) => entry.id === region.factionId);
             const color = region.useFactionColor ? faction?.color ?? region.fillColor : region.fillColor;
+            const period = {
+              start: region.displayStartTime ?? firstKeyframeTime(region.keyframes) ?? timelineStart,
+              end: region.displayEndTime ?? timelineEnd,
+            };
             return (
               <button
                 className={`list-row object-list-row ${selected.type === "region" && selected.id === region.id ? "is-selected" : ""}`}
@@ -491,9 +519,10 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                 <span className="object-list-icon" style={{ color }}>
                   <Pentagon size={17} />
                 </span>
-                <span>
+                <span className={objectTextClass(period)}>
                   <strong>{region.name || "領域"}</strong>
                   <small>{faction?.name ?? "陣営なし"} / {region.points.length}点</small>
+                  <small className="object-display-period">{displayPeriodText(period)}</small>
                 </span>
                 <button className={lockButtonClass(region.locked)} type="button" onClick={(event) => { event.stopPropagation(); updateRegion(region.id, { locked: !region.locked }); }}>
                   {region.locked ? <Lock size={15} /> : <Unlock size={15} />}
@@ -511,6 +540,10 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
           {project.lines.map((line) => {
             const faction = project.factions.find((entry) => entry.id === line.factionId);
             const pointCount = line.keyframes[0]?.points.length ?? 0;
+            const period = {
+              start: line.displayStartTime ?? firstKeyframeTime(line.keyframes) ?? timelineStart,
+              end: line.displayEndTime ?? timelineEnd,
+            };
             return (
               <button
                 className={`list-row object-list-row ${selected.type === "line" && selected.id === line.id ? "is-selected" : ""}`}
@@ -525,9 +558,10 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                 <span className="object-list-icon" style={{ color: line.color }}>
                   <PencilLine size={17} />
                 </span>
-                <span>
+                <span className={objectTextClass(period)}>
                   <strong>{line.name || "線"}</strong>
                   <small>{lineTypeLabels[line.lineType]} / {faction?.name ?? "陣営なし"} / {pointCount}点</small>
+                  <small className="object-display-period">{displayPeriodText(period)}</small>
                 </span>
                 <button className={lockButtonClass(line.locked)} type="button" onClick={(event) => { event.stopPropagation(); updateLine(line.id, { locked: !line.locked }); }}>
                   {line.locked ? <Lock size={15} /> : <Unlock size={15} />}
@@ -545,6 +579,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
           {project.arrows.map((arrow) => {
             const faction = project.factions.find((entry) => entry.id === arrow.factionId);
             const pointCount = arrow.keyframes?.[0]?.points.length ?? arrow.points.length;
+            const period = { start: arrow.startTime, end: arrow.endTime };
             return (
               <button
                 className={`list-row object-list-row ${selected.type === "arrow" && selected.id === arrow.id ? "is-selected" : ""}`}
@@ -559,9 +594,10 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                 <span className="object-list-icon" style={{ color: arrow.color }}>
                   <ArrowRight size={17} />
                 </span>
-                <span>
+                <span className={objectTextClass(period)}>
                   <strong>{arrow.name || "矢印"}</strong>
                   <small>{arrowTypeLabels[arrow.arrowType]} / {faction?.name ?? "陣営なし"} / {pointCount}点</small>
+                  <small className="object-display-period">{displayPeriodText(period)}</small>
                 </span>
                 <button className={lockButtonClass(arrow.locked)} type="button" onClick={(event) => { event.stopPropagation(); updateArrow(arrow.id, { locked: !arrow.locked }); }}>
                   {arrow.locked ? <Lock size={15} /> : <Unlock size={15} />}
@@ -576,30 +612,33 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
       {tab === "labels" && (
         <section className="sidebar-section">
           {project.labels.length === 0 && <div className="sidebar-empty">配置済みのラベルはありません。</div>}
-          {project.labels.map((label) => (
-            <button
-              className={`list-row object-list-row ${selected.type === "label" && selected.id === label.id ? "is-selected" : ""}`}
-              type="button"
-              key={label.id}
-              ref={(node) => {
-                if (node) labelRowRefs.current.set(label.id, node);
-                else labelRowRefs.current.delete(label.id);
-              }}
-              onClick={() => selectObject("label", label.id)}
-            >
-              <span className="object-list-icon" style={{ color: label.borderColor }}>
-                <Tags size={17} />
-              </span>
-              <span>
-                <strong>{label.text || "ラベル"}</strong>
-                <small>{label.startTime ?? "開始"} - {label.endTime ?? "終了"}</small>
-              </span>
-              <button className={lockButtonClass(label.locked)} type="button" onClick={(event) => { event.stopPropagation(); updateLabel(label.id, { locked: !label.locked }); }}>
-                {label.locked ? <Lock size={15} /> : <Unlock size={15} />}
+          {project.labels.map((label) => {
+            const period = { start: label.startTime ?? timelineStart, end: label.endTime ?? timelineEnd };
+            return (
+              <button
+                className={`list-row object-list-row ${selected.type === "label" && selected.id === label.id ? "is-selected" : ""}`}
+                type="button"
+                key={label.id}
+                ref={(node) => {
+                  if (node) labelRowRefs.current.set(label.id, node);
+                  else labelRowRefs.current.delete(label.id);
+                }}
+                onClick={() => selectObject("label", label.id)}
+              >
+                <span className="object-list-icon" style={{ color: label.borderColor }}>
+                  <Tags size={17} />
+                </span>
+                <span className={objectTextClass(period)}>
+                  <strong>{label.text || "ラベル"}</strong>
+                  <small className="object-display-period">{displayPeriodText(period)}</small>
+                </span>
+                <button className={lockButtonClass(label.locked)} type="button" onClick={(event) => { event.stopPropagation(); updateLabel(label.id, { locked: !label.locked }); }}>
+                  {label.locked ? <Lock size={15} /> : <Unlock size={15} />}
+                </button>
+                <span className="line-color-chip" style={{ backgroundColor: label.backgroundColor, borderColor: label.borderColor }} />
               </button>
-              <span className="line-color-chip" style={{ backgroundColor: label.backgroundColor, borderColor: label.borderColor }} />
-            </button>
-          ))}
+            );
+          })}
         </section>
       )}
     </aside>
