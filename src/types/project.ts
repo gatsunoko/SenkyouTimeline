@@ -336,6 +336,12 @@ export interface ArrowKeyframe {
   sourceNote: string;
 }
 
+export interface RegionKeyframe {
+  time: string;
+  displayDate: string;
+  points: MapPoint[];
+}
+
 export interface BattleLine {
   id: string;
   name: string;
@@ -398,6 +404,7 @@ export interface MapRegion {
   displayStartTime?: string;
   displayEndTime?: string;
   memo: string;
+  keyframes?: RegionKeyframe[];
 }
 
 export interface BattleEvent extends MapPoint {

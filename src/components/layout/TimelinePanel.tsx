@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Pause, Play, Plus, SkipBack, SkipForward, Trash2 } from "lucide-react";
 import { useProjectStore } from "../../store/projectStore";
-import { getUnitRouteTimeRange, resolveArrowRoutePoints, resolveLineRoutePoints, resolveUnitFrame } from "../../utils/interpolation";
+import { getUnitRouteTimeRange, resolveArrowRoutePoints, resolveLineRoutePoints, resolveRegionKeyframe, resolveUnitFrame } from "../../utils/interpolation";
 import { formatSeconds, formatTimelineLabel, getTimelineBounds, parseTimelineSeconds, sortedFrames } from "../../utils/time";
 
 export function TimelinePanel() {
@@ -127,6 +127,16 @@ export function TimelinePanel() {
       line.keyframes = line.keyframes.filter((keyframe) => !isDeletedTime(keyframe.time));
       if (isDeletedTime(line.displayStartTime)) line.displayStartTime = replacementStart;
       if (isDeletedTime(line.displayEndTime)) line.displayEndTime = replacementEnd;
+    }
+
+    for (const region of next.regions) {
+      const resolvedBeforeDelete = resolveRegionKeyframe(region, activeFrame.time, next.timeline.interpolationMode);
+      region.keyframes = region.keyframes?.filter((keyframe) => !isDeletedTime(keyframe.time)) ?? [];
+      if (region.keyframes.length === 0 && resolvedBeforeDelete) {
+        region.points = resolvedBeforeDelete.points.map((point) => ({ ...point }));
+      }
+      if (isDeletedTime(region.displayStartTime)) region.displayStartTime = replacementStart;
+      if (isDeletedTime(region.displayEndTime)) region.displayEndTime = replacementEnd;
     }
 
     for (const arrow of next.arrows) {

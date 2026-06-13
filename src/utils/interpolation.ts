@@ -1,4 +1,4 @@
-import type { ArrowKeyframe, BattleArrow, BattleLine, CameraKeyframe, ExportCamera, InterpolationMode, LineKeyframe, MapPoint, PlacedImage, PlacedImageKeyframe, Site, SiteKeyframe, Unit, UnitKeyframe, UnitRoute, UnitRouteSegment } from "../types/project";
+import type { ArrowKeyframe, BattleArrow, BattleLine, CameraKeyframe, ExportCamera, InterpolationMode, LineKeyframe, MapPoint, MapRegion, PlacedImage, PlacedImageKeyframe, RegionKeyframe, Site, SiteKeyframe, Unit, UnitKeyframe, UnitRoute, UnitRouteSegment } from "../types/project";
 import { compareTime, parseTimelineSeconds } from "./time";
 
 export interface ResolvedUnitFrame extends UnitKeyframe {
@@ -546,6 +546,44 @@ export function resolveArrowKeyframe(arrow: BattleArrow, currentTime: string, mo
   const t = Math.min(1, Math.max(0, (current - start) / (end - start)));
   return {
     ...base,
+    points: interpolatePointLists(previous.points, next.points, t),
+  };
+}
+
+export function resolveRegionKeyframe(region: MapRegion, currentTime: string, mode: InterpolationMode): RegionKeyframe | null {
+  const fallbackKeyframe: RegionKeyframe = {
+    time: region.displayStartTime ?? currentTime,
+    displayDate: region.displayStartTime ?? currentTime,
+    points: region.points ?? [],
+  };
+  const keyframes =
+    region.keyframes && region.keyframes.length > 0
+      ? [...region.keyframes].sort((a, b) => compareTime(a.time, b.time))
+      : fallbackKeyframe.points.length >= 3
+        ? [fallbackKeyframe]
+        : [];
+  const displayStartTime = region.displayStartTime ?? keyframes[0]?.time;
+  const displayEndTime = region.displayEndTime;
+  if (displayStartTime && compareTime(currentTime, displayStartTime) < 0) return null;
+  if (displayEndTime && compareTime(currentTime, displayEndTime) > 0) return null;
+
+  const previous = [...keyframes].reverse().find((frame) => compareTime(frame.time, currentTime) <= 0);
+  const next = keyframes.find((frame) => compareTime(frame.time, currentTime) >= 0);
+  if (!previous) return null;
+
+  const base = previous;
+  const resolvedBase: RegionKeyframe = { ...base, points: base.points.map((point) => ({ ...point })) };
+  if (mode !== "linear" || !previous || !next || previous.time === next.time) return resolvedBase;
+
+  const start = parseTimelineSeconds(previous.time);
+  const end = parseTimelineSeconds(next.time);
+  const current = parseTimelineSeconds(currentTime);
+  if (Number.isNaN(start) || Number.isNaN(end) || Number.isNaN(current) || end <= start) return resolvedBase;
+
+  const t = Math.min(1, Math.max(0, (current - start) / (end - start)));
+  return {
+    ...resolvedBase,
+    time: currentTime,
     points: interpolatePointLists(previous.points, next.points, t),
   };
 }

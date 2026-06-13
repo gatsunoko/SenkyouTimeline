@@ -7,7 +7,7 @@ import type { MapLabel, MapRegion, MovableSelectionType, PlacedImage, SelectionM
 import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas } from "../../utils/coordinate";
 import { downloadBlob, downloadDataUrl } from "../../utils/fileIO";
 import { loadCachedImage } from "../../utils/imageCache";
-import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveCameraFrame, resolveLineKeyframe, resolvePlacedImageFrame, resolveSiteFrame, resolveUnitFrame, resolveUnitRouteApproachPoint, resolveUnitRouteExitPoint, resolveUnitRoutePoint } from "../../utils/interpolation";
+import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveCameraFrame, resolveLineKeyframe, resolvePlacedImageFrame, resolveRegionKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRouteApproachPoint, resolveUnitRouteExitPoint, resolveUnitRoutePoint } from "../../utils/interpolation";
 import { createZip, type ZipEntry } from "../../utils/zip";
 import { compareTime, parseTimelineSeconds } from "../../utils/time";
 import { ArrowShape } from "./ArrowShape";
@@ -833,14 +833,19 @@ export function MapCanvas() {
   };
   const regionDisplayOrder = (region: MapRegion) => (Number.isFinite(region.displayOrder) ? region.displayOrder : 0);
   const orderedRegions = project.regions
-    .map((region, index) => ({ region, index }))
-    .filter(({ region }) => shouldRenderRegion(region))
+    .map((region, index) => ({
+      region,
+      index,
+      frame: resolveRegionKeyframe(region, project.timeline.currentTime, project.timeline.interpolationMode),
+    }))
+    .filter(({ region, frame }) => shouldRenderRegion(region) && Boolean(frame) && (frame?.points.length ?? 0) >= 3)
     .sort((left, right) => regionDisplayOrder(left.region) - regionDisplayOrder(right.region) || left.index - right.index);
   const regionMaskPolygons = (regionId: string) => {
     const currentIndex = orderedRegions.findIndex(({ region }) => region.id === regionId);
     if (currentIndex < 0) return [];
-    return orderedRegions.slice(currentIndex + 1).map(({ region }) => pointsToCanvas(region.points, mapWidth, mapHeight));
+    return orderedRegions.slice(currentIndex + 1).map(({ frame }) => pointsToCanvas(frame?.points ?? [], mapWidth, mapHeight));
   };
+  const resolveDisplayRegion = (region: MapRegion) => resolveRegionKeyframe(region, project.timeline.currentTime, project.timeline.interpolationMode);
   const resolveDisplayUnitFrame = (unit: (typeof project.units)[number]) => {
     const routeRange = getUnitRouteTimeRange(unit.route);
     const afterRoute = Boolean(routeRange && compareTime(project.timeline.currentTime, routeRange.endTime) > 0);
@@ -918,7 +923,8 @@ export function MapCanvas() {
     if (item.type === "region") {
       const region = project.regions.find((entry) => entry.id === item.id);
       if (!region || !shouldRenderRegion(region)) return null;
-      return selectablePointsBounds(flattenedPointsToCanvasPoints(pointsToCanvas(region.points, mapWidth, mapHeight)), 8);
+      const frame = resolveDisplayRegion(region);
+      return frame ? selectablePointsBounds(flattenedPointsToCanvasPoints(pointsToCanvas(frame.points, mapWidth, mapHeight)), 8) : null;
     }
     if (item.type === "line") {
       const line = project.lines.find((entry) => entry.id === item.id);
@@ -975,7 +981,8 @@ export function MapCanvas() {
         if (line && frame && !line.locked) updates.push({ type: "line", id: line.id, points: frame.points.map((point) => offsetPoint(point, relativeDelta)) });
       } else if (item.type === "region") {
         const region = project.regions.find((entry) => entry.id === item.id);
-        if (region && !region.locked) updates.push({ type: "region", id: region.id, points: region.points.map((point) => offsetPoint(point, relativeDelta)) });
+        const frame = region ? resolveDisplayRegion(region) : null;
+        if (region && frame && !region.locked) updates.push({ type: "region", id: region.id, points: frame.points.map((point) => offsetPoint(point, relativeDelta)) });
       } else if (item.type === "arrow") {
         const arrow = project.arrows.find((entry) => entry.id === item.id);
         const frame = arrow ? resolveArrowKeyframe(arrow, previewRouteTime("arrow", arrow.id) ?? project.timeline.currentTime, project.timeline.interpolationMode) : null;
@@ -1177,25 +1184,29 @@ export function MapCanvas() {
           )}
 
           {orderedRegions
-            .map(({ region }) => (
-              <RegionShape
-                key={region.id}
-                region={region}
-                fillColor={regionFillColor(region)}
-                selected={isSelected("region", region.id)}
-                editable={!region.locked}
-                mapWidth={mapWidth}
-                mapHeight={mapHeight}
-                maskPolygons={regionMaskPolygons(region.id)}
-                selectedPointIndices={isSelected("region", region.id) ? selectedRegionPointIndices : []}
-                onSelect={() => selectSingle("region", region.id)}
-                onPointSelect={(pointIndex) => toggleRegionPointSelection(region.id, pointIndex)}
-                onPointDragEnd={(pointIndex, x, y) => {
-                  const points = region.points.map((point, index) => (index === pointIndex ? { x, y } : point));
-                  updateRegionPoints(region.id, points);
-                }}
-              />
-            ))}
+            .map(({ region, frame }) => {
+              if (!frame) return null;
+              const displayRegion = { ...region, points: frame.points };
+              return (
+                <RegionShape
+                  key={region.id}
+                  region={displayRegion}
+                  fillColor={regionFillColor(region)}
+                  selected={isSelected("region", region.id)}
+                  editable={!region.locked}
+                  mapWidth={mapWidth}
+                  mapHeight={mapHeight}
+                  maskPolygons={regionMaskPolygons(region.id)}
+                  selectedPointIndices={isSelected("region", region.id) ? selectedRegionPointIndices : []}
+                  onSelect={() => selectSingle("region", region.id)}
+                  onPointSelect={(pointIndex) => toggleRegionPointSelection(region.id, pointIndex)}
+                  onPointDragEnd={(pointIndex, x, y) => {
+                    const points = frame.points.map((point, index) => (index === pointIndex ? { x, y } : point));
+                    updateRegionPoints(region.id, points);
+                  }}
+                />
+              );
+            })}
 
           {withoutSelected(project.images, "image").map((imageObject) => {
             const frame = resolvePlacedImageFrame(imageObject, project.timeline.currentTime, project.timeline.interpolationMode);
@@ -1415,7 +1426,9 @@ export function MapCanvas() {
               if (item.type === "region") {
                 const region = project.regions.find((entry) => entry.id === item.id);
                 if (!region || !shouldRenderRegion(region)) return null;
-                const displayRegion = multiDragDelta && isMultiSelected("region", region.id) ? { ...region, points: region.points.map((point) => offsetPoint(point)) } : region;
+                const frame = resolveDisplayRegion(region);
+                if (!frame) return null;
+                const displayRegion = { ...region, points: multiDragDelta && isMultiSelected("region", region.id) ? frame.points.map((point) => offsetPoint(point)) : frame.points };
                 return (
                   <RegionShape
                     key={`${region.id}-selected-front`}
@@ -1430,7 +1443,7 @@ export function MapCanvas() {
                     onSelect={() => selectSingle("region", region.id)}
                     onPointSelect={(pointIndex) => toggleRegionPointSelection(region.id, pointIndex)}
                     onPointDragEnd={(pointIndex, x, y) => {
-                      const points = region.points.map((point, index) => (index === pointIndex ? { x, y } : point));
+                      const points = frame.points.map((point, index) => (index === pointIndex ? { x, y } : point));
                       updateRegionPoints(region.id, points);
                     }}
                   />

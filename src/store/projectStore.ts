@@ -16,6 +16,7 @@ import type {
   PlacedImage,
   PlacedImageKeyframe,
   ProjectData,
+  RegionKeyframe,
   SelectionState,
   SelectionMoveUpdate,
   Site,
@@ -32,7 +33,7 @@ import { clampPoint } from "../utils/coordinate";
 import { createId } from "../utils/id";
 import { compareTime, formatTimelineLabel, getCurrentFrame, nextFrameTime, parseTimelineSeconds, sortedFrames } from "../utils/time";
 import { cloneProject, trimHistory } from "./historyStore";
-import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveArrowRoutePoints, resolveCameraFrame, resolveLineKeyframe, resolveLineRoutePoints, resolvePlacedImageFrame, resolveSiteFrame, resolveUnitFrame, resolveUnitRoutePoint } from "../utils/interpolation";
+import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveArrowRoutePoints, resolveCameraFrame, resolveLineKeyframe, resolveLineRoutePoints, resolvePlacedImageFrame, resolveRegionKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRoutePoint } from "../utils/interpolation";
 
 const emptyProject: ProjectData = {
   version: "1.0.0",
@@ -166,6 +167,7 @@ interface ProjectStore {
   addRegion: (points?: MapPoint[]) => void;
   updateRegion: (id: string, patch: Partial<MapRegion>) => void;
   updateRegionPoints: (id: string, points: MapPoint[]) => void;
+  deleteRegionKeyframe: (regionId: string, time: string) => void;
   deleteRegion: (id: string) => void;
   addLine: (points?: MapPoint[]) => void;
   updateLine: (id: string, patch: Partial<BattleLine>) => void;
@@ -525,6 +527,35 @@ function applyArrowPointsKeyframe(project: ProjectData, arrowId: string, time: s
   }
 }
 
+function applyRegionPointsKeyframe(project: ProjectData, regionId: string, time: string, points: MapPoint[]) {
+  const region = project.regions.find((entry) => entry.id === regionId);
+  if (!region || region.locked || points.length < 3) return;
+  const frame = getCurrentFrame(project.timeline.frames, time);
+  const targetSeconds = parseTimelineSeconds(time);
+  const normalizedPoints = points.map(clampPoint);
+  region.keyframes ||= [
+    {
+      time: region.displayStartTime ?? time,
+      displayDate: getCurrentFrame(project.timeline.frames, region.displayStartTime ?? time)?.displayDate ?? formatTimelineLabel(region.displayStartTime ?? time),
+      points: (region.points ?? normalizedPoints).map(clampPoint),
+    },
+  ];
+  const existing = region.keyframes.find((entry) => Math.abs(parseTimelineSeconds(entry.time) - targetSeconds) < 0.05);
+  if (existing) {
+    existing.time = time;
+    existing.displayDate = frame?.displayDate ?? formatTimelineLabel(time);
+    existing.points = normalizedPoints;
+  } else {
+    region.keyframes.push({
+      time,
+      displayDate: frame?.displayDate ?? formatTimelineLabel(time),
+      points: normalizedPoints,
+    });
+  }
+  region.points = normalizedPoints;
+  region.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+}
+
 function applyPlacedImagePositionKeyframe(project: ProjectData, imageId: string, time: string, point: MapPoint) {
   const image = project.images.find((entry) => entry.id === imageId);
   if (!image) return;
@@ -569,6 +600,9 @@ function extendObjectDisplayEnds(project: ProjectData, previousEndSeconds: numbe
   for (const line of project.lines) {
     if (matchesPreviousEnd(line.displayEndTime)) line.displayEndTime = nextEndTime;
   }
+  for (const region of project.regions) {
+    if (matchesPreviousEnd(region.displayEndTime)) region.displayEndTime = nextEndTime;
+  }
   for (const arrow of project.arrows) {
     if (matchesPreviousEnd(arrow.endTime)) arrow.endTime = nextEndTime;
   }
@@ -582,6 +616,7 @@ function hasObjectKeyAtTime(project: ProjectData, time: string) {
     project.units.some((unit) => unit.keyframes.some((keyframe) => isSameTime(keyframe.time, time))) ||
     project.sites.some((site) => (site.keyframes ?? []).some((keyframe) => isSameTime(keyframe.time, time))) ||
     project.images.some((image) => (image.keyframes ?? []).some((keyframe) => isSameTime(keyframe.time, time))) ||
+    project.regions.some((region) => (region.keyframes ?? []).some((keyframe) => isSameTime(keyframe.time, time))) ||
     project.lines.some((line) => line.keyframes.some((keyframe) => isSameTime(keyframe.time, time))) ||
     project.arrows.some((arrow) => (arrow.keyframes ?? []).some((keyframe) => isSameTime(keyframe.time, time))) ||
     (project.map.exportCamera?.keyframes ?? []).some((keyframe) => isSameTime(keyframe.time, time))
@@ -685,6 +720,10 @@ function normalizeProjectTiming(project: ProjectData) {
     line.keyframes = normalizeTimedEntries(line.keyframes);
   }
 
+  for (const region of project.regions ?? []) {
+    region.keyframes = normalizeTimedEntries(region.keyframes);
+  }
+
   for (const arrow of project.arrows ?? []) {
     arrow.keyframes = normalizeTimedEntries(arrow.keyframes);
   }
@@ -747,6 +786,28 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     region.name ||= "領域";
     region.factionId ||= normalized.factions?.[0]?.id ?? "faction_default_a";
     region.points = (region.points ?? []).map(clampPoint);
+    const fallbackTime = region.displayStartTime ?? normalized.timeline?.currentTime ?? normalized.timeline?.start ?? "0";
+    const fallbackFrame = getCurrentFrame(normalized.timeline?.frames ?? [], fallbackTime);
+    const fallbackDisplayDate = fallbackFrame?.displayDate ?? formatTimelineLabel(fallbackTime);
+    const normalizedKeyframes = (region.keyframes ?? [])
+      .filter((keyframe) => (keyframe.points ?? []).length >= 3)
+      .map(
+        (keyframe): RegionKeyframe => ({
+          time: keyframe.time || fallbackTime,
+          displayDate: keyframe.displayDate || formatTimelineLabel(keyframe.time || fallbackTime),
+          points: keyframe.points.map(clampPoint),
+        }),
+      );
+    if (normalizedKeyframes.length === 0 && region.points.length >= 3) {
+      normalizedKeyframes.push({
+        time: fallbackTime,
+        displayDate: fallbackDisplayDate,
+        points: region.points.map(clampPoint),
+      });
+    }
+    normalizedKeyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+    region.keyframes = normalizedKeyframes;
+    region.points = (normalizedKeyframes[normalizedKeyframes.length - 1]?.points ?? region.points).map(clampPoint);
     region.fillColor ||= normalized.factions.find((faction) => faction.id === region.factionId)?.color ?? "#2f7ed8";
     region.useFactionColor = region.useFactionColor ?? true;
     region.opacity = Math.min(1, Math.max(0.05, Number.isFinite(region.opacity) ? region.opacity : 0.35));
@@ -1076,6 +1137,24 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         }
       }
 
+      if (selected.type === "region" && selected.id) {
+        const region = project.regions.find((entry) => entry.id === selected.id);
+        if (region) {
+          const resolved = resolveRegionKeyframe(region, time, project.timeline.interpolationMode);
+          const existing = region.keyframes?.find((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) < 0.05);
+          const keyframe = {
+            time,
+            displayDate: formatTimelineLabel(time),
+            points: resolved?.points.map((point) => ({ ...point })) ?? region.points.map((point) => ({ ...point })),
+          };
+          region.keyframes ||= [];
+          if (existing) Object.assign(existing, keyframe);
+          else region.keyframes.push(keyframe);
+          region.points = keyframe.points.map(clampPoint);
+          region.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+        }
+      }
+
       if (selected.type === "arrow" && selected.id) {
         const arrow = project.arrows.find((entry) => entry.id === selected.id);
         if (arrow) {
@@ -1147,6 +1226,18 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             }
           }
           line.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+        }
+
+        for (const region of project.regions) {
+          if (region.displayStartTime && Math.abs(parseTimelineSeconds(region.displayStartTime) - oldSeconds) < 0.05) region.displayStartTime = nextTime;
+          if (region.displayEndTime && Math.abs(parseTimelineSeconds(region.displayEndTime) - oldSeconds) < 0.05) region.displayEndTime = nextTime;
+          for (const keyframe of region.keyframes ?? []) {
+            if (Math.abs(parseTimelineSeconds(keyframe.time) - oldSeconds) < 0.05) {
+              keyframe.time = nextTime;
+              keyframe.displayDate = formatTimelineLabel(nextTime);
+            }
+          }
+          region.keyframes?.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
         }
 
         for (const event of project.events) {
@@ -1686,17 +1777,19 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   addRegion: (points = []) =>
     commit(set, get, (project) => {
       if (points.length < 3) return;
+      const frame = currentFrame(project);
       const frames = sortedFrames(project.timeline.frames);
       const id = createId("region");
       const factionId = firstFactionId(project);
       const faction = project.factions.find((entry) => entry.id === factionId);
+      const normalizedPoints = points.map(clampPoint);
       project.regions ||= [];
       const displayOrder = Math.max(-1, ...project.regions.map((region) => (Number.isFinite(region.displayOrder) ? region.displayOrder : 0))) + 1;
       project.regions.push({
         id,
         name: "新規領域",
         factionId,
-        points: points.map(clampPoint),
+        points: normalizedPoints,
         fillColor: faction?.color ?? "#2f7ed8",
         useFactionColor: true,
         opacity: 0.35,
@@ -1709,6 +1802,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         displayStartTime: frames[0]?.time ?? project.timeline.currentTime,
         displayEndTime: project.timeline.end,
         memo: "",
+        keyframes: [
+          {
+            time: frame?.time ?? project.timeline.currentTime,
+            displayDate: frame?.displayDate ?? formatTimelineLabel(project.timeline.currentTime),
+            points: normalizedPoints,
+          },
+        ],
       });
       get().selectObject("region", id);
     }),
@@ -1716,9 +1816,21 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   updateRegion: (id, patch) => commit(set, get, (project) => applyListPatch(project.regions, id, patch)),
   updateRegionPoints: (id, points) =>
     commit(set, get, (project) => {
-      const region = project.regions.find((entry) => entry.id === id);
-      if (!region || region.locked || points.length < 3) return;
-      region.points = points.map(clampPoint);
+      applyRegionPointsKeyframe(project, id, project.timeline.currentTime, points);
+    }),
+  deleteRegionKeyframe: (regionId, time) =>
+    commit(set, get, (project) => {
+      const region = project.regions.find((entry) => entry.id === regionId);
+      if (!region?.keyframes) return;
+      const targetSeconds = parseTimelineSeconds(time);
+      const resolvedBeforeDelete = resolveRegionKeyframe(region, time, project.timeline.interpolationMode);
+      region.keyframes = region.keyframes.filter((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) >= 0.05);
+      if (region.keyframes.length === 0 && resolvedBeforeDelete) {
+        region.points = resolvedBeforeDelete.points.map(clampPoint);
+      } else if (region.keyframes.length > 0) {
+        region.points = region.keyframes[region.keyframes.length - 1].points.map(clampPoint);
+      }
+      region.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
     }),
   deleteRegion: (id) => commit(set, get, (project) => (project.regions = project.regions.filter((region) => region.id !== id))),
 
@@ -1972,7 +2084,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           if (image && !image.locked) applyPlacedImagePositionKeyframe(project, update.id, project.timeline.currentTime, { x: update.x, y: update.y });
         } else if (update.type === "region") {
           const region = project.regions.find((entry) => entry.id === update.id);
-          if (region && !region.locked && update.points.length >= 3) region.points = update.points.map(clampPoint);
+          if (region && !region.locked) applyRegionPointsKeyframe(project, update.id, project.timeline.currentTime, update.points);
         } else if (update.type === "label") {
           const label = project.labels.find((entry) => entry.id === update.id);
           if (label && !label.locked) Object.assign(label, clampPoint({ x: update.x, y: update.y }));
@@ -2278,8 +2390,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (selected.type === "region" && selectedRegionPointIndices.length > 0) {
       const region = project.regions.find((entry) => entry.id === selected.id);
       if (!region || region.locked) return;
+      const frame = resolveRegionKeyframe(region, project.timeline.currentTime, project.timeline.interpolationMode);
+      if (!frame) return;
       const removeIndices = new Set(selectedRegionPointIndices);
-      const nextPoints = region.points.filter((_, index) => !removeIndices.has(index));
+      const nextPoints = frame.points.filter((_, index) => !removeIndices.has(index));
       if (nextPoints.length < 3) return;
       get().updateRegionPoints(selected.id, nextPoints);
       set({ selectedRegionPointIndices: [] });

@@ -1,5 +1,6 @@
 import type { MapPoint } from "../../types/project";
 import { useProjectStore } from "../../store/projectStore";
+import { resolveRegionKeyframe } from "../../utils/interpolation";
 import { compareTime, sortedFrames } from "../../utils/time";
 import { ColorField, NumberField, TextAreaField, TextField, ToggleField } from "./InspectorFields";
 
@@ -15,24 +16,28 @@ export function RegionInspector({ id }: { id: string }) {
   const selectedRegionPointIndices = useProjectStore((state) => state.selectedRegionPointIndices);
   const updateRegion = useProjectStore((state) => state.updateRegion);
   const updateRegionPoints = useProjectStore((state) => state.updateRegionPoints);
+  const deleteRegionKeyframe = useProjectStore((state) => state.deleteRegionKeyframe);
   const clearRegionPointSelection = useProjectStore((state) => state.clearRegionPointSelection);
   const region = project.regions.find((entry) => entry.id === id);
   if (!region) return null;
 
+  const frame = resolveRegionKeyframe(region, project.timeline.currentTime, project.timeline.interpolationMode);
+  const points = frame?.points ?? region.points;
+  const keyframes = [...(region.keyframes ?? [])].sort((a, b) => compareTime(a.time, b.time));
   const frames = sortedFrames(project.timeline.frames);
-  const displayStartTime = region.displayStartTime ?? frames[0]?.time ?? project.timeline.currentTime;
+  const displayStartTime = region.displayStartTime ?? keyframes[0]?.time ?? frames[0]?.time ?? project.timeline.currentTime;
   const displayEndTime = region.displayEndTime ?? frames[frames.length - 1]?.time ?? project.timeline.end;
-  const canDeletePoint = !region.locked && region.points.length > 3;
+  const canDeletePoint = !region.locked && points.length > 3;
   const selectedPoints = selectedRegionPointIndices
-    .filter((index) => index >= 0 && index < region.points.length)
+    .filter((index) => index >= 0 && index < points.length)
     .sort((a, b) => a - b);
   const canInsertPoint = !region.locked && selectedPoints.length === 2;
 
   const insertPointBetweenSelection = () => {
     if (!canInsertPoint) return;
     const [firstIndex, secondIndex] = selectedPoints;
-    const nextPoints = [...region.points];
-    nextPoints.splice(secondIndex, 0, midpoint(region.points[firstIndex], region.points[secondIndex]));
+    const nextPoints = [...points];
+    nextPoints.splice(secondIndex, 0, midpoint(points[firstIndex], points[secondIndex]));
     updateRegionPoints(region.id, nextPoints);
     clearRegionPointSelection();
   };
@@ -68,7 +73,7 @@ export function RegionInspector({ id }: { id: string }) {
       <ToggleField label="塗り色を陣営色に連動" checked={region.useFactionColor} onChange={(value) => updateRegion(region.id, { useFactionColor: value })} />
       {!region.useFactionColor && <ColorField label="塗り色" value={region.fillColor} onChange={(value) => updateRegion(region.id, { fillColor: value })} />}
       <NumberField label="透明度" value={region.opacity} min={0.05} max={1} step={0.05} onChange={(value) => updateRegion(region.id, { opacity: value })} />
-      <NumberField label="表示順（大きいほど上）" value={region.displayOrder} step={1} onChange={(value) => updateRegion(region.id, { displayOrder: value })} />
+      <NumberField label="表示順 大きいほど上" value={region.displayOrder} step={1} onChange={(value) => updateRegion(region.id, { displayOrder: value })} />
       <ToggleField label="境界線を表示" checked={region.borderEnabled} onChange={(value) => updateRegion(region.id, { borderEnabled: value })} />
       {region.borderEnabled && (
         <>
@@ -102,11 +107,14 @@ export function RegionInspector({ id }: { id: string }) {
       </label>
 
       <h3>点</h3>
+      <button type="button" disabled={region.locked || points.length < 3} onClick={() => updateRegionPoints(region.id, points)}>
+        現在の領域をキーフレームに追加
+      </button>
       <button type="button" disabled={!canInsertPoint} onClick={insertPointBetweenSelection}>
         選択した点の間に点を追加
       </button>
       <div className="point-list">
-        {region.points.map((point, index) => (
+        {points.map((point, index) => (
           <div className={`point-row ${selectedPoints.includes(index) ? "is-selected" : ""}`} key={`${region.id}-point-editor-${index}`}>
             <span>点 {index + 1}</span>
             <small>
@@ -117,10 +125,23 @@ export function RegionInspector({ id }: { id: string }) {
               className="icon-only danger"
               disabled={!canDeletePoint}
               onClick={() => {
-                updateRegionPoints(region.id, region.points.filter((_, pointIndex) => pointIndex !== index));
+                updateRegionPoints(region.id, points.filter((_, pointIndex) => pointIndex !== index));
                 clearRegionPointSelection();
               }}
             >
+              削除
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <h3>この領域のキーフレーム</h3>
+      <div className="point-list">
+        {keyframes.map((entry, index) => (
+          <div className="point-row keyframe-row" key={`${region.id}-keyframe-${entry.time}-${index}`}>
+            <span>{entry.displayDate || entry.time}</span>
+            <small>{entry.points.length} 点</small>
+            <button type="button" className="icon-only danger" onClick={() => deleteRegionKeyframe(region.id, entry.time)}>
               削除
             </button>
           </div>
