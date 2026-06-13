@@ -1682,18 +1682,17 @@ export function MapCanvas() {
             <Group>
               <Group x={cameraFrame.x} y={cameraFrame.y} listening={false}>
                 {selected.type === "camera" ? (
-                  <MarchingAntsRect x={0} y={0} width={cameraFrame.width} height={cameraFrame.height} />
+                  <MarchingAntsRect key="camera-selected-frame" x={0} y={0} width={cameraFrame.width} height={cameraFrame.height} />
                 ) : (
-                  <Rect
+                  <MarchingAntsRect
+                    key="camera-idle-frame"
                     x={0}
                     y={0}
                     width={cameraFrame.width}
                     height={cameraFrame.height}
-                    stroke="#f8fafc"
                     strokeWidth={2}
-                    dash={[14, 8]}
-                    opacity={0.65}
-                    listening={false}
+                    opacity={0.82}
+                    active={false}
                   />
                 )}
               </Group>

@@ -7,7 +7,10 @@ function useMarchingOffset(active: boolean) {
   const [offset, setOffset] = useState(0);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active) {
+      setOffset(0);
+      return;
+    }
     let frameId = 0;
     const startedAt = performance.now();
     const tick = (now: number) => {
@@ -27,14 +30,17 @@ type RectSelectionProps = {
   width: number;
   height: number;
   cornerRadius?: number;
+  active?: boolean;
+  strokeWidth?: number;
+  opacity?: number;
 };
 
-export function MarchingAntsRect({ x, y, width, height, cornerRadius = 0 }: RectSelectionProps) {
-  const offset = useMarchingOffset(true);
+export function MarchingAntsRect({ x, y, width, height, cornerRadius = 0, active = true, strokeWidth = 3, opacity = 1 }: RectSelectionProps) {
+  const offset = useMarchingOffset(active);
   return (
     <>
-      <Rect x={x} y={y} width={width} height={height} stroke="#ffffff" strokeWidth={3} dash={DASH} dashOffset={offset} cornerRadius={cornerRadius} listening={false} />
-      <Rect x={x} y={y} width={width} height={height} stroke="#111827" strokeWidth={3} dash={DASH} dashOffset={offset + 8} cornerRadius={cornerRadius} listening={false} />
+      <Rect x={x} y={y} width={width} height={height} stroke="#ffffff" strokeWidth={strokeWidth} dash={DASH} dashOffset={offset} cornerRadius={cornerRadius} opacity={opacity} listening={false} />
+      <Rect x={x} y={y} width={width} height={height} stroke="#111827" strokeWidth={strokeWidth} dash={DASH} dashOffset={offset + 8} cornerRadius={cornerRadius} opacity={opacity} listening={false} />
     </>
   );
 }
