@@ -739,6 +739,8 @@ export function MapCanvas() {
     const paddingY = 0;
     const gap = 8 * cameraLegendSize;
     const radius = 7.5 * cameraLegendSize;
+    const textYOffset = 2 * cameraLegendSize;
+    const textStrokeWidth = Math.max(0.35, 0.55 * cameraLegendSize);
     const margin = 4;
     const textWidth = Math.max(...cameraLegendFactions.map((faction) => estimateLabelTextWidth(faction.name, fontSize)), 48);
     return {
@@ -753,6 +755,8 @@ export function MapCanvas() {
       paddingY,
       gap,
       radius,
+      textYOffset,
+      textStrokeWidth,
       textWidth,
     };
   })();
@@ -1499,13 +1503,13 @@ export function MapCanvas() {
                     />
                     <Text
                       x={cameraLegendOverlay.paddingX + cameraLegendOverlay.radius * 2 + cameraLegendOverlay.gap}
-                      y={0}
+                      y={cameraLegendOverlay.textYOffset}
                       width={cameraLegendOverlay.textWidth}
                       height={cameraLegendOverlay.rowHeight}
                       text={faction.name}
                       fill="#f8fafc"
                       stroke={faction.cameraLegendTextOutlineColor ?? "#111827"}
-                      strokeWidth={1.25}
+                      strokeWidth={cameraLegendOverlay.textStrokeWidth}
                       fontSize={cameraLegendOverlay.fontSize}
                       fontFamily={'"Yu Gothic UI", "Meiryo", system-ui, sans-serif'}
                       fontStyle="bold"
