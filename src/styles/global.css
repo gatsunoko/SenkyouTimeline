@@ -559,6 +559,30 @@ textarea {
   padding: 0;
 }
 
+.lock-toggle-button {
+  border-color: #3d4b60;
+  background: #111827;
+  color: #9da9ba;
+}
+
+.lock-toggle-button:hover {
+  border-color: #6b7b93;
+  color: #f3efe4;
+}
+
+.lock-toggle-button.is-locked {
+  border-color: #ff8a7a;
+  background: #9f2f2c;
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 0 0 1px rgba(159, 47, 44, 0.32);
+}
+
+.lock-toggle-button.is-locked:hover {
+  border-color: #ffc0b8;
+  background: #c3423f;
+  color: #ffffff;
+}
+
 .toolbar .toolbar-fullscreen-button {
   width: 34px;
   height: 32px;

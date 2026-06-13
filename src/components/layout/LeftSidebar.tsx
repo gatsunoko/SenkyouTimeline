@@ -44,6 +44,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const updateLine = useProjectStore((state) => state.updateLine);
   const updateArrow = useProjectStore((state) => state.updateArrow);
   const updateLabel = useProjectStore((state) => state.updateLabel);
+  const lockButtonClass = (locked: boolean) => `icon-only lock-toggle-button ${locked ? "is-locked" : ""}`;
 
   useEffect(() => {
     if (!selected.id) return;
@@ -241,7 +242,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                       <strong>{unit.name}</strong>
                       <small>{faction?.name ?? "陣営なし"}</small>
                     </span>
-                    <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateUnit(unit.id, { locked: !unit.locked }); }}>
+                    <button className={lockButtonClass(unit.locked)} type="button" onClick={(event) => { event.stopPropagation(); updateUnit(unit.id, { locked: !unit.locked }); }}>
                       {unit.locked ? <Lock size={15} /> : <Unlock size={15} />}
                     </button>
                   </button>
@@ -334,7 +335,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                         <strong>{site.name}</strong>
                         <small>{faction?.name ?? "陣営なし"}</small>
                       </span>
-                      <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateSite(site.id, { locked: !site.locked }); }}>
+                      <button className={lockButtonClass(site.locked)} type="button" onClick={(event) => { event.stopPropagation(); updateSite(site.id, { locked: !site.locked }); }}>
                         {site.locked ? <Lock size={15} /> : <Unlock size={15} />}
                       </button>
                     </button>
@@ -419,7 +420,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                     <strong>{imageObject.name || "画像"}</strong>
                     <small>{imageObject.locked ? "ロック中 / 左で解除" : "画像オブジェクト"}</small>
                   </span>
-                  <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateImage(imageObject.id, { locked: !imageObject.locked }); }}>
+                  <button className={lockButtonClass(imageObject.locked)} type="button" onClick={(event) => { event.stopPropagation(); updateImage(imageObject.id, { locked: !imageObject.locked }); }}>
                     {imageObject.locked ? <Lock size={15} /> : <Unlock size={15} />}
                   </button>
                   <ImageIcon size={16} />
@@ -494,7 +495,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                   <strong>{region.name || "領域"}</strong>
                   <small>{faction?.name ?? "陣営なし"} / {region.points.length}点</small>
                 </span>
-                <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateRegion(region.id, { locked: !region.locked }); }}>
+                <button className={lockButtonClass(region.locked)} type="button" onClick={(event) => { event.stopPropagation(); updateRegion(region.id, { locked: !region.locked }); }}>
                   {region.locked ? <Lock size={15} /> : <Unlock size={15} />}
                 </button>
                 <span className="line-color-chip" style={{ backgroundColor: color }} />
@@ -528,7 +529,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                   <strong>{line.name || "線"}</strong>
                   <small>{lineTypeLabels[line.lineType]} / {faction?.name ?? "陣営なし"} / {pointCount}点</small>
                 </span>
-                <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateLine(line.id, { locked: !line.locked }); }}>
+                <button className={lockButtonClass(line.locked)} type="button" onClick={(event) => { event.stopPropagation(); updateLine(line.id, { locked: !line.locked }); }}>
                   {line.locked ? <Lock size={15} /> : <Unlock size={15} />}
                 </button>
                 <span className="line-color-chip" style={{ backgroundColor: line.color }} />
@@ -562,7 +563,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                   <strong>{arrow.name || "矢印"}</strong>
                   <small>{arrowTypeLabels[arrow.arrowType]} / {faction?.name ?? "陣営なし"} / {pointCount}点</small>
                 </span>
-                <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateArrow(arrow.id, { locked: !arrow.locked }); }}>
+                <button className={lockButtonClass(arrow.locked)} type="button" onClick={(event) => { event.stopPropagation(); updateArrow(arrow.id, { locked: !arrow.locked }); }}>
                   {arrow.locked ? <Lock size={15} /> : <Unlock size={15} />}
                 </button>
                 <span className="line-color-chip" style={{ backgroundColor: arrow.color }} />
@@ -593,7 +594,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                 <strong>{label.text || "ラベル"}</strong>
                 <small>{label.startTime ?? "開始"} - {label.endTime ?? "終了"}</small>
               </span>
-              <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateLabel(label.id, { locked: !label.locked }); }}>
+              <button className={lockButtonClass(label.locked)} type="button" onClick={(event) => { event.stopPropagation(); updateLabel(label.id, { locked: !label.locked }); }}>
                 {label.locked ? <Lock size={15} /> : <Unlock size={15} />}
               </button>
               <span className="line-color-chip" style={{ backgroundColor: label.backgroundColor, borderColor: label.borderColor }} />
