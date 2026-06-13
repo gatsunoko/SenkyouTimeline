@@ -25,8 +25,8 @@ export const sampleProjects: ProjectData[] = [
     siteAssets: [],
     imageAssets: [],
     factions: [
-      { id: "blue", name: "青軍", color: "#2f7ed8", type: "alliance", memo: "" },
-      { id: "red", name: "赤軍", color: "#c3423f", type: "daimyo", memo: "" },
+      { id: "blue", name: "青軍", color: "#2f7ed8", memo: "" },
+      { id: "red", name: "赤軍", color: "#c3423f", memo: "" },
     ],
     sites: [
       {

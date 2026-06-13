@@ -1,4 +1,3 @@
-import { factionTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
 import { ArrowInspector } from "../inspector/ArrowInspector";
 import { CameraInspector } from "../inspector/CameraInspector";
@@ -31,16 +30,6 @@ export function RightInspector() {
         <label>
           色
           <input type="color" value={faction.color} onChange={(event) => updateFaction(faction.id, { color: event.target.value })} />
-        </label>
-        <label>
-          種類
-          <select value={faction.type} onChange={(event) => updateFaction(faction.id, { type: event.target.value as typeof faction.type })}>
-            {Object.entries(factionTypeLabels).map(([value, label]) => (
-              <option value={value} key={value}>
-                {label}
-              </option>
-            ))}
-          </select>
         </label>
         <label>
           メモ

@@ -1447,12 +1447,6 @@ export function MapCanvas() {
               return <EventMarker key={`${event.id}-selected-front`} event={event} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectSingle("event", event.id)} />;
             })()}
 
-          {!exportViewport && selected.type === "label" && multiSelected.length === 0 &&
-            (() => {
-              const label = project.labels.find((entry) => entry.id === selected.id);
-              if (!label || (label.startTime && compareTime(label.startTime, project.timeline.currentTime) > 0) || (label.endTime && compareTime(label.endTime, project.timeline.currentTime) < 0)) return null;
-              return <LabelShape key={`${label.id}-selected-front`} label={label} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectSingle("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />;
-            })()}
           {isMapImageEditing && mapImageRect && (
             <Group x={mapImageRect.x} y={mapImageRect.y}>
               <MarchingAntsRect x={0} y={0} width={mapImageRect.width} height={mapImageRect.height} />

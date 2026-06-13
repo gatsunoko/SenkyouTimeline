@@ -54,8 +54,8 @@ const emptyProject: ProjectData = {
   siteAssets: [],
   imageAssets: [],
   factions: [
-    { id: "faction_default_a", name: "織田・徳川連合", color: "#2f7ed8", type: "alliance", memo: "" },
-    { id: "faction_default_b", name: "武田家", color: "#c3423f", type: "daimyo", memo: "" },
+    { id: "faction_default_a", name: "織田・徳川連合", color: "#2f7ed8", memo: "" },
+    { id: "faction_default_b", name: "武田家", color: "#c3423f", memo: "" },
   ],
   sites: [],
   images: [],
@@ -717,6 +717,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   normalized.factions ||= [];
   for (const faction of normalized.factions) {
     removeLegacyAbbrevName(faction);
+    delete (faction as { type?: unknown }).type;
   }
   normalized.unitAssets ||= [];
   for (const asset of normalized.unitAssets) {
@@ -1148,7 +1149,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         id,
         name: "新規陣営",
         color: "#8cbf72",
-        type: "daimyo",
         memo: "",
       });
       get().selectObject("faction", id);

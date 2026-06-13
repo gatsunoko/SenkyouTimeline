@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Castle, Copy, Flag, Image as ImageIcon, Lock, Paintbrush, PanelLeftClose, PencilLine, Plus, Tags, Trash2, Unlock } from "lucide-react";
 import { defaultSiteIconUrl } from "../../data/defaultAssets";
-import { arrowTypeLabels, factionTypeLabels, lineTypeLabels } from "../../data/pieceTemplates";
+import { arrowTypeLabels, lineTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
 import { resolveSiteFrame } from "../../utils/interpolation";
 
@@ -170,7 +170,6 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
               <span className="color-swatch" style={{ backgroundColor: faction.color }} />
               <span>
                 <strong>{faction.name}</strong>
-                <small>{factionTypeLabels[faction.type]}</small>
               </span>
               <label className="color-edit-button" title="陣営色を変更" onClick={(event) => event.stopPropagation()}>
                 <Paintbrush size={14} />

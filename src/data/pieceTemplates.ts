@@ -2,25 +2,12 @@ import type {
   ArrowType,
   Certainty,
   EventType,
-  FactionType,
   LineType,
   SiteStatus,
   TroopType,
   UnitStatus,
   UnitType,
 } from "../types/project";
-
-export const factionTypeLabels: Record<FactionType, string> = {
-  daimyo: "大名家",
-  alliance: "連合勢力",
-  kokujin: "国衆",
-  temple: "寺社勢力",
-  ikki: "一揆勢",
-  shogunate: "幕府",
-  imperial: "朝廷・公家",
-  neutral: "中立",
-  unknown: "不明",
-};
 
 export const certaintyLabels: Record<Certainty, string> = {
   confirmed: "確定",

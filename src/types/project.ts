@@ -1,17 +1,6 @@
 export type CalendarType = "japanese_lunisolar" | "gregorian" | "custom";
 export type InterpolationMode = "none" | "linear";
 
-export type FactionType =
-  | "daimyo"
-  | "alliance"
-  | "kokujin"
-  | "temple"
-  | "ikki"
-  | "shogunate"
-  | "imperial"
-  | "neutral"
-  | "unknown";
-
 export type UnitType =
   | "taisho"
   | "honjin"
@@ -179,7 +168,6 @@ export interface Faction {
   id: string;
   name: string;
   color: string;
-  type: FactionType;
   memo: string;
 }
 
