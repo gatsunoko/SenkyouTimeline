@@ -68,6 +68,32 @@ function drawPolygon(context: CanvasRenderingContext2D, points: number[]) {
   appendPolygonPath(context, points);
 }
 
+function translatedPoints(points: number[], offsetX: number, offsetY: number) {
+  return points.map((value, index) => value - (index % 2 === 0 ? offsetX : offsetY));
+}
+
+function polygonBounds(polygons: number[][], padding: number) {
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (const polygon of polygons) {
+    for (let index = 0; index < polygon.length - 1; index += 2) {
+      xs.push(polygon[index]);
+      ys.push(polygon[index + 1]);
+    }
+  }
+  if (xs.length === 0 || ys.length === 0) return null;
+  const left = Math.floor(Math.min(...xs) - padding);
+  const top = Math.floor(Math.min(...ys) - padding);
+  const right = Math.ceil(Math.max(...xs) + padding);
+  const bottom = Math.ceil(Math.max(...ys) + padding);
+  return {
+    left,
+    top,
+    width: Math.max(1, right - left),
+    height: Math.max(1, bottom - top),
+  };
+}
+
 export function RegionShape({ region, fillColor, selected, editable = true, mapWidth, mapHeight, maskPolygons = [], selectedPointIndices = [], onSelect, onPointSelect, onPointDragEnd }: RegionShapeProps) {
   const [dragPoints, setDragPoints] = useState<MapPoint[] | null>(null);
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
@@ -89,13 +115,17 @@ export function RegionShape({ region, fillColor, selected, editable = true, mapW
         onTap={editable || !region.locked ? onSelect : undefined}
         listening={editable || !region.locked}
         sceneFunc={(context) => {
+          const padding = Math.max(8, region.borderWidth + 4);
+          const bounds = polygonBounds([canvasPoints, ...maskPolygons], padding);
+          if (!bounds) return;
           const offscreen = document.createElement("canvas");
-          offscreen.width = mapWidth;
-          offscreen.height = mapHeight;
+          offscreen.width = bounds.width;
+          offscreen.height = bounds.height;
           const offscreenContext = offscreen.getContext("2d");
           if (!offscreenContext) return;
 
-          drawPolygon(offscreenContext, canvasPoints);
+          const localCanvasPoints = translatedPoints(canvasPoints, bounds.left, bounds.top);
+          drawPolygon(offscreenContext, localCanvasPoints);
           offscreenContext.fillStyle = fillColor;
           offscreenContext.globalAlpha = region.opacity;
           offscreenContext.fill();
@@ -112,7 +142,7 @@ export function RegionShape({ region, fillColor, selected, editable = true, mapW
             offscreenContext.globalAlpha = 1;
             offscreenContext.globalCompositeOperation = "destination-out";
             for (const maskPolygon of maskPolygons) {
-              drawPolygon(offscreenContext, maskPolygon);
+              drawPolygon(offscreenContext, translatedPoints(maskPolygon, bounds.left, bounds.top));
               offscreenContext.fillStyle = "#000000";
               offscreenContext.fill();
               if (region.borderEnabled && region.borderWidth > 0) {
@@ -124,7 +154,7 @@ export function RegionShape({ region, fillColor, selected, editable = true, mapW
             offscreenContext.globalCompositeOperation = "source-over";
           }
 
-          nativeContext(context).drawImage(offscreen, 0, 0);
+          nativeContext(context).drawImage(offscreen, bounds.left, bounds.top);
         }}
         hitFunc={(context, shape) => {
           context.beginPath();
