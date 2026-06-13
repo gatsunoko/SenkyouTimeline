@@ -703,7 +703,7 @@ function normalizeProjectTiming(project: ProjectData) {
   normalizeTimelineFrames(project);
 
   for (const unit of project.units ?? []) {
-    unit.shape = unit.shape === "rectangle" ? "rectangle" : "pentagon";
+    unit.shape = unit.shape === "rectangle" || unit.shape === "convex" ? unit.shape : "pentagon";
     for (const keyframe of unit.keyframes ?? []) {
       keyframe.rotation = Number.isFinite(keyframe.rotation) ? keyframe.rotation : 0;
     }
@@ -827,7 +827,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     asset.name ??= "コマ";
     asset.size ||= 1;
     asset.factionId ||= normalized.factions?.[0]?.id ?? "faction_default_a";
-    asset.shape = asset.shape === "rectangle" ? "rectangle" : "pentagon";
+    asset.shape = asset.shape === "rectangle" || asset.shape === "convex" ? asset.shape : "pentagon";
     asset.rotation = Number.isFinite(asset.rotation) ? asset.rotation : 0;
     asset.showName = asset.showName ?? true;
     asset.nameFontSize ||= 14 * asset.size;

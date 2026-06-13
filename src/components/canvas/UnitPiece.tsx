@@ -52,6 +52,23 @@ function rotatedPoint(point: { x: number; y: number }, degrees: number) {
   };
 }
 
+function polygonPointsToCanvasPoints(points: number[]) {
+  const result: Array<{ x: number; y: number }> = [];
+  for (let index = 0; index < points.length - 1; index += 2) {
+    result.push({ x: points[index], y: points[index + 1] });
+  }
+  return result;
+}
+
+function rectanglePoints(width: number, height: number) {
+  return [
+    { x: -width / 2, y: -height / 2 },
+    { x: width / 2, y: -height / 2 },
+    { x: width / 2, y: height / 2 },
+    { x: -width / 2, y: height / 2 },
+  ];
+}
+
 export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, onSelect, onDragEnd, onRotateEnd, dragEnabled = true }: UnitPieceProps) {
   const [image, setImage] = useState<HTMLImageElement | null>(() => getCachedImage(unit.iconUrl));
   const [rotationPreview, setRotationPreview] = useState<number | null>(null);
@@ -66,9 +83,12 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
   const nameTextColor = unit.nameTextColor ?? "#f5efe3";
   const nameOutlineEnabled = unit.nameOutlineEnabled ?? false;
   const nameOutlineColor = unit.nameOutlineColor ?? "#111827";
-  const isPentagon = (unit.shape ?? "pentagon") === "pentagon";
+  const shape = unit.shape ?? "pentagon";
+  const isPentagon = shape === "pentagon";
+  const isConvex = shape === "convex";
+  const isDirectionalShape = isPentagon || isConvex;
   const currentRotation = rotationPreview ?? frame.rotation ?? 0;
-  const bodyRotation = isPentagon ? currentRotation : 0;
+  const bodyRotation = isDirectionalShape ? currentRotation : 0;
 
   useEffect(() => {
     if (!unit.iconUrl) {
@@ -94,11 +114,14 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
   }, [unit.iconUrl]);
 
   const width = hasImage ? 68 * size : 92 * size;
-  const bodyHeight = hasImage ? 68 * size : 44 * size;
-  const imageFramePadding = hasImage && isPentagon ? 10 * size : 0;
-  const imageFrameWidth = hasImage && isPentagon ? Math.max(16, width - imageFramePadding * 2) : width;
-  const imageFrameHeight = hasImage && isPentagon ? Math.max(16, bodyHeight - imageFramePadding * 2) : bodyHeight;
+  const baseBodyHeight = hasImage ? 68 * size : 44 * size;
+  const bodyHeight = isConvex ? (width / 3) * 2 : baseBodyHeight;
+  const imageFramePadding = hasImage && isDirectionalShape ? 10 * size : 0;
+  const imageFrameWidth = hasImage && isDirectionalShape ? Math.max(16, width - imageFramePadding * 2) : width;
+  const imageFrameHeight = hasImage && isDirectionalShape ? Math.max(16, bodyHeight - imageFramePadding * 2) : bodyHeight;
   const pointDepth = isPentagon ? Math.min(bodyHeight * 0.34, width * 0.22) : 0;
+  const convexShoulderDepth = isConvex ? bodyHeight / 2 : 0;
+  const convexNeckHalfWidth = width / 6;
   const imageFrameY = hasImage && isPentagon ? pointDepth * 0.35 : 0;
   const pentagonPoints = [
     0,
@@ -112,23 +135,31 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
     -width / 2,
     -bodyHeight / 2 + pointDepth,
   ];
-  const bodyBoundsPoints = isPentagon
-    ? [
-        { x: pentagonPoints[0], y: pentagonPoints[1] },
-        { x: pentagonPoints[2], y: pentagonPoints[3] },
-        { x: pentagonPoints[4], y: pentagonPoints[5] },
-        { x: pentagonPoints[6], y: pentagonPoints[7] },
-        { x: pentagonPoints[8], y: pentagonPoints[9] },
-      ].map((point) => rotatedPoint(point, bodyRotation))
-    : [
-        { x: -width / 2, y: -bodyHeight / 2 },
-        { x: width / 2, y: -bodyHeight / 2 },
-        { x: width / 2, y: bodyHeight / 2 },
-        { x: -width / 2, y: bodyHeight / 2 },
-      ];
+  const convexPoints = [
+    -width / 2,
+    -bodyHeight / 2 + convexShoulderDepth,
+    -convexNeckHalfWidth,
+    -bodyHeight / 2 + convexShoulderDepth,
+    -convexNeckHalfWidth,
+    -bodyHeight / 2,
+    convexNeckHalfWidth,
+    -bodyHeight / 2,
+    convexNeckHalfWidth,
+    -bodyHeight / 2 + convexShoulderDepth,
+    width / 2,
+    -bodyHeight / 2 + convexShoulderDepth,
+    width / 2,
+    bodyHeight / 2,
+    -width / 2,
+    bodyHeight / 2,
+  ];
+  const polygonPoints = isPentagon ? pentagonPoints : isConvex ? convexPoints : [];
+  const bodyBoundsPoints = isDirectionalShape
+    ? polygonPointsToCanvasPoints(polygonPoints).map((point) => rotatedPoint(point, bodyRotation))
+    : rectanglePoints(width, bodyHeight);
   const bodyBottomY = Math.max(...bodyBoundsPoints.map((point) => point.y));
-  const bodySelectionSize = isPentagon ? Math.hypot(width, bodyHeight) : bodyHeight;
-  const selectionWidth = isPentagon ? Math.hypot(width, bodyHeight) : width;
+  const bodySelectionSize = isDirectionalShape ? Math.hypot(width, bodyHeight) : bodyHeight;
+  const selectionWidth = isDirectionalShape ? Math.hypot(width, bodyHeight) : width;
   const nameFontSize = unit.nameFontSize ?? 14 * size;
   const nameOutlineWidth = nameOutlineEnabled ? Math.max(2, nameFontSize * 0.12) : 0;
   const labelTextWidth = estimateTextWidth(unit.name, nameFontSize);
@@ -148,11 +179,11 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
   const imageScale = image ? Math.min(imageFrameWidth / image.naturalWidth, imageFrameHeight / image.naturalHeight) : 1;
   const imageWidth = image ? image.naturalWidth * imageScale : imageFrameWidth;
   const imageHeight = image ? image.naturalHeight * imageScale : imageFrameHeight;
-  const clipPentagon = (context: Konva.Context) => {
+  const clipPolygon = (context: Konva.Context) => {
     context.beginPath();
-    context.moveTo(pentagonPoints[0], pentagonPoints[1]);
-    for (let index = 2; index < pentagonPoints.length; index += 2) {
-      context.lineTo(pentagonPoints[index], pentagonPoints[index + 1]);
+    context.moveTo(polygonPoints[0], polygonPoints[1]);
+    for (let index = 2; index < polygonPoints.length; index += 2) {
+      context.lineTo(polygonPoints[index], polygonPoints[index + 1]);
     }
     context.closePath();
   };
@@ -201,7 +232,7 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
       }}
     >
       {selected && <MarchingAntsRect x={-selectionWidth / 2 - 6} y={-bodySelectionSize / 2 - 6} width={selectionWidth + 12} height={totalHeight + 12} cornerRadius={8} />}
-      {selected && isPentagon && dragEnabled && !unit.locked && (
+      {selected && isDirectionalShape && dragEnabled && !unit.locked && (
         <>
           <MarchingAntsCircle radius={rotateGuideRadius} opacity={0.72} />
           <MarchingAntsLine points={[0, 0, rotationHandlePosition.x, rotationHandlePosition.y]} strokeWidth={2} />
@@ -254,19 +285,19 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
       )}
       {hasImage ? (
         <>
-          {isPentagon ? (
+          {isDirectionalShape ? (
             <>
               <Group rotation={bodyRotation}>
-                <Line points={pentagonPoints} fill={color} closed shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
+                <Line points={polygonPoints} fill={color} closed shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
               </Group>
-              <Group rotation={bodyRotation} clipFunc={clipPentagon}>
+              <Group rotation={bodyRotation} clipFunc={clipPolygon}>
                 <Group rotation={-bodyRotation}>
                   <Rect x={-imageFrameWidth / 2} y={imageFrameY - imageFrameHeight / 2} width={imageFrameWidth} height={imageFrameHeight} fill={color} listening={false} />
                   {image && <KonvaImage image={image} x={-imageWidth / 2} y={imageFrameY - imageHeight / 2} width={imageWidth} height={imageHeight} />}
                 </Group>
               </Group>
               <Group rotation={bodyRotation}>
-                <Line points={pentagonPoints} stroke={color} strokeWidth={3} closed shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
+                <Line points={polygonPoints} stroke={color} strokeWidth={3} closed shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
               </Group>
             </>
           ) : (
@@ -286,8 +317,8 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
         </>
       ) : (
         <Group rotation={bodyRotation}>
-          {isPentagon ? (
-            <Line points={pentagonPoints} fill={color} stroke="#1b1f29" strokeWidth={2} closed shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
+          {isDirectionalShape ? (
+            <Line points={polygonPoints} fill={color} stroke="#1b1f29" strokeWidth={2} closed shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
           ) : (
             <Rect x={-width / 2} y={-bodyHeight / 2} width={width} height={bodyHeight} fill={color} stroke="#1b1f29" strokeWidth={2} cornerRadius={8} shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
           )}

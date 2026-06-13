@@ -143,26 +143,47 @@ function rotateCanvasPoint(point: CanvasPoint, degrees: number) {
   };
 }
 
+function unitBodyPoints(unit: Unit, width: number, height: number): CanvasPoint[] {
+  const shape = unit.shape ?? "pentagon";
+  if (shape === "pentagon") {
+    const pointDepth = Math.min(height * 0.34, width * 0.22);
+    return [
+      { x: 0, y: -height / 2 },
+      { x: width / 2, y: -height / 2 + pointDepth },
+      { x: width / 2, y: height / 2 },
+      { x: -width / 2, y: height / 2 },
+      { x: -width / 2, y: -height / 2 + pointDepth },
+    ];
+  }
+  if (shape === "convex") {
+    const shoulderDepth = height / 2;
+    const neckHalfWidth = width / 6;
+    return [
+      { x: -width / 2, y: -height / 2 + shoulderDepth },
+      { x: -neckHalfWidth, y: -height / 2 + shoulderDepth },
+      { x: -neckHalfWidth, y: -height / 2 },
+      { x: neckHalfWidth, y: -height / 2 },
+      { x: neckHalfWidth, y: -height / 2 + shoulderDepth },
+      { x: width / 2, y: -height / 2 + shoulderDepth },
+      { x: width / 2, y: height / 2 },
+      { x: -width / 2, y: height / 2 },
+    ];
+  }
+  return [
+    { x: -width / 2, y: -height / 2 },
+    { x: width / 2, y: -height / 2 },
+    { x: width / 2, y: height / 2 },
+    { x: -width / 2, y: height / 2 },
+  ];
+}
+
 function unitVisualBounds(unit: Unit, frame: { rotation?: number; size?: number }, position: CanvasPoint): CanvasRect {
   const size = frame.size ?? unit.size;
+  const shape = unit.shape ?? "pentagon";
   const bodyWidth = (unit.iconUrl ? 68 : 92) * size;
-  const bodyHeight = (unit.iconUrl ? 68 : 44) * size;
-  const isPentagon = (unit.shape ?? "pentagon") === "pentagon";
-  const pointDepth = isPentagon ? Math.min(bodyHeight * 0.34, bodyWidth * 0.22) : 0;
-  const bodyPoints: CanvasPoint[] = isPentagon
-    ? [
-        { x: 0, y: -bodyHeight / 2 },
-        { x: bodyWidth / 2, y: -bodyHeight / 2 + pointDepth },
-        { x: bodyWidth / 2, y: bodyHeight / 2 },
-        { x: -bodyWidth / 2, y: bodyHeight / 2 },
-        { x: -bodyWidth / 2, y: -bodyHeight / 2 + pointDepth },
-      ].map((point) => rotateCanvasPoint(point, frame.rotation ?? 0))
-    : [
-        { x: -bodyWidth / 2, y: -bodyHeight / 2 },
-        { x: bodyWidth / 2, y: -bodyHeight / 2 },
-        { x: bodyWidth / 2, y: bodyHeight / 2 },
-        { x: -bodyWidth / 2, y: bodyHeight / 2 },
-      ];
+  const baseBodyHeight = (unit.iconUrl ? 68 : 44) * size;
+  const bodyHeight = shape === "convex" ? (bodyWidth / 3) * 2 : baseBodyHeight;
+  const bodyPoints = unitBodyPoints(unit, bodyWidth, bodyHeight).map((point) => (shape === "rectangle" ? point : rotateCanvasPoint(point, frame.rotation ?? 0)));
   const left = Math.min(...bodyPoints.map((point) => point.x));
   const right = Math.max(...bodyPoints.map((point) => point.x));
   const top = Math.min(...bodyPoints.map((point) => point.y));

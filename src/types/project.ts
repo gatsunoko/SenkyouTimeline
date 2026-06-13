@@ -51,7 +51,7 @@ export type UnitStatus =
   | "hidden"
   | "food_shortage";
 
-export type UnitShape = "rectangle" | "pentagon";
+export type UnitShape = "rectangle" | "pentagon" | "convex";
 
 export type Certainty = "confirmed" | "probable" | "possible" | "uncertain" | "fictional";
 

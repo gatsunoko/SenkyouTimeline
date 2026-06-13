@@ -19,6 +19,7 @@ type RouteOption = {
 const unitShapeLabels: Record<UnitShape, string> = {
   rectangle: "四角形",
   pentagon: "五角形",
+  convex: "凸型",
 };
 
 function firstUnitKeyframeTime(unit: Unit, fallback: string) {
@@ -309,7 +310,7 @@ export function UnitInspector({ id }: { id: string }) {
             <small>
               x {entry.x.toFixed(3)} / y {entry.y.toFixed(3)}
               {entry.size !== undefined ? ` / size ${entry.size.toFixed(2)}` : ""}
-              {unitShape === "pentagon" ? ` / angle ${entry.rotation.toFixed(0)}` : ""}
+              {unitShape !== "rectangle" ? ` / angle ${entry.rotation.toFixed(0)}` : ""}
             </small>
             <button type="button" className="icon-only danger" onClick={() => deleteUnitKeyframe(unit.id, entry.time)}>
               削除
