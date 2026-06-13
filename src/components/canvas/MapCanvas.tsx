@@ -195,6 +195,17 @@ function pointInRect(point: CanvasPoint, rect: CanvasRect) {
   return point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height;
 }
 
+function midpoint(a: CanvasPoint, b: CanvasPoint) {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function regionInsertionIndex(pointCount: number, firstIndex: number, secondIndex: number) {
+  const lower = Math.min(firstIndex, secondIndex);
+  const upper = Math.max(firstIndex, secondIndex);
+  if (lower === 0 && upper === pointCount - 1) return pointCount;
+  return upper;
+}
+
 function cross(a: CanvasPoint, b: CanvasPoint, c: CanvasPoint) {
   return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
 }
@@ -298,6 +309,7 @@ export function MapCanvas() {
   const clearSelection = useProjectStore((state) => state.clearSelection);
   const toggleRegionPointSelection = useProjectStore((state) => state.toggleRegionPointSelection);
   const setRegionPointSelection = useProjectStore((state) => state.setRegionPointSelection);
+  const clearRegionPointSelection = useProjectStore((state) => state.clearRegionPointSelection);
   const toggleLinePointSelection = useProjectStore((state) => state.toggleLinePointSelection);
   const toggleArrowPointSelection = useProjectStore((state) => state.toggleArrowPointSelection);
   const updateUnitKeyframe = useProjectStore((state) => state.updateUnitKeyframe);
@@ -977,6 +989,39 @@ export function MapCanvas() {
     const dy = multiDragDelta?.y ?? 0;
     return { x: left + dx, y: top + dy, width: right - left, height: bottom - top };
   })();
+  const regionPointInsertControl = (() => {
+    if (exportViewport || selected.type !== "region" || !selected.id || multiSelected.length > 0) return null;
+    const region = project.regions.find((entry) => entry.id === selected.id);
+    if (!region || region.locked || !shouldRenderRegion(region)) return null;
+    const frame = resolveDisplayRegion(region);
+    if (!frame) return null;
+    const selectedPoints = selectedRegionPointIndices.filter((index) => index >= 0 && index < frame.points.length).sort((a, b) => a - b);
+    if (selectedPoints.length !== 2) return null;
+    const [firstIndex, secondIndex] = selectedPoints;
+    const insertPoint = midpoint(frame.points[firstIndex], frame.points[secondIndex]);
+    const canvasPoint = relativeToCanvas(insertPoint, mapWidth, mapHeight);
+    const width = 104;
+    const height = 28;
+    const displayScale = 1 / Math.max(0.01, scale);
+    return {
+      regionId: region.id,
+      points: frame.points,
+      insertPoint,
+      insertIndex: regionInsertionIndex(frame.points.length, firstIndex, secondIndex),
+      x: canvasPoint.x,
+      y: canvasPoint.y,
+      scale: displayScale,
+      width,
+      height,
+    };
+  })();
+  const insertRegionPointFromCanvas = () => {
+    if (!regionPointInsertControl) return;
+    const nextPoints = [...regionPointInsertControl.points];
+    nextPoints.splice(regionPointInsertControl.insertIndex, 0, regionPointInsertControl.insertPoint);
+    updateRegionPoints(regionPointInsertControl.regionId, nextPoints);
+    clearRegionPointSelection();
+  };
   const frontSelectedItems = (multiSelected.length > 0 ? multiSelected : selected.type && selected.id && ["unit", "site", "image", "line", "arrow", "label"].includes(selected.type) ? [{ type: selected.type as MovableSelectionType, id: selected.id }] : []).filter(
     (item, index, items) => item.type !== "region" && items.findIndex((entry) => selectedItemKey(entry) === selectedItemKey(item)) === index,
   );
@@ -1450,6 +1495,54 @@ export function MapCanvas() {
               dash={[6, 5]}
               listening={false}
             />
+          )}
+
+          {regionPointInsertControl && (
+            <Group
+              x={regionPointInsertControl.x}
+              y={regionPointInsertControl.y}
+              scaleX={regionPointInsertControl.scale}
+              scaleY={regionPointInsertControl.scale}
+              onMouseDown={(event) => {
+                event.cancelBubble = true;
+              }}
+              onClick={(event) => {
+                event.cancelBubble = true;
+                insertRegionPointFromCanvas();
+              }}
+              onTap={(event) => {
+                event.cancelBubble = true;
+                insertRegionPointFromCanvas();
+              }}
+            >
+              <Rect
+                x={-regionPointInsertControl.width / 2}
+                y={-regionPointInsertControl.height / 2}
+                width={regionPointInsertControl.width}
+                height={regionPointInsertControl.height}
+                fill="#f4d06f"
+                stroke="#111827"
+                strokeWidth={2}
+                cornerRadius={6}
+                shadowBlur={8}
+                shadowColor="#000000"
+                shadowOpacity={0.28}
+              />
+              <Text
+                text="間に点を追加"
+                x={-regionPointInsertControl.width / 2}
+                y={-regionPointInsertControl.height / 2}
+                width={regionPointInsertControl.width}
+                height={regionPointInsertControl.height}
+                align="center"
+                verticalAlign="middle"
+                fill="#111827"
+                fontSize={13}
+                fontFamily={UI_FONT_FAMILY}
+                fontStyle="bold"
+                listening={false}
+              />
+            </Group>
           )}
 
           {!exportViewport &&
