@@ -6,6 +6,7 @@ import { createId } from "../../utils/id";
 import { readFileAsDataUrl } from "../../utils/fileIO";
 import { getUnitRouteSegments, getUnitRouteTimeRange, resolveUnitFrame, resolveUnitRouteApproachPoint, resolveUnitRouteExitPoint, resolveUnitRoutePoint } from "../../utils/interpolation";
 import { compareTime, parseTimelineSeconds, sortedFrames } from "../../utils/time";
+import { DisplayPeriodFields } from "./DisplayPeriodFields";
 import { ColorField, NumberField, SelectField, TextField, ToggleField } from "./InspectorFields";
 
 type RouteOption = {
@@ -16,7 +17,7 @@ type RouteOption = {
 };
 
 const unitShapeLabels: Record<UnitShape, string> = {
-  rectangle: "四角",
+  rectangle: "四角形",
   pentagon: "五角形",
 };
 
@@ -57,7 +58,7 @@ export function UnitInspector({ id }: { id: string }) {
   const unitKeyframes = [...unit.keyframes].sort((a, b) => compareTime(a.time, b.time));
   const fallbackStart = firstUnitKeyframeTime(unit, frames[0]?.time ?? project.timeline.currentTime);
   const displayStartTime = unit.displayStartTime ?? fallbackStart;
-  const displayEndTime = unit.displayEndTime ?? frames[frames.length - 1]?.time ?? project.timeline.end;
+  const displayEndTime = unit.displayEndTime ?? project.timeline.end;
   const linkedAsset = project.unitAssets.find((asset) => asset.id === unit.assetId);
   const currentX = routePoint?.x ?? routeApproachPoint?.x ?? routeExitPoint?.x ?? keyframe?.x ?? resolvedFrame?.x ?? 0.5;
   const currentY = routePoint?.y ?? routeApproachPoint?.y ?? routeExitPoint?.y ?? keyframe?.y ?? resolvedFrame?.y ?? 0.5;
@@ -80,20 +81,6 @@ export function UnitInspector({ id }: { id: string }) {
   ];
   const routeSegments = getUnitRouteSegments(unit.route);
   const isPreviewingRoute = routePreviewUnitId === unit.id;
-
-  const setDisplayStartTime = (value: string) => {
-    updateUnit(unit.id, {
-      displayStartTime: value,
-      displayEndTime: compareTime(value, displayEndTime) > 0 ? value : displayEndTime,
-    });
-  };
-
-  const setDisplayEndTime = (value: string) => {
-    updateUnit(unit.id, {
-      displayStartTime: compareTime(displayStartTime, value) > 0 ? value : displayStartTime,
-      displayEndTime: value,
-    });
-  };
 
   const routeFromSegments = (segments: UnitRouteSegment[]): UnitRoute | undefined => {
     if (segments.length === 0) return undefined;
@@ -167,14 +154,7 @@ export function UnitInspector({ id }: { id: string }) {
       <NumberField label="サイズ" value={currentSize} min={0.2} max={4} step={0.05} onChange={(value) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: currentX, y: currentY, size: value, status: unit.status })} />
       <NumberField label="名前の文字サイズ" value={currentNameFontSize} min={8} max={72} step={1} onChange={(value) => updateUnit(unit.id, { nameFontSize: value })} />
 
-      <h3>画像コマ</h3>
-      <h3>名前表示</h3>
-      <ColorField label="名前の文字色" value={unit.nameTextColor ?? "#f5efe3"} onChange={(value) => updateUnit(unit.id, { nameTextColor: value })} />
-      <ToggleField label="名前に背景" checked={unit.nameBackgroundEnabled ?? false} onChange={(value) => updateUnit(unit.id, { nameBackgroundEnabled: value })} />
-      {unit.nameBackgroundEnabled && <ColorField label="名前背景色" value={unit.nameBackgroundColor ?? "#111827"} onChange={(value) => updateUnit(unit.id, { nameBackgroundColor: value })} />}
-      <ToggleField label="名前にアウトライン" checked={unit.nameOutlineEnabled ?? false} onChange={(value) => updateUnit(unit.id, { nameOutlineEnabled: value })} />
-      {unit.nameOutlineEnabled && <ColorField label="名前アウトライン色" value={unit.nameOutlineColor ?? "#111827"} onChange={(value) => updateUnit(unit.id, { nameOutlineColor: value })} />}
-
+      <h3>画像アイコン</h3>
       {unit.iconUrl && (
         <div className="unit-image-preview">
           <img src={unit.iconUrl} alt="" />
@@ -201,7 +181,15 @@ export function UnitInspector({ id }: { id: string }) {
           event.currentTarget.value = "";
         }}
       />
+
+      <h3>名前表示</h3>
       <ToggleField label="名前を表示" checked={unit.showName !== false} onChange={(value) => updateUnit(unit.id, { showName: value })} />
+      <ColorField label="名前の文字色" value={unit.nameTextColor ?? "#f5efe3"} onChange={(value) => updateUnit(unit.id, { nameTextColor: value })} />
+      <ToggleField label="名前に背景" checked={unit.nameBackgroundEnabled ?? false} onChange={(value) => updateUnit(unit.id, { nameBackgroundEnabled: value })} />
+      {unit.nameBackgroundEnabled && <ColorField label="名前背景色" value={unit.nameBackgroundColor ?? "#111827"} onChange={(value) => updateUnit(unit.id, { nameBackgroundColor: value })} />}
+      <ToggleField label="名前にアウトライン" checked={unit.nameOutlineEnabled ?? false} onChange={(value) => updateUnit(unit.id, { nameOutlineEnabled: value })} />
+      {unit.nameOutlineEnabled && <ColorField label="名前アウトライン色" value={unit.nameOutlineColor ?? "#111827"} onChange={(value) => updateUnit(unit.id, { nameOutlineColor: value })} />}
+
       {!unit.assetId && (
         <button type="button" onClick={() => registerUnitAsset(unit.id)}>
           アセットとして登録
@@ -214,26 +202,13 @@ export function UnitInspector({ id }: { id: string }) {
       )}
 
       <h3>表示期間</h3>
-      <label>
-        表示開始
-        <select value={displayStartTime} onChange={(event) => setDisplayStartTime(event.target.value)}>
-          {frames.map((timelineFrame) => (
-            <option value={timelineFrame.time} key={timelineFrame.id}>
-              {timelineFrame.displayDate}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        表示終了
-        <select value={displayEndTime} onChange={(event) => setDisplayEndTime(event.target.value)}>
-          {frames.map((timelineFrame) => (
-            <option value={timelineFrame.time} key={timelineFrame.id}>
-              {timelineFrame.displayDate}
-            </option>
-          ))}
-        </select>
-      </label>
+      <DisplayPeriodFields
+        startTime={unit.displayStartTime}
+        endTime={unit.displayEndTime}
+        fallbackStartTime={displayStartTime}
+        fallbackEndTime={displayEndTime}
+        onChange={(patch) => updateUnit(unit.id, { displayStartTime: patch.startTime, displayEndTime: patch.endTime })}
+      />
 
       <h3>移動ルート</h3>
       <div className="inspector-button-row">
@@ -266,7 +241,7 @@ export function UnitInspector({ id }: { id: string }) {
                 </div>
                 {!routeSourceExists && <small className="inline-warning">割り当て先が見つかりません</small>}
                 <label>
-                  線/矢印
+                  線・矢印
                   <select
                     value={routeValue}
                     onChange={(event) => {

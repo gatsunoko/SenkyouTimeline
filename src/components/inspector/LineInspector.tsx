@@ -2,13 +2,11 @@ import type { LineCurveMode, MapPoint } from "../../types/project";
 import { useProjectStore } from "../../store/projectStore";
 import { resolveLineKeyframe } from "../../utils/interpolation";
 import { compareTime, sortedFrames } from "../../utils/time";
+import { DisplayPeriodFields } from "./DisplayPeriodFields";
 import { ColorField, NumberField, TextAreaField, TextField, ToggleField } from "./InspectorFields";
 
 function midpoint(a: MapPoint, b: MapPoint) {
-  return {
-    x: (a.x + b.x) / 2,
-    y: (a.y + b.y) / 2,
-  };
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
 export function LineInspector({ id }: { id: string }) {
@@ -27,10 +25,8 @@ export function LineInspector({ id }: { id: string }) {
   const keyframes = [...line.keyframes].sort((a, b) => compareTime(a.time, b.time));
   const frames = sortedFrames(project.timeline.frames);
   const displayStartTime = line.displayStartTime ?? keyframes[0]?.time ?? frames[0]?.time ?? project.timeline.currentTime;
-  const displayEndTime = line.displayEndTime ?? frames[frames.length - 1]?.time ?? project.timeline.end;
-  const selectedPoints = selectedLinePointIndices
-    .filter((index) => index >= 0 && index < points.length)
-    .sort((a, b) => a - b);
+  const displayEndTime = line.displayEndTime ?? project.timeline.end;
+  const selectedPoints = selectedLinePointIndices.filter((index) => index >= 0 && index < points.length).sort((a, b) => a - b);
   const canInsertPoint = selectedPoints.length === 2;
 
   const insertPointBetweenSelection = () => {
@@ -40,20 +36,6 @@ export function LineInspector({ id }: { id: string }) {
     nextPoints.splice(secondIndex, 0, midpoint(points[firstIndex], points[secondIndex]));
     updateLineKeyframe(line.id, project.timeline.currentTime, nextPoints);
     clearLinePointSelection();
-  };
-
-  const setDisplayStartTime = (value: string) => {
-    updateLine(line.id, {
-      displayStartTime: value,
-      displayEndTime: compareTime(value, displayEndTime) > 0 ? value : displayEndTime,
-    });
-  };
-
-  const setDisplayEndTime = (value: string) => {
-    updateLine(line.id, {
-      displayStartTime: compareTime(displayStartTime, value) > 0 ? value : displayStartTime,
-      displayEndTime: value,
-    });
   };
 
   return (
@@ -74,30 +56,17 @@ export function LineInspector({ id }: { id: string }) {
       <ToggleField label="通常は非表示（ルート確認で表示）" checked={line.hideWhenRoute ?? false} onChange={(value) => updateLine(line.id, { hideWhenRoute: value })} />
 
       <h3>表示期間</h3>
-      <label>
-        表示開始
-        <select value={displayStartTime} onChange={(event) => setDisplayStartTime(event.target.value)}>
-          {frames.map((timelineFrame) => (
-            <option value={timelineFrame.time} key={timelineFrame.id}>
-              {timelineFrame.displayDate}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        表示終了
-        <select value={displayEndTime} onChange={(event) => setDisplayEndTime(event.target.value)}>
-          {frames.map((timelineFrame) => (
-            <option value={timelineFrame.time} key={timelineFrame.id}>
-              {timelineFrame.displayDate}
-            </option>
-          ))}
-        </select>
-      </label>
+      <DisplayPeriodFields
+        startTime={line.displayStartTime}
+        endTime={line.displayEndTime}
+        fallbackStartTime={displayStartTime}
+        fallbackEndTime={displayEndTime}
+        onChange={(patch) => updateLine(line.id, { displayStartTime: patch.startTime, displayEndTime: patch.endTime })}
+      />
 
       <h3>現在時間の点</h3>
       <button type="button" disabled={!canInsertPoint} onClick={insertPointBetweenSelection}>
-        選択した2点の間に点を追加
+        選択した点の間に点を追加
       </button>
       <div className="point-list">
         {points.map((point, index) => (

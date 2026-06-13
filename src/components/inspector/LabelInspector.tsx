@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useProjectStore } from "../../store/projectStore";
-import { compareTime, sortedFrames } from "../../utils/time";
+import { sortedFrames } from "../../utils/time";
+import { DisplayPeriodFields } from "./DisplayPeriodFields";
 import { ColorField, NumberField, TextAreaField, ToggleField } from "./InspectorFields";
 
 export function LabelInspector({ id }: { id: string }) {
@@ -22,21 +23,7 @@ export function LabelInspector({ id }: { id: string }) {
 
   const frames = sortedFrames(project.timeline.frames);
   const displayStartTime = label.startTime ?? frames[0]?.time ?? project.timeline.currentTime;
-  const displayEndTime = label.endTime ?? frames[frames.length - 1]?.time ?? project.timeline.end;
-
-  const setDisplayStartTime = (value: string) => {
-    updateLabel(label.id, {
-      startTime: value,
-      endTime: compareTime(value, displayEndTime) > 0 ? value : displayEndTime,
-    });
-  };
-
-  const setDisplayEndTime = (value: string) => {
-    updateLabel(label.id, {
-      startTime: compareTime(displayStartTime, value) > 0 ? value : displayStartTime,
-      endTime: value,
-    });
-  };
+  const displayEndTime = label.endTime ?? project.timeline.end;
 
   return (
     <aside className="right-inspector">
@@ -45,26 +32,13 @@ export function LabelInspector({ id }: { id: string }) {
         テキスト
         <input ref={textInputRef} value={label.text} onChange={(event) => updateLabel(label.id, { text: event.target.value })} />
       </label>
-      <label>
-        開始時間
-        <select value={displayStartTime} onChange={(event) => setDisplayStartTime(event.target.value)}>
-          {frames.map((timelineFrame) => (
-            <option value={timelineFrame.time} key={timelineFrame.id}>
-              {timelineFrame.displayDate}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        終了時間
-        <select value={displayEndTime} onChange={(event) => setDisplayEndTime(event.target.value)}>
-          {frames.map((timelineFrame) => (
-            <option value={timelineFrame.time} key={timelineFrame.id}>
-              {timelineFrame.displayDate}
-            </option>
-          ))}
-        </select>
-      </label>
+      <DisplayPeriodFields
+        startTime={label.startTime}
+        endTime={label.endTime}
+        fallbackStartTime={displayStartTime}
+        fallbackEndTime={displayEndTime}
+        onChange={(patch) => updateLabel(label.id, { startTime: patch.startTime, endTime: patch.endTime })}
+      />
       <div className="coordinate-grid">
         <NumberField label="x" value={label.x} min={0} max={1} step={0.001} onChange={(value) => updateLabel(label.id, { x: value })} />
         <NumberField label="y" value={label.y} min={0} max={1} step={0.001} onChange={(value) => updateLabel(label.id, { y: value })} />

@@ -2,13 +2,11 @@ import type { MapPoint } from "../../types/project";
 import { useProjectStore } from "../../store/projectStore";
 import { resolveRegionKeyframe } from "../../utils/interpolation";
 import { compareTime, sortedFrames } from "../../utils/time";
+import { DisplayPeriodFields } from "./DisplayPeriodFields";
 import { ColorField, NumberField, TextAreaField, TextField, ToggleField } from "./InspectorFields";
 
 function midpoint(a: MapPoint, b: MapPoint) {
-  return {
-    x: (a.x + b.x) / 2,
-    y: (a.y + b.y) / 2,
-  };
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
 export function RegionInspector({ id }: { id: string }) {
@@ -26,11 +24,9 @@ export function RegionInspector({ id }: { id: string }) {
   const keyframes = [...(region.keyframes ?? [])].sort((a, b) => compareTime(a.time, b.time));
   const frames = sortedFrames(project.timeline.frames);
   const displayStartTime = region.displayStartTime ?? keyframes[0]?.time ?? frames[0]?.time ?? project.timeline.currentTime;
-  const displayEndTime = region.displayEndTime ?? frames[frames.length - 1]?.time ?? project.timeline.end;
+  const displayEndTime = region.displayEndTime ?? project.timeline.end;
   const canDeletePoint = !region.locked && points.length > 3;
-  const selectedPoints = selectedRegionPointIndices
-    .filter((index) => index >= 0 && index < points.length)
-    .sort((a, b) => a - b);
+  const selectedPoints = selectedRegionPointIndices.filter((index) => index >= 0 && index < points.length).sort((a, b) => a - b);
   const canInsertPoint = !region.locked && selectedPoints.length === 2;
 
   const insertPointBetweenSelection = () => {
@@ -40,20 +36,6 @@ export function RegionInspector({ id }: { id: string }) {
     nextPoints.splice(secondIndex, 0, midpoint(points[firstIndex], points[secondIndex]));
     updateRegionPoints(region.id, nextPoints);
     clearRegionPointSelection();
-  };
-
-  const setDisplayStartTime = (value: string) => {
-    updateRegion(region.id, {
-      displayStartTime: value,
-      displayEndTime: compareTime(value, displayEndTime) > 0 ? value : displayEndTime,
-    });
-  };
-
-  const setDisplayEndTime = (value: string) => {
-    updateRegion(region.id, {
-      displayStartTime: compareTime(displayStartTime, value) > 0 ? value : displayStartTime,
-      displayEndTime: value,
-    });
   };
 
   return (
@@ -85,26 +67,13 @@ export function RegionInspector({ id }: { id: string }) {
       <ToggleField label="ロック" checked={region.locked} onChange={(value) => updateRegion(region.id, { locked: value })} />
 
       <h3>表示期間</h3>
-      <label>
-        表示開始
-        <select value={displayStartTime} onChange={(event) => setDisplayStartTime(event.target.value)}>
-          {frames.map((timelineFrame) => (
-            <option value={timelineFrame.time} key={timelineFrame.id}>
-              {timelineFrame.displayDate}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        表示終了
-        <select value={displayEndTime} onChange={(event) => setDisplayEndTime(event.target.value)}>
-          {frames.map((timelineFrame) => (
-            <option value={timelineFrame.time} key={timelineFrame.id}>
-              {timelineFrame.displayDate}
-            </option>
-          ))}
-        </select>
-      </label>
+      <DisplayPeriodFields
+        startTime={region.displayStartTime}
+        endTime={region.displayEndTime}
+        fallbackStartTime={displayStartTime}
+        fallbackEndTime={displayEndTime}
+        onChange={(patch) => updateRegion(region.id, { displayStartTime: patch.startTime, displayEndTime: patch.endTime })}
+      />
 
       <h3>点</h3>
       <button type="button" disabled={region.locked || points.length < 3} onClick={() => updateRegionPoints(region.id, points)}>

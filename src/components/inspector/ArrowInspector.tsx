@@ -1,14 +1,12 @@
 import type { LineCurveMode, MapPoint } from "../../types/project";
 import { useProjectStore } from "../../store/projectStore";
 import { resolveArrowKeyframe } from "../../utils/interpolation";
-import { compareTime, sortedFrames } from "../../utils/time";
+import { compareTime } from "../../utils/time";
+import { DisplayPeriodFields } from "./DisplayPeriodFields";
 import { ColorField, NumberField, TextAreaField, TextField, ToggleField } from "./InspectorFields";
 
 function midpoint(a: MapPoint, b: MapPoint) {
-  return {
-    x: (a.x + b.x) / 2,
-    y: (a.y + b.y) / 2,
-  };
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
 export function ArrowInspector({ id }: { id: string }) {
@@ -25,10 +23,7 @@ export function ArrowInspector({ id }: { id: string }) {
   const points = frame?.points ?? [];
   const canDeletePoint = points.length > 2;
   const keyframes = [...(arrow.keyframes ?? [])].sort((a, b) => compareTime(a.time, b.time));
-  const frames = sortedFrames(project.timeline.frames);
-  const selectedPoints = selectedArrowPointIndices
-    .filter((index) => index >= 0 && index < points.length)
-    .sort((a, b) => a - b);
+  const selectedPoints = selectedArrowPointIndices.filter((index) => index >= 0 && index < points.length).sort((a, b) => a - b);
   const canInsertPoint = selectedPoints.length === 2;
 
   const insertPointBetweenSelection = () => {
@@ -38,20 +33,6 @@ export function ArrowInspector({ id }: { id: string }) {
     nextPoints.splice(secondIndex, 0, midpoint(points[firstIndex], points[secondIndex]));
     updateArrowKeyframe(arrow.id, project.timeline.currentTime, nextPoints);
     clearArrowPointSelection();
-  };
-
-  const setDisplayStartTime = (value: string) => {
-    updateArrow(arrow.id, {
-      startTime: value,
-      endTime: compareTime(value, arrow.endTime) > 0 ? value : arrow.endTime,
-    });
-  };
-
-  const setDisplayEndTime = (value: string) => {
-    updateArrow(arrow.id, {
-      startTime: compareTime(arrow.startTime, value) > 0 ? value : arrow.startTime,
-      endTime: value,
-    });
   };
 
   return (
@@ -75,26 +56,13 @@ export function ArrowInspector({ id }: { id: string }) {
       {arrow.revealAlongPath && <NumberField label="表示にかける秒数" value={arrow.revealDurationSeconds ?? 1} min={0.1} step={0.1} onChange={(value) => updateArrow(arrow.id, { revealDurationSeconds: value })} />}
 
       <h3>表示期間</h3>
-      <label>
-        表示開始
-        <select value={arrow.startTime} onChange={(event) => setDisplayStartTime(event.target.value)}>
-          {frames.map((timelineFrame) => (
-            <option value={timelineFrame.time} key={timelineFrame.id}>
-              {timelineFrame.displayDate}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        表示終了
-        <select value={arrow.endTime} onChange={(event) => setDisplayEndTime(event.target.value)}>
-          {frames.map((timelineFrame) => (
-            <option value={timelineFrame.time} key={timelineFrame.id}>
-              {timelineFrame.displayDate}
-            </option>
-          ))}
-        </select>
-      </label>
+      <DisplayPeriodFields
+        startTime={arrow.startTime}
+        endTime={arrow.endTime}
+        fallbackStartTime={arrow.startTime}
+        fallbackEndTime={arrow.endTime}
+        onChange={(patch) => updateArrow(arrow.id, { startTime: patch.startTime, endTime: patch.endTime })}
+      />
 
       <h3>現在時間の点</h3>
       <button type="button" disabled={!canInsertPoint} onClick={insertPointBetweenSelection}>
