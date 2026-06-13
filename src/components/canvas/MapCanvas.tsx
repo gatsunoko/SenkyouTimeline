@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva";
+import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text } from "react-konva";
 import type Konva from "konva";
 import { defaultSiteIconUrl } from "../../data/defaultAssets";
 import { useProjectStore } from "../../store/projectStore";
@@ -720,6 +720,42 @@ export function MapCanvas() {
   };
   const exportContentScale = exportViewport ? { x: exportViewport.outputWidth / exportViewport.width, y: exportViewport.outputHeight / exportViewport.height } : { x: 1, y: 1 };
   const contentOffset = exportViewport ? { x: -exportViewport.x * exportContentScale.x, y: -exportViewport.y * exportContentScale.y } : { x: 0, y: 0 };
+  const cameraLegendEnabled = project.cameraLegend?.showFactions ?? true;
+  const cameraLegendSize = Math.min(3, Math.max(0.5, project.cameraLegend?.factionSize ?? 1));
+  const cameraLegendFactions = cameraLegendEnabled ? project.factions.filter((faction) => faction.showInCameraLegend) : [];
+  const cameraLegendOverlay = (() => {
+    if (cameraLegendFactions.length === 0) return null;
+    const viewport = exportViewport ?? cameraFrame;
+    const exportPixelToWorld = Math.max(
+      0.0001,
+      Math.min(
+        viewport.width / Math.max(1, viewport.outputWidth),
+        viewport.height / Math.max(1, viewport.outputHeight),
+      ),
+    );
+    const fontSize = 14 * cameraLegendSize;
+    const rowHeight = 22 * cameraLegendSize;
+    const paddingX = 0;
+    const paddingY = 0;
+    const gap = 8 * cameraLegendSize;
+    const radius = 6 * cameraLegendSize;
+    const margin = 4;
+    const textWidth = Math.max(...cameraLegendFactions.map((faction) => estimateLabelTextWidth(faction.name, fontSize)), 48);
+    return {
+      x: viewport.x + margin * exportPixelToWorld,
+      y: viewport.y + margin * exportPixelToWorld,
+      scale: exportPixelToWorld,
+      width: paddingX * 2 + radius * 2 + gap + textWidth,
+      height: paddingY * 2 + rowHeight * cameraLegendFactions.length,
+      fontSize,
+      rowHeight,
+      paddingX,
+      paddingY,
+      gap,
+      radius,
+      textWidth,
+    };
+  })();
 
   const mapImageRect = (() => {
     if (!mapImage?.naturalWidth || !mapImage.naturalHeight) return null;
@@ -1446,6 +1482,40 @@ export function MapCanvas() {
               if (!event || Math.abs(parseTimelineSeconds(event.time) - parseTimelineSeconds(project.timeline.currentTime)) >= 0.25) return null;
               return <EventMarker key={`${event.id}-selected-front`} event={event} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectSingle("event", event.id)} />;
             })()}
+
+          {cameraLegendOverlay && (
+            <Group x={cameraLegendOverlay.x} y={cameraLegendOverlay.y} scaleX={cameraLegendOverlay.scale} scaleY={cameraLegendOverlay.scale} listening={false}>
+              {cameraLegendFactions.map((faction, index) => {
+                const y = cameraLegendOverlay.paddingY + index * cameraLegendOverlay.rowHeight;
+                return (
+                  <Group key={`camera-faction-legend-${faction.id}`} y={y}>
+                    <Circle
+                      x={cameraLegendOverlay.paddingX + cameraLegendOverlay.radius}
+                      y={cameraLegendOverlay.rowHeight / 2}
+                      radius={cameraLegendOverlay.radius}
+                      fill={faction.color}
+                      stroke="#f8fafc"
+                      strokeWidth={1}
+                    />
+                    <Text
+                      x={cameraLegendOverlay.paddingX + cameraLegendOverlay.radius * 2 + cameraLegendOverlay.gap}
+                      y={0}
+                      width={cameraLegendOverlay.textWidth}
+                      height={cameraLegendOverlay.rowHeight}
+                      text={faction.name}
+                      fill="#f8fafc"
+                      stroke={faction.cameraLegendTextOutlineColor ?? "#111827"}
+                      strokeWidth={1.25}
+                      fontSize={cameraLegendOverlay.fontSize}
+                      fontFamily={'"Yu Gothic UI", "Meiryo", system-ui, sans-serif'}
+                      fontStyle="bold"
+                      verticalAlign="middle"
+                    />
+                  </Group>
+                );
+              })}
+            </Group>
+          )}
 
           {isMapImageEditing && mapImageRect && (
             <Group x={mapImageRect.x} y={mapImageRect.y}>

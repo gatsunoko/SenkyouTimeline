@@ -353,6 +353,40 @@ textarea {
   gap: 8px;
 }
 
+.legend-size-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  gap: 8px;
+  align-items: center;
+}
+
+.legend-faction-list {
+  display: grid;
+  gap: 8px;
+}
+
+.legend-faction-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid #263142;
+  border-radius: 6px;
+  background: #121b29;
+}
+
+.legend-faction-row label {
+  min-width: 0;
+  margin: 0;
+}
+
+.legend-faction-row input[type="color"] {
+  width: 34px;
+  height: 28px;
+  padding: 2px;
+}
+
 .right-inspector button {
   width: 100%;
   margin: 4px 0;

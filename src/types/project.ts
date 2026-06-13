@@ -109,7 +109,7 @@ export type EventType =
   | "peace"
   | "other";
 
-export type SelectableType = "faction" | "unit" | "site" | "image" | "line" | "arrow" | "event" | "label" | "frame" | "camera" | "mapImage";
+export type SelectableType = "faction" | "factionSettings" | "unit" | "site" | "image" | "line" | "arrow" | "event" | "label" | "frame" | "camera" | "mapImage";
 export type ToolMode = "select" | "addUnit" | "addSite" | "addImage" | "drawLine" | "drawArrow" | "addLabel" | "mapImageEdit";
 
 export interface MapPoint {
@@ -168,7 +168,14 @@ export interface Faction {
   id: string;
   name: string;
   color: string;
+  showInCameraLegend?: boolean;
+  cameraLegendTextOutlineColor?: string;
   memo: string;
+}
+
+export interface CameraLegendSettings {
+  showFactions: boolean;
+  factionSize: number;
 }
 
 export interface UnitAsset {
@@ -402,6 +409,7 @@ export interface ProjectData {
   version: string;
   projectName: string;
   description: string;
+  cameraLegend?: CameraLegendSettings;
   timeline: Timeline;
   map: ProjectMap;
   unitAssets: UnitAsset[];

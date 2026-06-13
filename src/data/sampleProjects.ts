@@ -7,6 +7,7 @@ export const sampleProjects: ProjectData[] = [
     version: "1.0.0",
     projectName: "戦況図デモ",
     description: demoNote,
+    cameraLegend: { showFactions: true, factionSize: 1 },
     timeline: {
       start: "0",
       end: "10",
@@ -25,8 +26,8 @@ export const sampleProjects: ProjectData[] = [
     siteAssets: [],
     imageAssets: [],
     factions: [
-      { id: "blue", name: "青軍", color: "#2f7ed8", memo: "" },
-      { id: "red", name: "赤軍", color: "#c3423f", memo: "" },
+      { id: "blue", name: "青軍", color: "#2f7ed8", showInCameraLegend: false, cameraLegendTextOutlineColor: "#111827", memo: "" },
+      { id: "red", name: "赤軍", color: "#c3423f", showInCameraLegend: false, cameraLegendTextOutlineColor: "#111827", memo: "" },
     ],
     sites: [
       {

@@ -124,7 +124,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
         </button>
       </div>
       <div className="tabs">
-        <button className={tab === "factions" ? "is-active" : ""} onClick={() => setTab("factions")} type="button">
+        <button className={tab === "factions" ? "is-active" : ""} onClick={() => { setTab("factions"); selectObject("factionSettings", "cameraLegend"); }} type="button">
           陣営
         </button>
         <button className={tab === "units" ? "is-active" : ""} onClick={() => setTab("units")} type="button">

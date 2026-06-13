@@ -5,6 +5,7 @@ import type {
   BattleEvent,
   BattleLine,
   CameraKeyframe,
+  CameraLegendSettings,
   Certainty,
   ExportCamera,
   Faction,
@@ -36,6 +37,7 @@ const emptyProject: ProjectData = {
   version: "1.0.0",
   projectName: "新規戦況図",
   description: "表示確認用のデータ。",
+  cameraLegend: { showFactions: true, factionSize: 1 },
   timeline: {
     start: "0",
     end: "12",
@@ -54,8 +56,8 @@ const emptyProject: ProjectData = {
   siteAssets: [],
   imageAssets: [],
   factions: [
-    { id: "faction_default_a", name: "織田・徳川連合", color: "#2f7ed8", memo: "" },
-    { id: "faction_default_b", name: "武田家", color: "#c3423f", memo: "" },
+    { id: "faction_default_a", name: "織田・徳川連合", color: "#2f7ed8", showInCameraLegend: false, cameraLegendTextOutlineColor: "#111827", memo: "" },
+    { id: "faction_default_b", name: "武田家", color: "#c3423f", showInCameraLegend: false, cameraLegendTextOutlineColor: "#111827", memo: "" },
   ],
   sites: [],
   images: [],
@@ -123,6 +125,7 @@ interface ProjectStore {
   loadProject: (project: ProjectData) => void;
   restoreAutoSaveState: (snapshot: AutoSaveSnapshot) => void;
   updateProjectName: (name: string) => void;
+  updateCameraLegend: (patch: Partial<CameraLegendSettings>) => void;
   setCurrentTime: (time: string) => void;
   moveFrame: (direction: 1 | -1) => void;
   addTimelineKeyframe: () => void;
@@ -220,6 +223,11 @@ function clampPixelValue(value: number | undefined, fallback: number, min: numbe
 function clampCameraScale(value: number | undefined, fallback = 1) {
   const next = Number.isFinite(value) ? Number(value) : fallback;
   return Math.round(Math.min(8, Math.max(0.1, next)) * 10) / 10;
+}
+
+function clampLegendSize(value: number | undefined, fallback = 1) {
+  const next = Number.isFinite(value) ? Number(value) : fallback;
+  return Math.round(Math.min(3, Math.max(0.5, next)) * 10) / 10;
 }
 
 function fitImageToMap(project: ProjectData, naturalWidth: number, naturalHeight: number) {
@@ -708,6 +716,10 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   normalized.map.outputHeight ||= 1080;
   normalized.map.width ||= 1600;
   normalized.map.height ||= 900;
+  normalized.cameraLegend = {
+    showFactions: normalized.cameraLegend?.showFactions ?? true,
+    factionSize: clampLegendSize(normalized.cameraLegend?.factionSize, 1),
+  };
   normalizeExportCamera(normalized);
   if (normalized.map.imageDataUrl && normalized.map.imageNaturalWidth && normalized.map.imageNaturalHeight && (normalized.map.imageWidth === undefined || normalized.map.imageHeight === undefined)) {
     Object.assign(normalized.map, fitImageToMap(normalized, normalized.map.imageNaturalWidth, normalized.map.imageNaturalHeight));
@@ -718,6 +730,8 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   for (const faction of normalized.factions) {
     removeLegacyAbbrevName(faction);
     delete (faction as { type?: unknown }).type;
+    faction.showInCameraLegend = faction.showInCameraLegend ?? false;
+    faction.cameraLegendTextOutlineColor ||= "#111827";
   }
   normalized.unitAssets ||= [];
   for (const asset of normalized.unitAssets) {
@@ -904,6 +918,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   updateProjectName: (name) =>
     commit(set, get, (project) => {
       project.projectName = name;
+    }),
+
+  updateCameraLegend: (patch) =>
+    commit(set, get, (project) => {
+      project.cameraLegend = {
+        showFactions: patch.showFactions ?? project.cameraLegend?.showFactions ?? true,
+        factionSize: patch.factionSize !== undefined ? clampLegendSize(patch.factionSize, project.cameraLegend?.factionSize ?? 1) : clampLegendSize(project.cameraLegend?.factionSize, 1),
+      };
     }),
 
   setCurrentTime: (time) =>
@@ -1149,6 +1171,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         id,
         name: "新規陣営",
         color: "#8cbf72",
+        showInCameraLegend: false,
+        cameraLegendTextOutlineColor: "#111827",
         memo: "",
       });
       get().selectObject("faction", id);
