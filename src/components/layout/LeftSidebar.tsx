@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Castle, Copy, Flag, Image as ImageIcon, Lock, Paintbrush, PanelLeftClose, Plus, Trash2, Unlock } from "lucide-react";
+import { ArrowRight, Castle, Copy, Flag, Image as ImageIcon, Lock, Paintbrush, PanelLeftClose, PencilLine, Plus, Tags, Trash2, Unlock } from "lucide-react";
 import { defaultSiteIconUrl } from "../../data/defaultAssets";
-import { factionTypeLabels } from "../../data/pieceTemplates";
+import { arrowTypeLabels, factionTypeLabels, lineTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
 import { resolveSiteFrame } from "../../utils/interpolation";
 
-type TabKey = "factions" | "units" | "sites" | "images";
+type TabKey = "factions" | "units" | "sites" | "images" | "lines" | "arrows" | "labels";
 type UnitSidebarView = "units" | "assets";
 type SiteSidebarView = "sites" | "assets";
 type ImageSidebarView = "images" | "assets";
@@ -18,6 +18,9 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const unitRowRefs = useRef(new Map<string, HTMLButtonElement>());
   const siteRowRefs = useRef(new Map<string, HTMLButtonElement>());
   const imageRowRefs = useRef(new Map<string, HTMLButtonElement>());
+  const lineRowRefs = useRef(new Map<string, HTMLButtonElement>());
+  const arrowRowRefs = useRef(new Map<string, HTMLButtonElement>());
+  const labelRowRefs = useRef(new Map<string, HTMLButtonElement>());
   const project = useProjectStore((state) => state.project);
   const selected = useProjectStore((state) => state.selected);
   const unitPlacementAssetId = useProjectStore((state) => state.unitPlacementAssetId);
@@ -36,6 +39,9 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const updateUnit = useProjectStore((state) => state.updateUnit);
   const updateSite = useProjectStore((state) => state.updateSite);
   const updateImage = useProjectStore((state) => state.updateImage);
+  const updateLine = useProjectStore((state) => state.updateLine);
+  const updateArrow = useProjectStore((state) => state.updateArrow);
+  const updateLabel = useProjectStore((state) => state.updateLabel);
 
   useEffect(() => {
     if (!selected.id) return;
@@ -52,6 +58,18 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
     if (selected.type === "image") {
       setTab("images");
       setImageView("images");
+      return;
+    }
+    if (selected.type === "line") {
+      setTab("lines");
+      return;
+    }
+    if (selected.type === "arrow") {
+      setTab("arrows");
+      return;
+    }
+    if (selected.type === "label") {
+      setTab("labels");
     }
   }, [selected.id, selected.type]);
 
@@ -76,6 +94,27 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
     });
   }, [selected.id, selected.type, tab, imageView, project.images.length]);
 
+  useEffect(() => {
+    if (selected.type !== "line" || !selected.id || tab !== "lines") return;
+    window.requestAnimationFrame(() => {
+      lineRowRefs.current.get(selected.id!)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  }, [selected.id, selected.type, tab, project.lines.length]);
+
+  useEffect(() => {
+    if (selected.type !== "arrow" || !selected.id || tab !== "arrows") return;
+    window.requestAnimationFrame(() => {
+      arrowRowRefs.current.get(selected.id!)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  }, [selected.id, selected.type, tab, project.arrows.length]);
+
+  useEffect(() => {
+    if (selected.type !== "label" || !selected.id || tab !== "labels") return;
+    window.requestAnimationFrame(() => {
+      labelRowRefs.current.get(selected.id!)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  }, [selected.id, selected.type, tab, project.labels.length]);
+
   return (
     <aside className="left-sidebar">
       <div className="sidebar-header">
@@ -96,6 +135,15 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
         </button>
         <button className={tab === "images" ? "is-active" : ""} onClick={() => setTab("images")} type="button">
           画像
+        </button>
+        <button className={tab === "lines" ? "is-active" : ""} onClick={() => setTab("lines")} type="button">
+          線
+        </button>
+        <button className={tab === "arrows" ? "is-active" : ""} onClick={() => setTab("arrows")} type="button">
+          矢印
+        </button>
+        <button className={tab === "labels" ? "is-active" : ""} onClick={() => setTab("labels")} type="button">
+          ラベル
         </button>
       </div>
 
@@ -404,6 +452,104 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
               ))}
             </>
           )}
+        </section>
+      )}
+
+      {tab === "lines" && (
+        <section className="sidebar-section">
+          {project.lines.length === 0 && <div className="sidebar-empty">配置済みの線はありません。</div>}
+          {project.lines.map((line) => {
+            const faction = project.factions.find((entry) => entry.id === line.factionId);
+            const pointCount = line.keyframes[0]?.points.length ?? 0;
+            return (
+              <button
+                className={`list-row object-list-row ${selected.type === "line" && selected.id === line.id ? "is-selected" : ""}`}
+                type="button"
+                key={line.id}
+                ref={(node) => {
+                  if (node) lineRowRefs.current.set(line.id, node);
+                  else lineRowRefs.current.delete(line.id);
+                }}
+                onClick={() => selectObject("line", line.id)}
+              >
+                <span className="object-list-icon" style={{ color: line.color }}>
+                  <PencilLine size={17} />
+                </span>
+                <span>
+                  <strong>{line.name || "線"}</strong>
+                  <small>{lineTypeLabels[line.lineType]} / {faction?.name ?? "陣営なし"} / {pointCount}点</small>
+                </span>
+                <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateLine(line.id, { locked: !line.locked }); }}>
+                  {line.locked ? <Lock size={15} /> : <Unlock size={15} />}
+                </button>
+                <span className="line-color-chip" style={{ backgroundColor: line.color }} />
+              </button>
+            );
+          })}
+        </section>
+      )}
+
+      {tab === "arrows" && (
+        <section className="sidebar-section">
+          {project.arrows.length === 0 && <div className="sidebar-empty">配置済みの矢印はありません。</div>}
+          {project.arrows.map((arrow) => {
+            const faction = project.factions.find((entry) => entry.id === arrow.factionId);
+            const pointCount = arrow.keyframes?.[0]?.points.length ?? arrow.points.length;
+            return (
+              <button
+                className={`list-row object-list-row ${selected.type === "arrow" && selected.id === arrow.id ? "is-selected" : ""}`}
+                type="button"
+                key={arrow.id}
+                ref={(node) => {
+                  if (node) arrowRowRefs.current.set(arrow.id, node);
+                  else arrowRowRefs.current.delete(arrow.id);
+                }}
+                onClick={() => selectObject("arrow", arrow.id)}
+              >
+                <span className="object-list-icon" style={{ color: arrow.color }}>
+                  <ArrowRight size={17} />
+                </span>
+                <span>
+                  <strong>{arrow.name || "矢印"}</strong>
+                  <small>{arrowTypeLabels[arrow.arrowType]} / {faction?.name ?? "陣営なし"} / {pointCount}点</small>
+                </span>
+                <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateArrow(arrow.id, { locked: !arrow.locked }); }}>
+                  {arrow.locked ? <Lock size={15} /> : <Unlock size={15} />}
+                </button>
+                <span className="line-color-chip" style={{ backgroundColor: arrow.color }} />
+              </button>
+            );
+          })}
+        </section>
+      )}
+
+      {tab === "labels" && (
+        <section className="sidebar-section">
+          {project.labels.length === 0 && <div className="sidebar-empty">配置済みのラベルはありません。</div>}
+          {project.labels.map((label) => (
+            <button
+              className={`list-row object-list-row ${selected.type === "label" && selected.id === label.id ? "is-selected" : ""}`}
+              type="button"
+              key={label.id}
+              ref={(node) => {
+                if (node) labelRowRefs.current.set(label.id, node);
+                else labelRowRefs.current.delete(label.id);
+              }}
+              onClick={() => selectObject("label", label.id)}
+            >
+              <span className="object-list-icon" style={{ color: label.borderColor }}>
+                <Tags size={17} />
+              </span>
+              <span>
+                <strong>{label.text || "ラベル"}</strong>
+                <small>{label.startTime ?? "開始"} - {label.endTime ?? "終了"}</small>
+              </span>
+              <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateLabel(label.id, { locked: !label.locked }); }}>
+                {label.locked ? <Lock size={15} /> : <Unlock size={15} />}
+              </button>
+              <span className="line-color-chip" style={{ backgroundColor: label.backgroundColor, borderColor: label.borderColor }} />
+            </button>
+          ))}
         </section>
       )}
     </aside>
