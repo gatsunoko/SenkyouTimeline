@@ -738,7 +738,7 @@ export function MapCanvas() {
     const paddingX = 0;
     const paddingY = 0;
     const gap = 8 * cameraLegendSize;
-    const radius = 6 * cameraLegendSize;
+    const radius = 7.5 * cameraLegendSize;
     const margin = 4;
     const textWidth = Math.max(...cameraLegendFactions.map((faction) => estimateLabelTextWidth(faction.name, fontSize)), 48);
     return {
