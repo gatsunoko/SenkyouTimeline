@@ -353,6 +353,28 @@ textarea {
   gap: 8px;
 }
 
+.right-inspector input[type="color"] {
+  width: 100%;
+  height: 34px;
+  min-height: 34px;
+  padding: 3px;
+  cursor: pointer;
+}
+
+.right-inspector input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.right-inspector input[type="color"]::-webkit-color-swatch {
+  border: 1px solid rgba(248, 250, 252, 0.42);
+  border-radius: 4px;
+}
+
+.right-inspector input[type="color"]::-moz-color-swatch {
+  border: 1px solid rgba(248, 250, 252, 0.42);
+  border-radius: 4px;
+}
+
 .legend-size-control {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 72px;

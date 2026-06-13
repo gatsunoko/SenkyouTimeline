@@ -81,6 +81,7 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
   const showName = unit.showName !== false;
   const size = frame.size ?? unit.size;
   const nameTextColor = unit.nameTextColor ?? "#f5efe3";
+  const nameFontStyle = unit.nameBold ?? true ? "bold" : "normal";
   const nameOutlineEnabled = unit.nameOutlineEnabled ?? false;
   const nameOutlineColor = unit.nameOutlineColor ?? "#111827";
   const shape = unit.shape ?? "pentagon";
@@ -325,8 +326,8 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
         </Group>
       )}
       {showName && unit.nameBackgroundEnabled && <Rect x={-labelWidth / 2} y={labelY - 2} width={labelWidth} height={labelBackgroundHeight} fill={unit.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
-      {showName && nameOutlineEnabled && <Text text={unit.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontFamily={UI_FONT_FAMILY} fontStyle="bold" fill={nameOutlineColor} stroke={nameOutlineColor} strokeWidth={nameOutlineWidth} wrap="none" listening={false} />}
-      {showName && <Text text={unit.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontFamily={UI_FONT_FAMILY} fontStyle="bold" fill={nameTextColor} wrap="none" />}
+      {showName && nameOutlineEnabled && <Text text={unit.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontFamily={UI_FONT_FAMILY} fontStyle={nameFontStyle} fill={nameOutlineColor} stroke={nameOutlineColor} strokeWidth={nameOutlineWidth} wrap="none" listening={false} />}
+      {showName && <Text text={unit.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontFamily={UI_FONT_FAMILY} fontStyle={nameFontStyle} fill={nameTextColor} wrap="none" />}
     </Group>
   );
 }

@@ -180,7 +180,7 @@ export function RegionShape({ region, fillColor, selected, editable = true, mapW
           strokeWidth={1.2}
           fontSize={22}
           fontFamily={UI_FONT_FAMILY}
-          fontStyle="bold"
+          fontStyle={region.nameBold ?? true ? "bold" : "normal"}
           listening={false}
         />
       )}

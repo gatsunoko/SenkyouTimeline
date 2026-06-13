@@ -36,6 +36,7 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
   const hasImage = Boolean(displayIconUrl);
   const showName = site.showName !== false;
   const nameTextColor = site.nameTextColor ?? "#f5efe3";
+  const nameFontStyle = site.nameBold ?? false ? "bold" : "normal";
   const nameOutlineEnabled = site.nameOutlineEnabled ?? false;
   const nameOutlineColor = site.nameOutlineColor ?? "#111827";
 
@@ -119,8 +120,8 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
         </>
       )}
       {showName && site.nameBackgroundEnabled && <Rect x={-labelWidth / 2} y={labelY - 2} width={labelWidth} height={labelBackgroundHeight} fill={site.nameBackgroundColor ?? "#111827"} cornerRadius={5} opacity={0.92} />}
-      {showName && nameOutlineEnabled && <Text text={site.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontFamily={UI_FONT_FAMILY} fill={nameOutlineColor} stroke={nameOutlineColor} strokeWidth={nameOutlineWidth} wrap="none" ellipsis listening={false} />}
-      {showName && <Text text={site.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontFamily={UI_FONT_FAMILY} fill={nameTextColor} wrap="none" ellipsis />}
+      {showName && nameOutlineEnabled && <Text text={site.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontFamily={UI_FONT_FAMILY} fontStyle={nameFontStyle} fill={nameOutlineColor} stroke={nameOutlineColor} strokeWidth={nameOutlineWidth} wrap="none" ellipsis listening={false} />}
+      {showName && <Text text={site.name} x={-labelTextWidthForKonva / 2} y={labelTextY} width={labelTextWidthForKonva} height={nameFontSize + 2} align="center" fontSize={nameFontSize} fontFamily={UI_FONT_FAMILY} fontStyle={nameFontStyle} fill={nameTextColor} wrap="none" ellipsis />}
     </Group>
   );
 }

@@ -818,6 +818,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     region.borderColor ||= "#f8fafc";
     region.borderWidth = Math.min(12, Math.max(0, Number.isFinite(region.borderWidth) ? region.borderWidth : 1));
     region.showName = region.showName ?? false;
+    region.nameBold = region.nameBold ?? true;
     region.locked = region.locked ?? false;
     region.memo ??= "";
   }
@@ -832,6 +833,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     asset.showName = asset.showName ?? true;
     asset.nameFontSize ||= 14 * asset.size;
     asset.nameTextColor ||= "#f5efe3";
+    asset.nameBold = asset.nameBold ?? true;
     asset.nameBackgroundEnabled = asset.nameBackgroundEnabled ?? false;
     asset.nameBackgroundColor ||= "#111827";
     asset.nameOutlineEnabled = asset.nameOutlineEnabled ?? false;
@@ -844,6 +846,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     asset.factionId ||= normalized.factions?.[0]?.id ?? "faction_default_a";
     asset.nameFontSize ||= 14 * asset.size;
     asset.nameTextColor ||= "#f5efe3";
+    asset.nameBold = asset.nameBold ?? false;
     asset.nameBackgroundEnabled = asset.nameBackgroundEnabled ?? false;
     asset.nameBackgroundColor ||= "#111827";
     asset.nameOutlineEnabled = asset.nameOutlineEnabled ?? false;
@@ -859,6 +862,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     site.nameFontSize ||= 14 * site.size;
     site.showName = site.showName ?? true;
     site.nameTextColor ||= "#f5efe3";
+    site.nameBold = site.nameBold ?? false;
     site.nameBackgroundEnabled = site.nameBackgroundEnabled ?? false;
     site.nameBackgroundColor ||= "#111827";
     site.nameOutlineEnabled = site.nameOutlineEnabled ?? false;
@@ -910,6 +914,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   for (const unit of normalized.units ?? []) {
     removeLegacyAbbrevName(unit);
     unit.nameTextColor ||= "#f5efe3";
+    unit.nameBold = unit.nameBold ?? true;
     unit.nameBackgroundEnabled = unit.nameBackgroundEnabled ?? false;
     unit.nameBackgroundColor ||= "#111827";
     unit.nameOutlineEnabled = unit.nameOutlineEnabled ?? false;
@@ -1360,6 +1365,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         displayEndTime: project.timeline.end,
         showName: true,
         nameTextColor: "#f5efe3",
+        nameBold: true,
         nameBackgroundEnabled: false,
         nameBackgroundColor: "#111827",
         nameOutlineEnabled: false,
@@ -1389,6 +1395,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       unit.assetId = undefined;
       unit.showName = unit.showName ?? true;
       unit.nameTextColor ||= "#f5efe3";
+      unit.nameBold = unit.nameBold ?? true;
       unit.nameBackgroundEnabled = unit.nameBackgroundEnabled ?? false;
       unit.nameBackgroundColor ||= "#111827";
       unit.nameOutlineEnabled = unit.nameOutlineEnabled ?? false;
@@ -1419,6 +1426,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         showName: unit.showName ?? true,
         nameFontSize: unit.nameFontSize ?? 14 * (currentFrame?.size ?? unit.size),
         nameTextColor: unit.nameTextColor ?? "#f5efe3",
+        nameBold: unit.nameBold ?? true,
         nameBackgroundEnabled: unit.nameBackgroundEnabled ?? false,
         nameBackgroundColor: unit.nameBackgroundColor ?? "#111827",
         nameOutlineEnabled: unit.nameOutlineEnabled ?? false,
@@ -1468,6 +1476,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         showName: asset.showName ?? true,
         nameFontSize: asset.nameFontSize ?? 14 * (asset.size ?? 1),
         nameTextColor: asset.nameTextColor ?? "#f5efe3",
+        nameBold: asset.nameBold ?? true,
         nameBackgroundEnabled: asset.nameBackgroundEnabled ?? false,
         nameBackgroundColor: asset.nameBackgroundColor ?? "#111827",
         nameOutlineEnabled: asset.nameOutlineEnabled ?? false,
@@ -1554,6 +1563,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         nameFontSize: 14,
         showName: true,
         nameTextColor: "#f5efe3",
+        nameBold: false,
         nameBackgroundEnabled: false,
         nameBackgroundColor: "#111827",
         nameOutlineEnabled: false,
@@ -1573,6 +1583,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       site.size ||= 1;
       site.nameFontSize ||= 14 * site.size;
       site.nameTextColor ||= "#f5efe3";
+      site.nameBold = site.nameBold ?? false;
       site.nameBackgroundEnabled = site.nameBackgroundEnabled ?? false;
       site.nameBackgroundColor ||= "#111827";
       site.nameOutlineEnabled = site.nameOutlineEnabled ?? false;
@@ -1601,6 +1612,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         factionId: siteFrame.effectiveFactionId,
         nameFontSize: site.nameFontSize ?? 14,
         nameTextColor: site.nameTextColor ?? "#f5efe3",
+        nameBold: site.nameBold ?? false,
         nameBackgroundEnabled: site.nameBackgroundEnabled ?? false,
         nameBackgroundColor: site.nameBackgroundColor ?? "#111827",
         nameOutlineEnabled: site.nameOutlineEnabled ?? false,
@@ -1639,6 +1651,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         iconUrl: asset.imageDataUrl,
         showName: true,
         nameTextColor: asset.nameTextColor ?? "#f5efe3",
+        nameBold: asset.nameBold ?? false,
         nameBackgroundEnabled: asset.nameBackgroundEnabled ?? false,
         nameBackgroundColor: asset.nameBackgroundColor ?? "#111827",
         nameOutlineEnabled: asset.nameOutlineEnabled ?? false,
@@ -1800,6 +1813,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         borderColor: "#f8fafc",
         borderWidth: 1,
         showName: false,
+        nameBold: true,
         locked: false,
         displayStartTime: frames[0]?.time ?? project.timeline.currentTime,
         displayEndTime: project.timeline.end,

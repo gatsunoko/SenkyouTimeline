@@ -50,6 +50,8 @@ export function SiteInspector({ id }: { id: string }) {
         <NumberField label="y" value={site.y} min={0} max={1} step={0.001} onChange={(value) => updateSite(site.id, { y: value })} />
       </div>
       <h3>名前表示</h3>
+      <ToggleField label="名前を表示" checked={site.showName !== false} onChange={(value) => updateSite(site.id, { showName: value })} />
+      <ToggleField label="名前を太字" checked={site.nameBold ?? false} onChange={(value) => updateSite(site.id, { nameBold: value })} />
       <ColorField label="名前の文字色" value={site.nameTextColor ?? "#f5efe3"} onChange={(value) => updateSite(site.id, { nameTextColor: value })} />
       <ToggleField label="名前に背景" checked={site.nameBackgroundEnabled ?? false} onChange={(value) => updateSite(site.id, { nameBackgroundEnabled: value })} />
       {site.nameBackgroundEnabled && <ColorField label="名前背景色" value={site.nameBackgroundColor ?? "#111827"} onChange={(value) => updateSite(site.id, { nameBackgroundColor: value })} />}
@@ -102,7 +104,6 @@ export function SiteInspector({ id }: { id: string }) {
           event.currentTarget.value = "";
         }}
       />
-      <ToggleField label="名前を表示" checked={site.showName !== false} onChange={(value) => updateSite(site.id, { showName: value })} />
       {site.iconUrl && !site.assetId && (
         <button type="button" onClick={() => registerSiteAsset(site.id)}>
           アセットとして登録

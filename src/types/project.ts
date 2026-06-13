@@ -189,6 +189,7 @@ export interface UnitAsset {
   showName?: boolean;
   nameFontSize?: number;
   nameTextColor?: string;
+  nameBold?: boolean;
   nameBackgroundEnabled?: boolean;
   nameBackgroundColor?: string;
   nameOutlineEnabled?: boolean;
@@ -203,6 +204,7 @@ export interface SiteAsset {
   factionId: string;
   nameFontSize?: number;
   nameTextColor?: string;
+  nameBold?: boolean;
   nameBackgroundEnabled?: boolean;
   nameBackgroundColor?: string;
   nameOutlineEnabled?: boolean;
@@ -276,6 +278,7 @@ export interface Unit {
   showName?: boolean;
   nameFontSize?: number;
   nameTextColor?: string;
+  nameBold?: boolean;
   nameBackgroundEnabled?: boolean;
   nameBackgroundColor?: string;
   nameOutlineEnabled?: boolean;
@@ -301,6 +304,7 @@ export interface Site extends MapPoint {
   assetId?: string;
   showName?: boolean;
   nameTextColor?: string;
+  nameBold?: boolean;
   nameBackgroundEnabled?: boolean;
   nameBackgroundColor?: string;
   nameOutlineEnabled?: boolean;
@@ -400,6 +404,7 @@ export interface MapRegion {
   borderColor: string;
   borderWidth: number;
   showName: boolean;
+  nameBold?: boolean;
   locked: boolean;
   displayStartTime?: string;
   displayEndTime?: string;

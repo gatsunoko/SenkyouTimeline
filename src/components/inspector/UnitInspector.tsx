@@ -185,6 +185,7 @@ export function UnitInspector({ id }: { id: string }) {
 
       <h3>名前表示</h3>
       <ToggleField label="名前を表示" checked={unit.showName !== false} onChange={(value) => updateUnit(unit.id, { showName: value })} />
+      <ToggleField label="名前を太字" checked={unit.nameBold ?? true} onChange={(value) => updateUnit(unit.id, { nameBold: value })} />
       <ColorField label="名前の文字色" value={unit.nameTextColor ?? "#f5efe3"} onChange={(value) => updateUnit(unit.id, { nameTextColor: value })} />
       <ToggleField label="名前に背景" checked={unit.nameBackgroundEnabled ?? false} onChange={(value) => updateUnit(unit.id, { nameBackgroundEnabled: value })} />
       {unit.nameBackgroundEnabled && <ColorField label="名前背景色" value={unit.nameBackgroundColor ?? "#111827"} onChange={(value) => updateUnit(unit.id, { nameBackgroundColor: value })} />}

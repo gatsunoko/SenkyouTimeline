@@ -64,6 +64,7 @@ export function RegionInspector({ id }: { id: string }) {
         </>
       )}
       <ToggleField label="名前を表示" checked={region.showName} onChange={(value) => updateRegion(region.id, { showName: value })} />
+      <ToggleField label="名前を太字" checked={region.nameBold ?? true} onChange={(value) => updateRegion(region.id, { nameBold: value })} />
       <ToggleField label="ロック" checked={region.locked} onChange={(value) => updateRegion(region.id, { locked: value })} />
 
       <h3>表示期間</h3>
