@@ -109,8 +109,8 @@ export type EventType =
   | "peace"
   | "other";
 
-export type SelectableType = "faction" | "factionSettings" | "unit" | "site" | "image" | "line" | "arrow" | "event" | "label" | "frame" | "camera" | "mapImage";
-export type ToolMode = "select" | "addUnit" | "addSite" | "addImage" | "drawLine" | "drawArrow" | "addLabel" | "mapImageEdit";
+export type SelectableType = "faction" | "factionSettings" | "unit" | "site" | "image" | "region" | "line" | "arrow" | "event" | "label" | "frame" | "camera" | "mapImage";
+export type ToolMode = "select" | "addUnit" | "addSite" | "addImage" | "drawRegion" | "drawLine" | "drawArrow" | "addLabel" | "mapImageEdit";
 
 export interface MapPoint {
   x: number;
@@ -379,6 +379,25 @@ export interface BattleArrow {
   sourceNote: string;
 }
 
+export interface MapRegion {
+  id: string;
+  name: string;
+  factionId: string;
+  points: MapPoint[];
+  fillColor: string;
+  useFactionColor: boolean;
+  opacity: number;
+  displayOrder: number;
+  borderEnabled: boolean;
+  borderColor: string;
+  borderWidth: number;
+  showName: boolean;
+  locked: boolean;
+  displayStartTime?: string;
+  displayEndTime?: string;
+  memo: string;
+}
+
 export interface BattleEvent extends MapPoint {
   id: string;
   eventType: EventType;
@@ -419,6 +438,7 @@ export interface ProjectData {
   sites: Site[];
   images: PlacedImage[];
   units: Unit[];
+  regions: MapRegion[];
   lines: BattleLine[];
   arrows: BattleArrow[];
   events: BattleEvent[];
@@ -430,12 +450,13 @@ export interface SelectionState {
   id: string | null;
 }
 
-export type MovableSelectionType = "unit" | "site" | "image" | "line" | "arrow" | "label";
+export type MovableSelectionType = "unit" | "site" | "image" | "region" | "line" | "arrow" | "label";
 
 export type SelectionMoveUpdate =
   | { type: "unit"; id: string; x: number; y: number }
   | { type: "site"; id: string; x: number; y: number }
   | { type: "image"; id: string; x: number; y: number }
   | { type: "label"; id: string; x: number; y: number }
+  | { type: "region"; id: string; points: MapPoint[] }
   | { type: "line"; id: string; points: MapPoint[] }
   | { type: "arrow"; id: string; points: MapPoint[] };

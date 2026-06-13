@@ -11,6 +11,7 @@ export interface AutoSaveSnapshot {
   savedAt: string;
   project: ProjectData;
   selected: SelectionState;
+  selectedRegionPointIndices: number[];
   selectedLinePointIndices: number[];
   selectedArrowPointIndices: number[];
   routePreviewUnitId: string | null;

@@ -47,6 +47,7 @@ export const sampleProjects: ProjectData[] = [
       },
     ],
     images: [],
+    regions: [],
     units: [
       {
         id: "blue_unit",

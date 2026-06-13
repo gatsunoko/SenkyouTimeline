@@ -3,7 +3,7 @@ import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text } fr
 import type Konva from "konva";
 import { defaultSiteIconUrl } from "../../data/defaultAssets";
 import { useProjectStore } from "../../store/projectStore";
-import type { MapLabel, MovableSelectionType, PlacedImage, SelectionMoveUpdate, Site, Unit } from "../../types/project";
+import type { MapLabel, MapRegion, MovableSelectionType, PlacedImage, SelectionMoveUpdate, Site, Unit } from "../../types/project";
 import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas } from "../../utils/coordinate";
 import { downloadBlob, downloadDataUrl } from "../../utils/fileIO";
 import { loadCachedImage } from "../../utils/imageCache";
@@ -16,6 +16,7 @@ import { LabelShape } from "./LabelShape";
 import { LineShape } from "./LineShape";
 import { MarchingAntsRect } from "./SelectionMarchingAnts";
 import { PlacedImageShape, placedImageSize } from "./PlacedImageShape";
+import { RegionShape } from "./RegionShape";
 import { SitePiece } from "./SitePiece";
 import { UnitPiece } from "./UnitPiece";
 
@@ -282,6 +283,7 @@ export function MapCanvas() {
   const mapWidth = project.map.width ?? MAP_WIDTH;
   const mapHeight = project.map.height ?? MAP_HEIGHT;
   const selected = useProjectStore((state) => state.selected);
+  const selectedRegionPointIndices = useProjectStore((state) => state.selectedRegionPointIndices);
   const selectedLinePointIndices = useProjectStore((state) => state.selectedLinePointIndices);
   const selectedArrowPointIndices = useProjectStore((state) => state.selectedArrowPointIndices);
   const routePreviewUnitId = useProjectStore((state) => state.routePreviewUnitId);
@@ -293,6 +295,7 @@ export function MapCanvas() {
   const drawingPoints = useProjectStore((state) => state.drawingPoints);
   const selectObject = useProjectStore((state) => state.selectObject);
   const clearSelection = useProjectStore((state) => state.clearSelection);
+  const toggleRegionPointSelection = useProjectStore((state) => state.toggleRegionPointSelection);
   const toggleLinePointSelection = useProjectStore((state) => state.toggleLinePointSelection);
   const toggleArrowPointSelection = useProjectStore((state) => state.toggleArrowPointSelection);
   const updateUnitKeyframe = useProjectStore((state) => state.updateUnitKeyframe);
@@ -301,6 +304,7 @@ export function MapCanvas() {
   const updateArrowKeyframe = useProjectStore((state) => state.updateArrowKeyframe);
   const updateImageKeyframe = useProjectStore((state) => state.updateImageKeyframe);
   const updateLabel = useProjectStore((state) => state.updateLabel);
+  const updateRegionPoints = useProjectStore((state) => state.updateRegionPoints);
   const moveSelectionItems = useProjectStore((state) => state.moveSelectionItems);
   const updateMapImagePlacement = useProjectStore((state) => state.updateMapImagePlacement);
   const updateCameraKeyframe = useProjectStore((state) => state.updateCameraKeyframe);
@@ -346,7 +350,7 @@ export function MapCanvas() {
   }, [project.map.imageDataUrl]);
 
   useEffect(() => {
-    if (tool !== "addUnit" && tool !== "addSite" && tool !== "addImage" && tool !== "addLabel" && tool !== "drawLine" && tool !== "drawArrow") setPreviewPoint(null);
+    if (tool !== "addUnit" && tool !== "addSite" && tool !== "addImage" && tool !== "addLabel" && tool !== "drawRegion" && tool !== "drawLine" && tool !== "drawArrow") setPreviewPoint(null);
   }, [tool]);
 
   useEffect(() => {
@@ -581,6 +585,11 @@ export function MapCanvas() {
       const bounds = getSelectableBounds({ type: "image", id: image.id });
       if (bounds && rectsIntersect(rect, bounds)) items.push({ type: "image", id: image.id });
     }
+    for (const region of project.regions) {
+      if (region.locked || !shouldRenderRegion(region)) continue;
+      const bounds = getSelectableBounds({ type: "region", id: region.id });
+      if (bounds && rectsIntersect(rect, bounds)) items.push({ type: "region", id: region.id });
+    }
     for (const line of project.lines) {
       if (!shouldRenderLine(line)) continue;
       const lineFrameTime = previewRouteTime("line", line.id) ?? project.timeline.currentTime;
@@ -626,7 +635,7 @@ export function MapCanvas() {
       setPreviewPoint(pointerToRelative());
       return;
     }
-    if (tool !== "drawLine" && tool !== "drawArrow") return;
+    if (tool !== "drawRegion" && tool !== "drawLine" && tool !== "drawArrow") return;
     if (drawingPoints.length === 0) {
       setPreviewPoint(null);
       return;
@@ -696,12 +705,14 @@ export function MapCanvas() {
       setTool("select");
       return;
     }
+    if (tool === "drawRegion" || tool === "drawLine" || tool === "drawArrow") {
+      addDrawingPoint(point);
+      return;
+    }
     if (event.target !== event.target.getStage()) return;
     if (tool === "addLabel") {
       addLabel(point);
       window.setTimeout(() => setTool("select"), 0);
-    } else if (tool === "drawLine" || tool === "drawArrow") {
-      addDrawingPoint(point);
     } else if (tool === "mapImageEdit") {
       if (project.map.imageDataUrl) selectSingle("mapImage", "mapImage");
     } else {
@@ -810,6 +821,21 @@ export function MapCanvas() {
   };
   const shouldRenderLine = (line: (typeof project.lines)[number]) => !line.hideWhenRoute || isPreviewRouteSource("line", line.id);
   const shouldRenderArrow = (arrow: (typeof project.arrows)[number]) => !arrow.hideWhenRoute || isPreviewRouteSource("arrow", arrow.id);
+  const shouldRenderRegion = (region: MapRegion) => (!region.displayStartTime || compareTime(region.displayStartTime, project.timeline.currentTime) <= 0) && (!region.displayEndTime || compareTime(region.displayEndTime, project.timeline.currentTime) >= 0);
+  const regionFillColor = (region: MapRegion) => {
+    if (!region.useFactionColor) return region.fillColor;
+    return project.factions.find((faction) => faction.id === region.factionId)?.color ?? region.fillColor;
+  };
+  const regionDisplayOrder = (region: MapRegion) => (Number.isFinite(region.displayOrder) ? region.displayOrder : 0);
+  const orderedRegions = project.regions
+    .map((region, index) => ({ region, index }))
+    .filter(({ region }) => shouldRenderRegion(region))
+    .sort((left, right) => regionDisplayOrder(left.region) - regionDisplayOrder(right.region) || left.index - right.index);
+  const regionMaskPolygons = (regionId: string) => {
+    const currentIndex = orderedRegions.findIndex(({ region }) => region.id === regionId);
+    if (currentIndex < 0) return [];
+    return orderedRegions.slice(currentIndex + 1).map(({ region }) => pointsToCanvas(region.points, mapWidth, mapHeight));
+  };
   const resolveDisplayUnitFrame = (unit: (typeof project.units)[number]) => {
     const routeRange = getUnitRouteTimeRange(unit.route);
     const afterRoute = Boolean(routeRange && compareTime(project.timeline.currentTime, routeRange.endTime) > 0);
@@ -884,6 +910,11 @@ export function MapCanvas() {
       const position = { x: frame.x * mapWidth, y: frame.y * mapHeight };
       return { x: position.x - size.width / 2, y: position.y - size.height / 2, width: size.width, height: size.height };
     }
+    if (item.type === "region") {
+      const region = project.regions.find((entry) => entry.id === item.id);
+      if (!region || !shouldRenderRegion(region)) return null;
+      return selectablePointsBounds(flattenedPointsToCanvasPoints(pointsToCanvas(region.points, mapWidth, mapHeight)), 8);
+    }
     if (item.type === "line") {
       const line = project.lines.find((entry) => entry.id === item.id);
       if (!line || !shouldRenderLine(line)) return null;
@@ -916,7 +947,7 @@ export function MapCanvas() {
     return { x: left + dx, y: top + dy, width: right - left, height: bottom - top };
   })();
   const frontSelectedItems = (multiSelected.length > 0 ? multiSelected : selected.type && selected.id && ["unit", "site", "image", "line", "arrow", "label"].includes(selected.type) ? [{ type: selected.type as MovableSelectionType, id: selected.id }] : []).filter(
-    (item, index, items) => items.findIndex((entry) => selectedItemKey(entry) === selectedItemKey(item)) === index,
+    (item, index, items) => item.type !== "region" && items.findIndex((entry) => selectedItemKey(entry) === selectedItemKey(item)) === index,
   );
   const moveSelectedItems = (delta: CanvasPoint) => {
     const relativeDelta = { x: delta.x / mapWidth, y: delta.y / mapHeight };
@@ -937,6 +968,9 @@ export function MapCanvas() {
         const line = project.lines.find((entry) => entry.id === item.id);
         const frame = line ? resolveLineKeyframe(line, previewRouteTime("line", line.id) ?? project.timeline.currentTime, project.timeline.interpolationMode) : null;
         if (line && frame && !line.locked) updates.push({ type: "line", id: line.id, points: frame.points.map((point) => offsetPoint(point, relativeDelta)) });
+      } else if (item.type === "region") {
+        const region = project.regions.find((entry) => entry.id === item.id);
+        if (region && !region.locked) updates.push({ type: "region", id: region.id, points: region.points.map((point) => offsetPoint(point, relativeDelta)) });
       } else if (item.type === "arrow") {
         const arrow = project.arrows.find((entry) => entry.id === item.id);
         const frame = arrow ? resolveArrowKeyframe(arrow, previewRouteTime("arrow", arrow.id) ?? project.timeline.currentTime, project.timeline.interpolationMode) : null;
@@ -1137,6 +1171,27 @@ export function MapCanvas() {
             </Group>
           )}
 
+          {orderedRegions
+            .map(({ region }) => (
+              <RegionShape
+                key={region.id}
+                region={region}
+                fillColor={regionFillColor(region)}
+                selected={isSelected("region", region.id)}
+                editable={!region.locked}
+                mapWidth={mapWidth}
+                mapHeight={mapHeight}
+                maskPolygons={regionMaskPolygons(region.id)}
+                selectedPointIndices={isSelected("region", region.id) ? selectedRegionPointIndices : []}
+                onSelect={() => selectSingle("region", region.id)}
+                onPointSelect={(pointIndex) => toggleRegionPointSelection(region.id, pointIndex)}
+                onPointDragEnd={(pointIndex, x, y) => {
+                  const points = region.points.map((point, index) => (index === pointIndex ? { x, y } : point));
+                  updateRegionPoints(region.id, points);
+                }}
+              />
+            ))}
+
           {withoutSelected(project.images, "image").map((imageObject) => {
             const frame = resolvePlacedImageFrame(imageObject, project.timeline.currentTime, project.timeline.interpolationMode);
             return (
@@ -1217,7 +1272,7 @@ export function MapCanvas() {
             );
           })}
 
-          {drawingPoints.length > 0 && (
+          {drawingPoints.length > 0 && tool !== "drawRegion" && (
             <Line
               points={pointsToCanvas(drawingPoints, mapWidth, mapHeight)}
               stroke={tool === "drawArrow" ? "#f46f5e" : "#f4d06f"}
@@ -1228,10 +1283,23 @@ export function MapCanvas() {
             />
           )}
 
+          {tool === "drawRegion" && drawingPoints.length > 0 && (
+            <Line
+              points={pointsToCanvas(drawingPoints, mapWidth, mapHeight)}
+              closed={drawingPoints.length >= 3}
+              fill={drawingPoints.length >= 3 ? "rgba(47, 126, 216, 0.28)" : undefined}
+              stroke="#82a7d9"
+              strokeWidth={3}
+              dash={[10, 8]}
+              lineJoin="round"
+              listening={false}
+            />
+          )}
+
           {drawingPoints.length > 0 && previewPoint && (
             <Line
               points={pointsToCanvas([drawingPoints[drawingPoints.length - 1], previewPoint], mapWidth, mapHeight)}
-              stroke={tool === "drawArrow" ? "#ff9a8f" : "#ffe9a8"}
+              stroke={tool === "drawRegion" ? "#b8d4ff" : tool === "drawArrow" ? "#ff9a8f" : "#ffe9a8"}
               strokeWidth={3}
               dash={[8, 8]}
               opacity={0.75}
@@ -1338,6 +1406,30 @@ export function MapCanvas() {
 
           {!exportViewport &&
             frontSelectedItems.map((item) => {
+              if (item.type === "region") {
+                const region = project.regions.find((entry) => entry.id === item.id);
+                if (!region || !shouldRenderRegion(region)) return null;
+                const displayRegion = multiDragDelta && isMultiSelected("region", region.id) ? { ...region, points: region.points.map((point) => offsetPoint(point)) } : region;
+                return (
+                  <RegionShape
+                    key={`${region.id}-selected-front`}
+                    region={displayRegion}
+                    fillColor={regionFillColor(region)}
+                    selected
+                    editable={!region.locked}
+                    mapWidth={mapWidth}
+                    mapHeight={mapHeight}
+                    maskPolygons={regionMaskPolygons(region.id)}
+                    selectedPointIndices={multiSelected.length === 0 ? selectedRegionPointIndices : []}
+                    onSelect={() => selectSingle("region", region.id)}
+                    onPointSelect={(pointIndex) => toggleRegionPointSelection(region.id, pointIndex)}
+                    onPointDragEnd={(pointIndex, x, y) => {
+                      const points = region.points.map((point, index) => (index === pointIndex ? { x, y } : point));
+                      updateRegionPoints(region.id, points);
+                    }}
+                  />
+                );
+              }
               if (item.type === "line") {
                 const line = project.lines.find((entry) => entry.id === item.id);
                 if (!line) return null;
@@ -1665,7 +1757,7 @@ export function MapCanvas() {
         </Layer>
       </Stage>
       <div className="canvas-hint">
-        {tool === "drawLine" || tool === "drawArrow" ? "\u30af\u30ea\u30c3\u30af\u3067\u70b9\u3092\u8ffd\u52a0 / Enter\u3067\u78ba\u5b9a / Esc\u3067\u30ad\u30e3\u30f3\u30bb\u30eb" : "\u30db\u30a4\u30fc\u30eb\u3067\u30ba\u30fc\u30e0 / Space+\u30c9\u30e9\u30c3\u30b0\u3067\u30d1\u30f3 / \u30b3\u30de\u3092\u30c9\u30e9\u30c3\u30b0\u3067\u30ad\u30fc\u30d5\u30ec\u30fc\u30e0\u66f4\u65b0"}
+        {tool === "drawRegion" || tool === "drawLine" || tool === "drawArrow" ? "\u30af\u30ea\u30c3\u30af\u3067\u70b9\u3092\u8ffd\u52a0 / Enter\u3067\u78ba\u5b9a / Esc\u3067\u30ad\u30e3\u30f3\u30bb\u30eb" : "\u30db\u30a4\u30fc\u30eb\u3067\u30ba\u30fc\u30e0 / Space+\u30c9\u30e9\u30c3\u30b0\u3067\u30d1\u30f3 / \u30b3\u30de\u3092\u30c9\u30e9\u30c3\u30b0\u3067\u30ad\u30fc\u30d5\u30ec\u30fc\u30e0\u66f4\u65b0"}
       </div>
     </div>
   );

@@ -57,6 +57,7 @@ function createSnapshot(): AutoSaveSnapshot {
     savedAt: new Date().toISOString(),
     project: state.exportProject(),
     selected: state.selected,
+    selectedRegionPointIndices: [...state.selectedRegionPointIndices],
     selectedLinePointIndices: [...state.selectedLinePointIndices],
     selectedArrowPointIndices: [...state.selectedArrowPointIndices],
     routePreviewUnitId: state.routePreviewUnitId,

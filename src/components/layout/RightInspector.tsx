@@ -8,6 +8,7 @@ import { ImageInspector } from "../inspector/ImageInspector";
 import { LabelInspector } from "../inspector/LabelInspector";
 import { LineInspector } from "../inspector/LineInspector";
 import { MapImageInspector } from "../inspector/MapImageInspector";
+import { RegionInspector } from "../inspector/RegionInspector";
 import { SiteInspector } from "../inspector/SiteInspector";
 import { UnitInspector } from "../inspector/UnitInspector";
 
@@ -116,6 +117,7 @@ export function RightInspector() {
   if (selected.type === "unit") return <UnitInspector id={selected.id} />;
   if (selected.type === "site") return <SiteInspector id={selected.id} />;
   if (selected.type === "image") return <ImageInspector id={selected.id} />;
+  if (selected.type === "region") return <RegionInspector id={selected.id} />;
   if (selected.type === "line") return <LineInspector id={selected.id} />;
   if (selected.type === "arrow") return <ArrowInspector id={selected.id} />;
   if (selected.type === "event") return <EventInspector id={selected.id} />;

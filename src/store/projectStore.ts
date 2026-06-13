@@ -12,6 +12,7 @@ import type {
   ImageAsset,
   MapLabel,
   MapPoint,
+  MapRegion,
   PlacedImage,
   PlacedImageKeyframe,
   ProjectData,
@@ -62,6 +63,7 @@ const emptyProject: ProjectData = {
   sites: [],
   images: [],
   units: [],
+  regions: [],
   lines: [],
   arrows: [],
   events: [],
@@ -109,6 +111,7 @@ const defaultCanvasView: CanvasViewState = { x: 40, y: 30, scale: 0.58 };
 interface ProjectStore {
   project: ProjectData;
   selected: SelectionState;
+  selectedRegionPointIndices: number[];
   selectedLinePointIndices: number[];
   selectedArrowPointIndices: number[];
   routePreviewUnitId: string | null;
@@ -160,6 +163,10 @@ interface ProjectStore {
   updateImageKeyframe: (imageId: string, time: string, keyframe: Partial<PlacedImageKeyframe>) => void;
   deleteImageKeyframe: (imageId: string, time: string) => void;
   deleteImage: (id: string) => void;
+  addRegion: (points?: MapPoint[]) => void;
+  updateRegion: (id: string, patch: Partial<MapRegion>) => void;
+  updateRegionPoints: (id: string, points: MapPoint[]) => void;
+  deleteRegion: (id: string) => void;
   addLine: (points?: MapPoint[]) => void;
   updateLine: (id: string, patch: Partial<BattleLine>) => void;
   updateLineKeyframe: (lineId: string, time: string, points: MapPoint[]) => void;
@@ -178,8 +185,10 @@ interface ProjectStore {
   deleteLabel: (id: string) => void;
   moveSelectionItems: (updates: SelectionMoveUpdate[]) => void;
   selectObject: (type: SelectionState["type"], id: string | null) => void;
+  toggleRegionPointSelection: (regionId: string, pointIndex: number) => void;
   toggleLinePointSelection: (lineId: string, pointIndex: number) => void;
   toggleArrowPointSelection: (arrowId: string, pointIndex: number) => void;
+  clearRegionPointSelection: () => void;
   clearLinePointSelection: () => void;
   clearArrowPointSelection: () => void;
   clearSelection: () => void;
@@ -733,6 +742,22 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     faction.showInCameraLegend = faction.showInCameraLegend ?? false;
     faction.cameraLegendTextOutlineColor ||= "#111827";
   }
+  normalized.regions ||= [];
+  for (const [index, region] of normalized.regions.entries()) {
+    region.name ||= "領域";
+    region.factionId ||= normalized.factions?.[0]?.id ?? "faction_default_a";
+    region.points = (region.points ?? []).map(clampPoint);
+    region.fillColor ||= normalized.factions.find((faction) => faction.id === region.factionId)?.color ?? "#2f7ed8";
+    region.useFactionColor = region.useFactionColor ?? true;
+    region.opacity = Math.min(1, Math.max(0.05, Number.isFinite(region.opacity) ? region.opacity : 0.35));
+    region.displayOrder = Number.isFinite(region.displayOrder) ? region.displayOrder : index;
+    region.borderEnabled = region.borderEnabled ?? false;
+    region.borderColor ||= "#f8fafc";
+    region.borderWidth = Math.min(12, Math.max(0, Number.isFinite(region.borderWidth) ? region.borderWidth : 1));
+    region.showName = region.showName ?? false;
+    region.locked = region.locked ?? false;
+    region.memo ??= "";
+  }
   normalized.unitAssets ||= [];
   for (const asset of normalized.unitAssets) {
     removeLegacyAbbrevName(asset);
@@ -846,6 +871,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
 export const useProjectStore = create<ProjectStore>((set, get) => ({
   project: normalizeImportedProject(sampleProjects[0] ?? emptyProject),
   selected: { type: null, id: null },
+  selectedRegionPointIndices: [],
   selectedLinePointIndices: [],
   selectedArrowPointIndices: [],
   routePreviewUnitId: null,
@@ -864,6 +890,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set({
       project: normalizeImportedProject(createBlankProject()),
       selected: { type: null, id: null },
+      selectedRegionPointIndices: [],
       selectedLinePointIndices: [],
       selectedArrowPointIndices: [],
       routePreviewUnitId: null,
@@ -883,6 +910,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set({
       project: normalizeImportedProject(project),
       selected: { type: null, id: null },
+      selectedRegionPointIndices: [],
       selectedLinePointIndices: [],
       selectedArrowPointIndices: [],
       routePreviewUnitId: null,
@@ -901,6 +929,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set({
       project: normalizeImportedProject(snapshot.project),
       selected: snapshot.selected ?? { type: null, id: null },
+      selectedRegionPointIndices: snapshot.selectedRegionPointIndices ?? [],
       selectedLinePointIndices: snapshot.selectedLinePointIndices ?? [],
       selectedArrowPointIndices: snapshot.selectedArrowPointIndices ?? [],
       routePreviewUnitId: snapshot.routePreviewUnitId ?? null,
@@ -1652,6 +1681,45 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   deleteImage: (id) => commit(set, get, (project) => (project.images = project.images.filter((image) => image.id !== id))),
 
+  addRegion: (points = []) =>
+    commit(set, get, (project) => {
+      if (points.length < 3) return;
+      const frames = sortedFrames(project.timeline.frames);
+      const id = createId("region");
+      const factionId = firstFactionId(project);
+      const faction = project.factions.find((entry) => entry.id === factionId);
+      project.regions ||= [];
+      const displayOrder = Math.max(-1, ...project.regions.map((region) => (Number.isFinite(region.displayOrder) ? region.displayOrder : 0))) + 1;
+      project.regions.push({
+        id,
+        name: "新規領域",
+        factionId,
+        points: points.map(clampPoint),
+        fillColor: faction?.color ?? "#2f7ed8",
+        useFactionColor: true,
+        opacity: 0.35,
+        displayOrder,
+        borderEnabled: false,
+        borderColor: "#f8fafc",
+        borderWidth: 1,
+        showName: false,
+        locked: false,
+        displayStartTime: frames[0]?.time ?? project.timeline.currentTime,
+        displayEndTime: project.timeline.end,
+        memo: "",
+      });
+      get().selectObject("region", id);
+    }),
+
+  updateRegion: (id, patch) => commit(set, get, (project) => applyListPatch(project.regions, id, patch)),
+  updateRegionPoints: (id, points) =>
+    commit(set, get, (project) => {
+      const region = project.regions.find((entry) => entry.id === id);
+      if (!region || region.locked || points.length < 3) return;
+      region.points = points.map(clampPoint);
+    }),
+  deleteRegion: (id) => commit(set, get, (project) => (project.regions = project.regions.filter((region) => region.id !== id))),
+
   addLine: (points = []) =>
     commit(set, get, (project) => {
       const frame = currentFrame(project);
@@ -1898,6 +1966,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         } else if (update.type === "image") {
           const image = project.images.find((entry) => entry.id === update.id);
           if (image && !image.locked) applyPlacedImagePositionKeyframe(project, update.id, project.timeline.currentTime, { x: update.x, y: update.y });
+        } else if (update.type === "region") {
+          const region = project.regions.find((entry) => entry.id === update.id);
+          if (region && !region.locked && update.points.length >= 3) region.points = update.points.map(clampPoint);
         } else if (update.type === "label") {
           const label = project.labels.find((entry) => entry.id === update.id);
           if (label && !label.locked) Object.assign(label, clampPoint({ x: update.x, y: update.y }));
@@ -1915,15 +1986,28 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((state) => ({
       tool: state.tool === "mapImageEdit" && type !== "mapImage" ? "select" : state.tool,
       selected: { type, id },
+      selectedRegionPointIndices: type === "region" && id === state.selected.id ? state.selectedRegionPointIndices : [],
       selectedLinePointIndices: type === "line" && id === state.selected.id ? state.selectedLinePointIndices : [],
       selectedArrowPointIndices: type === "arrow" && id === state.selected.id ? state.selectedArrowPointIndices : [],
     })),
+  toggleRegionPointSelection: (regionId, pointIndex) =>
+    set((state) => {
+      const current = state.selected.type === "region" && state.selected.id === regionId ? state.selectedRegionPointIndices : [];
+      const next = current.includes(pointIndex) ? current.filter((index) => index !== pointIndex) : [...current, pointIndex].slice(-2);
+      return {
+        selected: { type: "region", id: regionId },
+        selectedRegionPointIndices: next,
+        selectedLinePointIndices: [],
+        selectedArrowPointIndices: [],
+      };
+    }),
   toggleLinePointSelection: (lineId, pointIndex) =>
     set((state) => {
       const current = state.selected.type === "line" && state.selected.id === lineId ? state.selectedLinePointIndices : [];
       const next = current.includes(pointIndex) ? current.filter((index) => index !== pointIndex) : [...current, pointIndex].slice(-2);
       return {
         selected: { type: "line", id: lineId },
+        selectedRegionPointIndices: [],
         selectedLinePointIndices: next,
         selectedArrowPointIndices: [],
       };
@@ -1934,13 +2018,15 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const next = current.includes(pointIndex) ? current.filter((index) => index !== pointIndex) : [...current, pointIndex].slice(-2);
       return {
         selected: { type: "arrow", id: arrowId },
+        selectedRegionPointIndices: [],
         selectedLinePointIndices: [],
         selectedArrowPointIndices: next,
       };
     }),
+  clearRegionPointSelection: () => set({ selectedRegionPointIndices: [] }),
   clearLinePointSelection: () => set({ selectedLinePointIndices: [] }),
   clearArrowPointSelection: () => set({ selectedArrowPointIndices: [] }),
-  clearSelection: () => set({ selected: { type: null, id: null }, selectedLinePointIndices: [], selectedArrowPointIndices: [] }),
+  clearSelection: () => set({ selected: { type: null, id: null }, selectedRegionPointIndices: [], selectedLinePointIndices: [], selectedArrowPointIndices: [] }),
 
   updateUnitKeyframe: (unitId, time, keyframe) =>
     commit(set, get, (project) => {
@@ -2110,7 +2196,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       sitePlacementAssetId: null,
       imagePlacementAssetId: tool === "addImage" ? state.imagePlacementAssetId : null,
       imagePlacement: tool === "addImage" ? state.imagePlacement : null,
-      drawingPoints: tool === "drawLine" || tool === "drawArrow" ? state.drawingPoints : [],
+      drawingPoints: tool === "drawRegion" || tool === "drawLine" || tool === "drawArrow" ? state.drawingPoints : [],
       selected: tool !== "mapImageEdit" && state.selected.type === "mapImage" ? { type: null, id: null } : state.selected,
     })),
   setUnitPlacementAsset: (assetId) =>
@@ -2171,18 +2257,30 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   cancelDrawing: () => set({ drawingPoints: [], tool: "select", unitPlacementAssetId: null, sitePlacementAssetId: null, imagePlacementAssetId: null, imagePlacement: null }),
   finishDrawing: () => {
     const { tool, drawingPoints } = get();
-    if (drawingPoints.length < 2) {
+    if ((tool === "drawRegion" && drawingPoints.length < 3) || (tool !== "drawRegion" && drawingPoints.length < 2)) {
       set({ drawingPoints: [], tool: "select" });
       return;
     }
+    if (tool === "drawRegion") get().addRegion(drawingPoints);
     if (tool === "drawLine") get().addLine(drawingPoints);
     if (tool === "drawArrow") get().addArrow(drawingPoints);
     set({ drawingPoints: [], tool: "select", imagePlacementAssetId: null, imagePlacement: null });
   },
 
   deleteSelected: () => {
-    const { project, selected, selectedLinePointIndices, selectedArrowPointIndices } = get();
+    const { project, selected, selectedRegionPointIndices, selectedLinePointIndices, selectedArrowPointIndices } = get();
     if (!selected.type || !selected.id) return;
+
+    if (selected.type === "region" && selectedRegionPointIndices.length > 0) {
+      const region = project.regions.find((entry) => entry.id === selected.id);
+      if (!region || region.locked) return;
+      const removeIndices = new Set(selectedRegionPointIndices);
+      const nextPoints = region.points.filter((_, index) => !removeIndices.has(index));
+      if (nextPoints.length < 3) return;
+      get().updateRegionPoints(selected.id, nextPoints);
+      set({ selectedRegionPointIndices: [] });
+      return;
+    }
 
     if (selected.type === "line" && selectedLinePointIndices.length > 0) {
       const line = project.lines.find((entry) => entry.id === selected.id);
@@ -2210,12 +2308,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
     if (selected.type === "unit") get().deleteUnit(selected.id);
     if (selected.type === "site") get().deleteSite(selected.id);
+    if (selected.type === "region") get().deleteRegion(selected.id);
     if (selected.type === "line") get().deleteLine(selected.id);
     if (selected.type === "arrow") get().deleteArrow(selected.id);
     if (selected.type === "event") get().deleteEvent(selected.id);
     if (selected.type === "label") get().deleteLabel(selected.id);
     if (selected.type === "image") get().deleteImage(selected.id);
-    set({ selected: { type: null, id: null }, selectedLinePointIndices: [], selectedArrowPointIndices: [], routePreviewUnitId: null, unitPlacementAssetId: null, sitePlacementAssetId: null, imagePlacementAssetId: null, imagePlacement: null });
+    set({ selected: { type: null, id: null }, selectedRegionPointIndices: [], selectedLinePointIndices: [], selectedArrowPointIndices: [], routePreviewUnitId: null, unitPlacementAssetId: null, sitePlacementAssetId: null, imagePlacementAssetId: null, imagePlacement: null });
   },
 
   undo: () => {
@@ -2227,6 +2326,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       historyPast: historyPast.slice(0, -1),
       historyFuture: [project, ...historyFuture],
       selected: { type: null, id: null },
+      selectedRegionPointIndices: [],
       selectedLinePointIndices: [],
       selectedArrowPointIndices: [],
       routePreviewUnitId: null,
@@ -2246,6 +2346,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       historyPast: trimHistory([...historyPast, project]),
       historyFuture: historyFuture.slice(1),
       selected: { type: null, id: null },
+      selectedRegionPointIndices: [],
       selectedLinePointIndices: [],
       selectedArrowPointIndices: [],
       routePreviewUnitId: null,

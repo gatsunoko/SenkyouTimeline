@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Castle, Copy, Flag, Image as ImageIcon, Lock, Paintbrush, PanelLeftClose, PencilLine, Plus, Tags, Trash2, Unlock } from "lucide-react";
+import { ArrowRight, Castle, Copy, Flag, Image as ImageIcon, Lock, Paintbrush, PanelLeftClose, PencilLine, Pentagon, Plus, Tags, Trash2, Unlock } from "lucide-react";
 import { defaultSiteIconUrl } from "../../data/defaultAssets";
 import { arrowTypeLabels, lineTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
 import { resolveSiteFrame } from "../../utils/interpolation";
 
-type TabKey = "factions" | "units" | "sites" | "images" | "lines" | "arrows" | "labels";
+type TabKey = "factions" | "units" | "sites" | "images" | "regions" | "lines" | "arrows" | "labels";
 type UnitSidebarView = "units" | "assets";
 type SiteSidebarView = "sites" | "assets";
 type ImageSidebarView = "images" | "assets";
@@ -18,6 +18,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const unitRowRefs = useRef(new Map<string, HTMLButtonElement>());
   const siteRowRefs = useRef(new Map<string, HTMLButtonElement>());
   const imageRowRefs = useRef(new Map<string, HTMLButtonElement>());
+  const regionRowRefs = useRef(new Map<string, HTMLButtonElement>());
   const lineRowRefs = useRef(new Map<string, HTMLButtonElement>());
   const arrowRowRefs = useRef(new Map<string, HTMLButtonElement>());
   const labelRowRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -39,6 +40,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const updateUnit = useProjectStore((state) => state.updateUnit);
   const updateSite = useProjectStore((state) => state.updateSite);
   const updateImage = useProjectStore((state) => state.updateImage);
+  const updateRegion = useProjectStore((state) => state.updateRegion);
   const updateLine = useProjectStore((state) => state.updateLine);
   const updateArrow = useProjectStore((state) => state.updateArrow);
   const updateLabel = useProjectStore((state) => state.updateLabel);
@@ -58,6 +60,10 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
     if (selected.type === "image") {
       setTab("images");
       setImageView("images");
+      return;
+    }
+    if (selected.type === "region") {
+      setTab("regions");
       return;
     }
     if (selected.type === "line") {
@@ -93,6 +99,13 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
       imageRowRefs.current.get(selected.id!)?.scrollIntoView({ block: "center", behavior: "smooth" });
     });
   }, [selected.id, selected.type, tab, imageView, project.images.length]);
+
+  useEffect(() => {
+    if (selected.type !== "region" || !selected.id || tab !== "regions") return;
+    window.requestAnimationFrame(() => {
+      regionRowRefs.current.get(selected.id!)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  }, [selected.id, selected.type, tab, project.regions.length]);
 
   useEffect(() => {
     if (selected.type !== "line" || !selected.id || tab !== "lines") return;
@@ -135,6 +148,9 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
         </button>
         <button className={tab === "images" ? "is-active" : ""} onClick={() => setTab("images")} type="button">
           画像
+        </button>
+        <button className={tab === "regions" ? "is-active" : ""} onClick={() => setTab("regions")} type="button">
+          領域
         </button>
         <button className={tab === "lines" ? "is-active" : ""} onClick={() => setTab("lines")} type="button">
           線
@@ -451,6 +467,40 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
               ))}
             </>
           )}
+        </section>
+      )}
+
+      {tab === "regions" && (
+        <section className="sidebar-section">
+          {project.regions.length === 0 && <div className="sidebar-empty">配置済みの領域はありません。</div>}
+          {project.regions.map((region) => {
+            const faction = project.factions.find((entry) => entry.id === region.factionId);
+            const color = region.useFactionColor ? faction?.color ?? region.fillColor : region.fillColor;
+            return (
+              <button
+                className={`list-row object-list-row ${selected.type === "region" && selected.id === region.id ? "is-selected" : ""}`}
+                type="button"
+                key={region.id}
+                ref={(node) => {
+                  if (node) regionRowRefs.current.set(region.id, node);
+                  else regionRowRefs.current.delete(region.id);
+                }}
+                onClick={() => selectObject("region", region.id)}
+              >
+                <span className="object-list-icon" style={{ color }}>
+                  <Pentagon size={17} />
+                </span>
+                <span>
+                  <strong>{region.name || "領域"}</strong>
+                  <small>{faction?.name ?? "陣営なし"} / {region.points.length}点</small>
+                </span>
+                <button className="icon-only" type="button" onClick={(event) => { event.stopPropagation(); updateRegion(region.id, { locked: !region.locked }); }}>
+                  {region.locked ? <Lock size={15} /> : <Unlock size={15} />}
+                </button>
+                <span className="line-color-chip" style={{ backgroundColor: color }} />
+              </button>
+            );
+          })}
         </section>
       )}
 
