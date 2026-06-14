@@ -311,6 +311,7 @@ export function MapCanvas() {
   const [selectionRect, setSelectionRect] = useState<CanvasRect | null>(null);
   const [multiSelected, setMultiSelected] = useState<MultiSelectionItem[]>([]);
   const [multiDragDelta, setMultiDragDelta] = useState<CanvasPoint | null>(null);
+  const [selectedRegionPointDragPreview, setSelectedRegionPointDragPreview] = useState<{ regionId: string; pointIndex: number; point: CanvasPoint } | null>(null);
   const middlePanRef = useRef<{ active: boolean; x: number; y: number }>({ active: false, x: 0, y: 0 });
   const mapImageResizeStartRef = useRef<{ width: number; height: number } | null>(null);
   const selectionStartRef = useRef<CanvasPoint | null>(null);
@@ -397,6 +398,10 @@ export function MapCanvas() {
   useEffect(() => {
     if (drawingPoints.length === 0) setPreviewPoint(null);
   }, [drawingPoints.length]);
+
+  useEffect(() => {
+    setSelectedRegionPointDragPreview(null);
+  }, [project.timeline.currentTime, selected.id, selected.type]);
 
   useEffect(() => {
     const exportStillImage = (format: StillImageExportFormat) => {
@@ -931,6 +936,10 @@ export function MapCanvas() {
   };
   const deltaRelative = multiDragDelta ? { x: multiDragDelta.x / mapWidth, y: multiDragDelta.y / mapHeight } : { x: 0, y: 0 };
   const offsetPoint = <T extends { x: number; y: number }>(point: T, delta = deltaRelative): T => ({ ...point, x: point.x + delta.x, y: point.y + delta.y });
+  const applySelectedRegionPointPreview = (regionId: string, points: CanvasPoint[]) =>
+    selectedRegionPointDragPreview?.regionId === regionId
+      ? points.map((point, index) => (index === selectedRegionPointDragPreview.pointIndex ? selectedRegionPointDragPreview.point : point))
+      : points;
   const selectablePointsBounds = (points: CanvasPoint[], padding: number): CanvasRect | null => {
     if (points.length === 0) return null;
     const xs = points.map((point) => point.x);
@@ -1042,6 +1051,20 @@ export function MapCanvas() {
     updateRegionPoints(regionPointInsertControl.regionId, nextPoints);
     clearRegionPointSelection();
   };
+  const selectedRegionPointHitTargets = (() => {
+    if (exportViewport || selected.type !== "region" || !selected.id || multiSelected.length > 0) return [];
+    const region = project.regions.find((entry) => entry.id === selected.id);
+    if (!region || !shouldRenderRegion(region)) return [];
+    const frame = resolveDisplayRegion(region);
+    if (!frame) return [];
+    return applySelectedRegionPointPreview(region.id, frame.points).map((point, index) => ({
+      index,
+      point,
+      position: relativeToCanvas(point, mapWidth, mapHeight),
+      draggable: objectDragEnabled && !region.locked,
+    }));
+  })();
+  const selectedRegionPointHitRadius = Math.max(8, 14 / Math.max(0.01, scale));
   const frontSelectedItems = (multiSelected.length > 0 ? multiSelected : selected.type && selected.id && ["unit", "site", "image", "line", "arrow", "label"].includes(selected.type) ? [{ type: selected.type as MovableSelectionType, id: selected.id }] : []).filter(
     (item, index, items) => item.type !== "region" && items.findIndex((entry) => selectedItemKey(entry) === selectedItemKey(item)) === index,
   );
@@ -1282,7 +1305,7 @@ export function MapCanvas() {
           {orderedRegions
             .map(({ region, frame }) => {
               if (!frame) return null;
-              const displayRegion = { ...region, points: frame.points };
+              const displayRegion = { ...region, points: applySelectedRegionPointPreview(region.id, frame.points) };
               return (
                 <RegionShape
                   key={region.id}
@@ -1797,6 +1820,49 @@ export function MapCanvas() {
               if (!event || Math.abs(parseTimelineSeconds(event.time) - parseTimelineSeconds(project.timeline.currentTime)) >= 0.25) return null;
               return <EventMarker key={`${event.id}-selected-front`} event={event} selected mapWidth={mapWidth} mapHeight={mapHeight} onSelect={() => selectSingle("event", event.id)} />;
             })()}
+
+          {selectedRegionPointHitTargets.map((target) => (
+            <Circle
+              key={`selected-region-point-hit-${selected.id}-${target.index}`}
+              x={target.position.x}
+              y={target.position.y}
+              radius={selectedRegionPointHitRadius}
+              fill="rgba(255,255,255,0.01)"
+              stroke="rgba(255,255,255,0.01)"
+              strokeWidth={1}
+              draggable={target.draggable}
+              onMouseDown={(event) => {
+                event.cancelBubble = true;
+              }}
+              onClick={(event) => {
+                event.cancelBubble = true;
+                if (selected.id) toggleRegionPointSelection(selected.id, target.index);
+              }}
+              onTap={(event) => {
+                event.cancelBubble = true;
+                if (selected.id) toggleRegionPointSelection(selected.id, target.index);
+              }}
+              onDragStart={(event) => {
+                event.cancelBubble = true;
+              }}
+              onDragMove={(event) => {
+                event.cancelBubble = true;
+                if (!selected.id) return;
+                const nextPoint = canvasToRelative({ x: event.target.x(), y: event.target.y() }, mapWidth, mapHeight);
+                setSelectedRegionPointDragPreview({ regionId: selected.id, pointIndex: target.index, point: nextPoint });
+              }}
+              onDragEnd={(event) => {
+                event.cancelBubble = true;
+                if (!selected.id) return;
+                const nextPoint = canvasToRelative({ x: event.target.x(), y: event.target.y() }, mapWidth, mapHeight);
+                const region = project.regions.find((entry) => entry.id === selected.id);
+                const frame = region ? resolveDisplayRegion(region) : null;
+                if (!frame) return;
+                updateRegionPoints(selected.id, frame.points.map((point, index) => (index === target.index ? nextPoint : point)));
+                setSelectedRegionPointDragPreview(null);
+              }}
+            />
+          ))}
 
           {cameraLegendOverlay && (
             <Group x={cameraLegendOverlay.x} y={cameraLegendOverlay.y} scaleX={cameraLegendOverlay.scale} scaleY={cameraLegendOverlay.scale} listening={false}>
