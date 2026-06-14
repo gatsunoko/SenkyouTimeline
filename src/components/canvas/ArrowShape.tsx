@@ -141,6 +141,7 @@ export function ArrowShape({ arrow, frame, selected, preview = false, revealProg
   const canvasPoints = pointsToCanvas(displayPoints, 1, 1);
   const hasVisibleLength = displayPoints.length >= 2 && pointDistance(displayPoints[0], displayPoints[displayPoints.length - 1]) > 0.0001;
   const drawTension = 0;
+  const interactive = !arrow.locked;
 
   useEffect(() => {
     setDragPoints(null);
@@ -162,8 +163,9 @@ export function ArrowShape({ arrow, frame, selected, preview = false, revealProg
             lineCap="round"
             lineJoin="round"
             tension={drawTension}
-            onClick={onSelect}
-            onTap={onSelect}
+            listening={interactive}
+            onClick={interactive ? onSelect : undefined}
+            onTap={interactive ? onSelect : undefined}
           />
           {selected && <MarchingAntsArrow points={canvasPoints} strokeWidth={arrow.width + 8} pointerLength={20 * arrowHeadSize + 8} pointerWidth={18 * arrowHeadSize + 8} lineCap="round" lineJoin="round" tension={drawTension} />}
           <Arrow
@@ -178,8 +180,9 @@ export function ArrowShape({ arrow, frame, selected, preview = false, revealProg
             lineCap="round"
             lineJoin="round"
             tension={drawTension}
-            onClick={onSelect}
-            onTap={onSelect}
+            listening={interactive}
+            onClick={interactive ? onSelect : undefined}
+            onTap={interactive ? onSelect : undefined}
           />
         </>
       )}
@@ -197,7 +200,8 @@ export function ArrowShape({ arrow, frame, selected, preview = false, revealProg
               stroke={pointSelected ? "#f46f5e" : "#1b1f29"}
               strokeWidth={pointSelected ? 3 : 2}
               hitStrokeWidth={14}
-              draggable={dragEnabled && !arrow.locked}
+              listening={interactive}
+              draggable={dragEnabled && interactive}
               onMouseDown={updateDragButton}
               onClick={(event) => {
                 event.cancelBubble = true;

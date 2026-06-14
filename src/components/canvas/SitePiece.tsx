@@ -39,6 +39,7 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
   const nameFontStyle = site.nameBold ?? false ? "bold" : "normal";
   const nameOutlineEnabled = site.nameOutlineEnabled ?? false;
   const nameOutlineColor = site.nameOutlineColor ?? "#111827";
+  const interactive = !site.locked;
 
   useEffect(() => {
     if (!displayIconUrl) {
@@ -83,9 +84,10 @@ export function SitePiece({ site, selected, color, mapWidth, mapHeight, onSelect
       x={position.x}
       y={position.y}
       opacity={hasImage ? 1 : 0.94}
-      draggable={dragEnabled && !site.locked}
-      onClick={onSelect}
-      onTap={onSelect}
+      listening={interactive}
+      draggable={dragEnabled && interactive}
+      onClick={interactive ? onSelect : undefined}
+      onTap={interactive ? onSelect : undefined}
       onMouseDown={updateDragButton}
       onDragStart={stopBlockedDrag}
       dragBoundFunc={(nextPosition) => (isDragAllowed() ? nextPosition : position)}

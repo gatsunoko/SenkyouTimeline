@@ -49,14 +49,16 @@ export function LabelShape({ label, selected, mapWidth, mapHeight, onSelect, onD
   const width = Math.max(70, textWidth + horizontalPadding * 2 + outlineWidth * 2);
   const height = label.fontSize + 16;
   const textAreaWidth = width - horizontalPadding * 2;
+  const interactive = !label.locked;
   return (
     <Group
       x={position.x}
       y={position.y}
       opacity={label.opacity}
-      draggable={dragEnabled && !label.locked}
-      onClick={onSelect}
-      onTap={onSelect}
+      listening={interactive}
+      draggable={dragEnabled && interactive}
+      onClick={interactive ? onSelect : undefined}
+      onTap={interactive ? onSelect : undefined}
       onMouseDown={updateDragButton}
       onDragStart={stopBlockedDrag}
       dragBoundFunc={(nextPosition) => (isDragAllowed() ? nextPosition : position)}

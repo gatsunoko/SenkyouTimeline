@@ -88,6 +88,7 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
   const isPentagon = shape === "pentagon";
   const isConvex = shape === "convex";
   const isDirectionalShape = isPentagon || isConvex;
+  const interactive = !unit.locked;
   const currentRotation = rotationPreview ?? frame.rotation ?? 0;
   const bodyRotation = isDirectionalShape ? currentRotation : 0;
 
@@ -215,10 +216,11 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
       ref={rootGroupRef}
       x={position.x}
       y={position.y}
-      draggable={dragEnabled && !unit.locked}
+      listening={interactive}
+      draggable={dragEnabled && interactive}
       opacity={hasImage ? 1 : 0.96}
-      onClick={onSelect}
-      onTap={onSelect}
+      onClick={interactive ? onSelect : undefined}
+      onTap={interactive ? onSelect : undefined}
       onMouseDown={updateDragButton}
       onDragStart={stopBlockedDrag}
       dragBoundFunc={(nextPosition) => (isDragAllowed() ? nextPosition : position)}
@@ -233,7 +235,7 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
       }}
     >
       {selected && <MarchingAntsRect x={-selectionWidth / 2 - 6} y={-bodySelectionSize / 2 - 6} width={selectionWidth + 12} height={totalHeight + 12} cornerRadius={8} />}
-      {selected && isDirectionalShape && dragEnabled && !unit.locked && (
+      {selected && isDirectionalShape && dragEnabled && interactive && (
         <>
           <MarchingAntsCircle radius={rotateGuideRadius} opacity={0.72} />
           <MarchingAntsLine points={[0, 0, rotationHandlePosition.x, rotationHandlePosition.y]} strokeWidth={2} />

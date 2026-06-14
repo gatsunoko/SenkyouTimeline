@@ -198,6 +198,7 @@ export function RegionShape({ region, fillColor, selected, editable = true, mapW
               stroke={pointSelected ? "#f46f5e" : "#111827"}
               strokeWidth={pointSelected ? 3 : 2}
               hitStrokeWidth={14}
+              listening={editable && !region.locked}
               draggable={dragEnabled && editable && !region.locked}
               onMouseDown={updateDragButton}
               onClick={(event) => {

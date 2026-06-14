@@ -26,6 +26,7 @@ export function LineShape({ line, frame, selected, preview = false, selectedPoin
   const activePoints = dragPoints ?? frame.points;
   const tension = line.curveMode === "curve" ? 0.45 : 0;
   const canvasPoints = pointsToCanvas(activePoints, mapWidth, mapHeight);
+  const interactive = !line.locked;
 
   useEffect(() => {
     setDragPoints(null);
@@ -42,8 +43,9 @@ export function LineShape({ line, frame, selected, preview = false, selectedPoin
         lineCap="round"
         lineJoin="round"
         tension={tension}
-        onClick={onSelect}
-        onTap={onSelect}
+        listening={interactive}
+        onClick={interactive ? onSelect : undefined}
+        onTap={interactive ? onSelect : undefined}
       />
       {selected && <MarchingAntsLine points={canvasPoints} strokeWidth={line.width + 8} lineCap="round" lineJoin="round" tension={tension} />}
       <Line
@@ -55,8 +57,9 @@ export function LineShape({ line, frame, selected, preview = false, selectedPoin
         lineCap="round"
         lineJoin="round"
         tension={tension}
-        onClick={onSelect}
-        onTap={onSelect}
+        listening={interactive}
+        onClick={interactive ? onSelect : undefined}
+        onTap={interactive ? onSelect : undefined}
       />
       {selected &&
         activePoints.map((point, index) => {
@@ -72,7 +75,8 @@ export function LineShape({ line, frame, selected, preview = false, selectedPoin
               stroke={pointSelected ? "#f46f5e" : "#1b1f29"}
               strokeWidth={pointSelected ? 3 : 2}
               hitStrokeWidth={14}
-              draggable={dragEnabled && !line.locked}
+              listening={interactive}
+              draggable={dragEnabled && interactive}
               onMouseDown={updateDragButton}
               onClick={(event) => {
                 event.cancelBubble = true;

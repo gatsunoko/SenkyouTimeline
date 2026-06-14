@@ -612,7 +612,7 @@ export function MapCanvas() {
     if (selected.type === "region" && selected.id) {
       const region = project.regions.find((entry) => entry.id === selected.id);
       const frame = region ? resolveRegionKeyframe(region, project.timeline.currentTime, project.timeline.interpolationMode) : null;
-      if (region && frame) {
+      if (region && !region.locked && frame) {
         const hitRect = expandRect(rect, 8);
         const pointIndices = frame.points
           .map((point, index) => ({ index, point: relativeToCanvas(point, mapWidth, mapHeight) }))
@@ -627,10 +627,12 @@ export function MapCanvas() {
     }
     const items: MultiSelectionItem[] = [];
     for (const unit of project.units) {
+      if (unit.locked) continue;
       const bounds = getSelectableBounds({ type: "unit", id: unit.id });
       if (bounds && rectsIntersect(rect, bounds)) items.push({ type: "unit", id: unit.id });
     }
     for (const site of project.sites) {
+      if (site.locked) continue;
       const bounds = getSelectableBounds({ type: "site", id: site.id });
       if (bounds && rectsIntersect(rect, bounds)) items.push({ type: "site", id: site.id });
     }
@@ -645,6 +647,7 @@ export function MapCanvas() {
       if (bounds && rectsIntersect(rect, bounds)) items.push({ type: "region", id: region.id });
     }
     for (const line of project.lines) {
+      if (line.locked) continue;
       if (!shouldRenderLine(line)) continue;
       const lineFrameTime = previewRouteTime("line", line.id) ?? project.timeline.currentTime;
       const frame = resolveLineKeyframe(line, lineFrameTime, project.timeline.interpolationMode);
@@ -653,6 +656,7 @@ export function MapCanvas() {
       if (points.length >= 2 && pathIntersectsRect(points, rect, Math.max(8, line.width / 2 + 6), tension)) items.push({ type: "line", id: line.id });
     }
     for (const arrow of project.arrows) {
+      if (arrow.locked) continue;
       if (!shouldRenderArrow(arrow)) continue;
       const arrowFrameTime = previewRouteTime("arrow", arrow.id) ?? project.timeline.currentTime;
       if (compareTime(arrow.startTime, arrowFrameTime) > 0 || compareTime(arrow.endTime, arrowFrameTime) < 0) continue;
@@ -662,6 +666,7 @@ export function MapCanvas() {
       if (points.length >= 2 && pathIntersectsRect(points, rect, Math.max(9, arrow.width / 2 + 7), tension)) items.push({ type: "arrow", id: arrow.id });
     }
     for (const label of project.labels) {
+      if (label.locked) continue;
       const bounds = getSelectableBounds({ type: "label", id: label.id });
       if (bounds && rectsIntersect(rect, bounds)) items.push({ type: "label", id: label.id });
     }
@@ -1054,7 +1059,7 @@ export function MapCanvas() {
   const selectedRegionPointHitTargets = (() => {
     if (exportViewport || selected.type !== "region" || !selected.id || multiSelected.length > 0) return [];
     const region = project.regions.find((entry) => entry.id === selected.id);
-    if (!region || !shouldRenderRegion(region)) return [];
+    if (!region || region.locked || !shouldRenderRegion(region)) return [];
     const frame = resolveDisplayRegion(region);
     if (!frame) return [];
     return applySelectedRegionPointPreview(region.id, frame.points).map((point, index) => ({
