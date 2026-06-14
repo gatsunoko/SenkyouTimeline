@@ -24,96 +24,69 @@ function pointDistance(a: MapPoint, b: MapPoint) {
   return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
-function quadraticPoint(start: MapPoint, control: MapPoint, end: MapPoint, t: number): MapPoint {
-  const inverse = 1 - t;
+function extrapolatePoint(point: MapPoint, neighbor: MapPoint): MapPoint {
   return {
-    x: inverse * inverse * start.x + 2 * inverse * t * control.x + t * t * end.x,
-    y: inverse * inverse * start.y + 2 * inverse * t * control.y + t * t * end.y,
+    x: point.x + (point.x - neighbor.x),
+    y: point.y + (point.y - neighbor.y),
   };
 }
 
-function cubicPoint(start: MapPoint, controlA: MapPoint, controlB: MapPoint, end: MapPoint, t: number): MapPoint {
-  const inverse = 1 - t;
+function curveParameterStep(a: MapPoint, b: MapPoint) {
+  return Math.max(0.0001, Math.sqrt(pointDistance(a, b)));
+}
+
+function interpolateCurvePoint(a: MapPoint, b: MapPoint, startT: number, endT: number, currentT: number): MapPoint {
+  const span = endT - startT;
+  if (span <= 0.000001) return b;
+  const startWeight = (endT - currentT) / span;
+  const endWeight = (currentT - startT) / span;
   return {
-    x: inverse * inverse * inverse * start.x + 3 * inverse * inverse * t * controlA.x + 3 * inverse * t * t * controlB.x + t * t * t * end.x,
-    y: inverse * inverse * inverse * start.y + 3 * inverse * inverse * t * controlA.y + 3 * inverse * t * t * controlB.y + t * t * t * end.y,
+    x: a.x * startWeight + b.x * endWeight,
+    y: a.y * startWeight + b.y * endWeight,
   };
 }
 
-function clampControlDistance(anchor: MapPoint, control: MapPoint, maxDistance: number): MapPoint {
-  const distance = pointDistance(anchor, control);
-  if (distance <= maxDistance || distance <= 0) return control;
-  const ratio = maxDistance / distance;
-  return {
-    x: anchor.x + (control.x - anchor.x) * ratio,
-    y: anchor.y + (control.y - anchor.y) * ratio,
-  };
-}
-
-function controlPoints(previous: MapPoint, current: MapPoint, next: MapPoint, tension: number) {
-  const previousDistance = pointDistance(previous, current);
-  const nextDistance = pointDistance(current, next);
-  const totalDistance = previousDistance + nextDistance;
-  if (totalDistance <= 0) return null;
-  const beforeRatio = (tension * previousDistance) / totalDistance;
-  const afterRatio = (tension * nextDistance) / totalDistance;
-  return {
-    before: {
-      x: current.x - beforeRatio * (next.x - previous.x),
-      y: current.y - beforeRatio * (next.y - previous.y),
-    },
-    after: {
-      x: current.x + afterRatio * (next.x - previous.x),
-      y: current.y + afterRatio * (next.y - previous.y),
-    },
-  };
-}
-
-function expandTensionPoints(points: MapPoint[], tension: number) {
-  const result: MapPoint[] = [];
-  for (let index = 1; index < points.length - 1; index += 1) {
-    const controls = controlPoints(points[index - 1], points[index], points[index + 1], tension);
-    if (!controls) continue;
-    result.push(controls.before, points[index], controls.after);
-  }
-  return result;
+function catmullRomPoint(p0: MapPoint, p1: MapPoint, p2: MapPoint, p3: MapPoint, segmentT: number): MapPoint {
+  const t0 = 0;
+  const t1 = t0 + curveParameterStep(p0, p1);
+  const t2 = t1 + curveParameterStep(p1, p2);
+  const t3 = t2 + curveParameterStep(p2, p3);
+  const t = t1 + (t2 - t1) * segmentT;
+  const a1 = interpolateCurvePoint(p0, p1, t0, t1, t);
+  const a2 = interpolateCurvePoint(p1, p2, t1, t2, t);
+  const a3 = interpolateCurvePoint(p2, p3, t2, t3, t);
+  const b1 = interpolateCurvePoint(a1, a2, t0, t2, t);
+  const b2 = interpolateCurvePoint(a2, a3, t1, t3, t);
+  return interpolateCurvePoint(b1, b2, t1, t2, t);
 }
 
 function sampleCurvePath(points: MapPoint[], tension: number) {
   if (points.length < 3 || tension <= 0) return points;
-  const tensionPoints = expandTensionPoints(points, tension);
-  if (tensionPoints.length < 3) return points;
 
-  const samplesPerCurve = 18;
+  const samplesPerCurve = 24;
+  const curveStrength = Math.min(1, Math.max(0, tension / 0.45));
   const result: MapPoint[] = [points[0]];
-  const pushCurveSamples = (sampler: (t: number) => MapPoint) => {
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    const previous = points[index - 1] ?? extrapolatePoint(start, end);
+    const next = points[index + 2] ?? extrapolatePoint(end, start);
     for (let sample = 1; sample <= samplesPerCurve; sample += 1) {
-      result.push(sampler(sample / samplesPerCurve));
+      const segmentT = sample / samplesPerCurve;
+      const curvedPoint = catmullRomPoint(previous, start, end, next, segmentT);
+      if (curveStrength >= 1) {
+        result.push(curvedPoint);
+        continue;
+      }
+      const linearPoint = {
+        x: start.x + (end.x - start.x) * segmentT,
+        y: start.y + (end.y - start.y) * segmentT,
+      };
+      result.push({
+        x: linearPoint.x + (curvedPoint.x - linearPoint.x) * curveStrength,
+        y: linearPoint.y + (curvedPoint.y - linearPoint.y) * curveStrength,
+      });
     }
-  };
-
-  pushCurveSamples((t) => quadraticPoint(points[0], tensionPoints[0], tensionPoints[1], t));
-  let index = 2;
-  while (index < tensionPoints.length - 1) {
-    const start = result[result.length - 1];
-    const controlA = tensionPoints[index];
-    const controlB = tensionPoints[index + 1];
-    const end = tensionPoints[index + 2];
-    pushCurveSamples((t) => cubicPoint(start, controlA, controlB, end, t));
-    index += 3;
-  }
-  const finalStart = result[result.length - 1];
-  const finalEnd = points[points.length - 1];
-  const finalDistance = pointDistance(finalStart, finalEnd);
-  if (finalDistance > 0) {
-    const finalControlA = clampControlDistance(finalStart, tensionPoints[tensionPoints.length - 1], finalDistance * 0.65);
-    const finalControlB = {
-      x: finalEnd.x - (finalEnd.x - finalStart.x) * Math.min(0.35, tension),
-      y: finalEnd.y - (finalEnd.y - finalStart.y) * Math.min(0.35, tension),
-    };
-    pushCurveSamples((t) => cubicPoint(finalStart, finalControlA, finalControlB, finalEnd, t));
-  } else {
-    result.push(finalEnd);
   }
 
   return result;
