@@ -39,6 +39,12 @@ function waitForPaint() {
   });
 }
 
+function waitUntilTimestamp(targetTime: number) {
+  const delay = targetTime - performance.now();
+  if (delay <= 0) return Promise.resolve();
+  return new Promise<void>((resolve) => window.setTimeout(resolve, delay));
+}
+
 function safeFilename(name: string) {
   const cleaned = name.trim().replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_");
   return cleaned || "timeline";
@@ -479,8 +485,15 @@ export function MapCanvas() {
         const context = exportCanvas.getContext("2d");
         if (!context) throw new Error("\u52d5\u753b\u7528\u30ad\u30e3\u30f3\u30d0\u30b9\u3092\u4f5c\u6210\u3067\u304d\u307e\u305b\u3093");
 
-        const stream = exportCanvas.captureStream(fps);
-        const [track] = stream.getVideoTracks();
+        let stream = exportCanvas.captureStream(0);
+        let [track] = stream.getVideoTracks();
+        let requestFrame = (track as MediaStreamTrack & { requestFrame?: () => void }).requestFrame;
+        if (typeof requestFrame !== "function") {
+          track.stop();
+          stream = exportCanvas.captureStream(fps);
+          [track] = stream.getVideoTracks();
+          requestFrame = undefined;
+        }
         const chunks: BlobPart[] = [];
         const recorder = new MediaRecorder(stream, { mimeType });
         const stopped = new Promise<void>((resolve, reject) => {
@@ -491,39 +504,24 @@ export function MapCanvas() {
           if (recordedEvent.data.size > 0) chunks.push(recordedEvent.data);
         };
 
-        const durationSeconds = Math.max(1 / fps, bounds.end - bounds.start);
-        let animationFrameId: number | null = null;
+        const frameIntervalMs = 1000 / fps;
         try {
           await preloadProjectImages(useProjectStore.getState().project);
-          useProjectStore.getState().setCurrentTime(bounds.start.toFixed(4));
-          setExportViewport(resolveExportViewport(useProjectStore.getState().project));
-          await waitForPaint();
-          drawStageLayerToCanvas(stage, context, exportWidth, exportHeight);
-
           recorder.start();
           const startedAt = performance.now();
-          await new Promise<void>((resolve) => {
-            const tick = async (now: number) => {
-              const elapsedSeconds = Math.min(durationSeconds, (now - startedAt) / 1000);
-              useProjectStore.getState().setCurrentTime((bounds.start + elapsedSeconds).toFixed(4));
-              setExportViewport(resolveExportViewport(useProjectStore.getState().project));
-              await waitForPaint();
-              drawStageLayerToCanvas(stage, context, exportWidth, exportHeight);
-              const progress = Math.min(100, Math.round((elapsedSeconds / durationSeconds) * 100));
-              dispatchExportStatus(`MP4\u66f8\u304d\u51fa\u3057\u4e2d ${progress}%`, true);
-              if (elapsedSeconds >= durationSeconds) {
-                animationFrameId = null;
-                resolve();
-                return;
-              }
-              animationFrameId = window.requestAnimationFrame((time) => void tick(time));
-            };
-            animationFrameId = window.requestAnimationFrame((time) => void tick(time));
-          });
+          for (let index = 0; index < times.length; index += 1) {
+            useProjectStore.getState().setCurrentTime(times[index].toFixed(4));
+            setExportViewport(resolveExportViewport(useProjectStore.getState().project));
+            await waitForPaint();
+            drawStageLayerToCanvas(stage, context, exportWidth, exportHeight);
+            requestFrame?.call(track);
+            const progress = Math.min(100, Math.round(((index + 1) / times.length) * 100));
+            dispatchExportStatus(`MP4\u66f8\u304d\u51fa\u3057\u4e2d ${progress}% (${index + 1}/${times.length})`, true);
+            await waitUntilTimestamp(startedAt + (index + 1) * frameIntervalMs);
+          }
           recorder.stop();
           await stopped;
         } finally {
-          if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
           track.stop();
           setExportViewport(null);
         }
