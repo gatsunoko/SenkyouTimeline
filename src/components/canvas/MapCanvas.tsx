@@ -674,10 +674,15 @@ export function MapCanvas() {
       const bounds = getSelectableBounds({ type: "label", id: label.id });
       if (bounds && rectsIntersect(rect, bounds)) items.push({ type: "label", id: label.id });
     }
-    setMultiSelected(items);
     setMultiDragDelta(null);
-    if (items[0]) selectObject(items[0].type, items[0].id);
-    else clearSelection();
+    if (items.length === 1) {
+      setMultiSelected([]);
+      selectObject(items[0].type, items[0].id);
+    } else {
+      setMultiSelected(items);
+      if (items[0]) selectObject(items[0].type, items[0].id);
+      else clearSelection();
+    }
   };
 
   const finishSelectionDrag = () => {
