@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Arrow, Circle, Line, Rect } from "react-konva";
+import { Arrow, Circle, Line, Path, Rect } from "react-konva";
 
 const DASH = [8, 8];
 
@@ -103,6 +103,28 @@ export function MarchingAntsArrow({ points, strokeWidth, pointerLength, pointerW
         tension={tension}
         listening={false}
       />
+    </>
+  );
+}
+
+type ArrowPathSelectionProps = {
+  pathData: string;
+  headPoints: number[];
+  strokeWidth: number;
+};
+
+export function MarchingAntsArrowPath({ pathData, headPoints, strokeWidth }: ArrowPathSelectionProps) {
+  const offset = useMarchingOffset(true);
+  return (
+    <>
+      {pathData && (
+        <>
+          <Path data={pathData} stroke="#111827" strokeWidth={strokeWidth} lineCap="round" lineJoin="round" listening={false} />
+          <Path data={pathData} stroke="#ffffff" strokeWidth={strokeWidth} dash={DASH} dashOffset={offset} lineCap="butt" lineJoin="round" listening={false} />
+        </>
+      )}
+      <Line points={headPoints} fill="#111827" stroke="#111827" strokeWidth={strokeWidth} closed lineJoin="round" listening={false} />
+      <Line points={headPoints} fill="transparent" stroke="#ffffff" strokeWidth={strokeWidth} dash={DASH} dashOffset={offset} closed lineJoin="round" listening={false} />
     </>
   );
 }
