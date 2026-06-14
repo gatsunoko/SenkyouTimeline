@@ -177,6 +177,7 @@ function buildArrowGeometry(points: MapPoint[], pointerLength: number, pointerWi
   return {
     shaftPoints: pointsToCanvas(shaftPoints, 1, 1),
     headPoints: pointsToCanvas(headPoints, 1, 1),
+    tailPoint: shaftPoints[0],
   };
 }
 
@@ -240,6 +241,14 @@ export function ArrowShape({ arrow, frame, selected, preview = false, revealProg
           )}
           {outlineWidth > 0 && outlineGeometry && (
             <>
+              <Circle
+                x={outlineGeometry.tailPoint.x}
+                y={outlineGeometry.tailPoint.y}
+                radius={(displayStrokeWidth + outlineWidth * 2) / 2}
+                fill={outlineColor}
+                opacity={displayOpacity}
+                listening={false}
+              />
               <Line
                 points={outlineGeometry.shaftPoints}
                 stroke={outlineColor}
