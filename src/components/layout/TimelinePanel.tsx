@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import { Pause, Play } from "lucide-react";
 import { useProjectStore } from "../../store/projectStore";
-import { formatSeconds, getTimelineBounds, parseTimelineSeconds, sortedFrames } from "../../utils/time";
+import { formatSeconds, getTimelineBounds, parseTimelineSeconds } from "../../utils/time";
 
 export function TimelinePanel() {
   const project = useProjectStore((state) => state.project);
   const setCurrentTime = useProjectStore((state) => state.setCurrentTime);
-  const moveFrame = useProjectStore((state) => state.moveFrame);
   const setTimelineEnd = useProjectStore((state) => state.setTimelineEnd);
   const setInterpolationMode = useProjectStore((state) => state.setInterpolationMode);
   const [playing, setPlaying] = useState(false);
@@ -16,10 +15,8 @@ export function TimelinePanel() {
   const lastTickRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  const frames = sortedFrames(project.timeline.frames);
   const currentSeconds = parseTimelineSeconds(project.timeline.currentTime);
-  const bounds = getTimelineBounds(frames, project.timeline.start, project.timeline.end);
-  const activeFrame = frames.find((frame) => Math.abs(parseTimelineSeconds(frame.time) - currentSeconds) < 0.05);
+  const bounds = getTimelineBounds(project.timeline.start, project.timeline.end);
 
   useEffect(() => {
     if (!playing) {
@@ -93,13 +90,6 @@ export function TimelinePanel() {
     <footer className="timeline-panel">
       <div className="timeline-controls">
         <strong>{formatSeconds(currentSeconds)}</strong>
-        <span>{activeFrame ? `キーフレーム: ${activeFrame.displayDate}` : "任意の時間"}</span>
-        <button type="button" onClick={() => moveFrame(-1)} title="前のキーフレーム">
-          <SkipBack size={16} /> 前
-        </button>
-        <button type="button" onClick={() => moveFrame(1)} title="次のキーフレーム">
-          <SkipForward size={16} /> 次
-        </button>
         <button type="button" onClick={togglePlayback} title={playing ? "停止" : "再生"}>
           {playing ? <Pause size={16} /> : <Play size={16} />}
           {playing ? "停止" : "再生"}

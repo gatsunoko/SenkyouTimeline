@@ -32,7 +32,7 @@ import type {
 import type { AutoSaveSnapshot, CanvasViewState } from "../types/autoSave";
 import { clampPoint } from "../utils/coordinate";
 import { createId } from "../utils/id";
-import { compareTime, formatTimelineLabel, getCurrentFrame, nextFrameTime, parseTimelineSeconds, sortedFrames } from "../utils/time";
+import { compareTime, formatTimelineLabel, getCurrentFrame, parseTimelineSeconds, sortedFrames } from "../utils/time";
 import { cloneProject, trimHistory } from "./historyStore";
 import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveArrowRoutePoints, resolveCameraFrame, resolveLabelFrame, resolveLineKeyframe, resolveLineRoutePoints, resolvePlacedImageFrame, resolveRegionKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRoutePoint } from "../utils/interpolation";
 
@@ -132,7 +132,6 @@ interface ProjectStore {
   updateProjectName: (name: string) => void;
   updateCameraLegend: (patch: Partial<CameraLegendSettings>) => void;
   setCurrentTime: (time: string) => void;
-  moveFrame: (direction: 1 | -1) => void;
   setTimelineEnd: (seconds: number) => void;
   addFaction: () => void;
   updateFaction: (id: string, patch: Partial<Faction>) => void;
@@ -1083,11 +1082,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         timeline: { ...state.project.timeline, currentTime: time },
       },
     })),
-
-  moveFrame: (direction) => {
-    const project = get().project;
-    get().setCurrentTime(nextFrameTime(project.timeline.frames, project.timeline.currentTime, direction));
-  },
 
   setTimelineEnd: (seconds) => {
     if (!Number.isFinite(seconds)) return;

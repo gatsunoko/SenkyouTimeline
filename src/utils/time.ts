@@ -49,7 +49,7 @@ export function formatTimelineLabel(time: string) {
   return formatSeconds(parseTimelineSeconds(time));
 }
 
-export function getTimelineBounds(_frames: TimelineFrame[], start: string, end: string) {
+export function getTimelineBounds(start: string, end: string) {
   const startSeconds = parseTimelineSeconds(start);
   const endSeconds = parseTimelineSeconds(end);
   const safeStart = Number.isFinite(startSeconds) ? Math.max(0, startSeconds) : 0;
@@ -58,23 +58,4 @@ export function getTimelineBounds(_frames: TimelineFrame[], start: string, end: 
     start: safeStart,
     end: safeEnd,
   };
-}
-
-export function nextFrameTime(frames: TimelineFrame[], currentTime: string, direction: 1 | -1) {
-  const ordered = sortedFrames(frames);
-  if (ordered.length === 0) return currentTime;
-  const currentSeconds = parseTimelineSeconds(currentTime);
-  const index =
-    direction > 0
-      ? ordered.findIndex((frame) => parseTimelineSeconds(frame.time) > currentSeconds)
-      : [...ordered].reverse().findIndex((frame) => parseTimelineSeconds(frame.time) < currentSeconds);
-
-  if (direction > 0) {
-    const nextIndex = index === -1 ? ordered.length - 1 : index;
-    return ordered[nextIndex].time;
-  }
-
-  const reverseIndex = index === -1 ? ordered.length - 1 : index;
-  const nextIndex = ordered.length - 1 - reverseIndex;
-  return ordered[nextIndex].time;
 }

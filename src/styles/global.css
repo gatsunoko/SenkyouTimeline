@@ -761,13 +761,6 @@ textarea {
   color: #ffffff;
 }
 
-.timeline-controls span {
-  flex: 0 0 auto;
-  min-width: 94px;
-  color: #a7b2c4;
-  font-size: 12px;
-}
-
 .timeline-controls button {
   display: inline-flex;
   align-items: center;

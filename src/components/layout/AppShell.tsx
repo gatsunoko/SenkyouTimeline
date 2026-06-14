@@ -19,7 +19,6 @@ export function AppShell() {
   const deleteSelected = useProjectStore((state) => state.deleteSelected);
   const cancelDrawing = useProjectStore((state) => state.cancelDrawing);
   const finishDrawing = useProjectStore((state) => state.finishDrawing);
-  const moveFrame = useProjectStore((state) => state.moveFrame);
 
   useEffect(() => {
     let active = true;
@@ -70,17 +69,11 @@ export function AppShell() {
       } else if (event.key === "Enter") {
         event.preventDefault();
         finishDrawing();
-      } else if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        moveFrame(-1);
-      } else if (event.key === "ArrowRight") {
-        event.preventDefault();
-        moveFrame(1);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cancelDrawing, deleteSelected, exportProject, finishDrawing, moveFrame, redo, undo]);
+  }, [cancelDrawing, deleteSelected, exportProject, finishDrawing, redo, undo]);
 
   if (!autoSaveReady) return <div className="app-shell app-loading">読み込み中...</div>;
 
