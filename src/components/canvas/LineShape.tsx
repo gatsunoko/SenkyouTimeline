@@ -27,6 +27,11 @@ export function LineShape({ line, frame, selected, preview = false, selectedPoin
   const tension = line.curveMode === "curve" ? 0.45 : 0;
   const canvasPoints = pointsToCanvas(activePoints, mapWidth, mapHeight);
   const interactive = !line.locked;
+  const outlineWidth = line.outlineEnabled ? Math.max(0, line.outlineWidth ?? 4) : 0;
+  const outlineColor = line.outlineColor ?? "#111827";
+  const displayStrokeWidth = preview ? line.width + 2 : line.width;
+  const displayOpacity = preview ? Math.max(0.9, line.opacity) : line.opacity;
+  const displayColor = preview ? "#f0c665" : line.color;
 
   useEffect(() => {
     setDragPoints(null);
@@ -38,7 +43,7 @@ export function LineShape({ line, frame, selected, preview = false, selectedPoin
       <Line
         points={pointsToCanvas(activePoints, mapWidth, mapHeight)}
         stroke="rgba(255,255,255,0.01)"
-        strokeWidth={Math.max(18, line.width + 14)}
+        strokeWidth={Math.max(18, displayStrokeWidth + outlineWidth * 2 + 14)}
         opacity={0.01}
         lineCap="round"
         lineJoin="round"
@@ -47,12 +52,25 @@ export function LineShape({ line, frame, selected, preview = false, selectedPoin
         onClick={interactive ? onSelect : undefined}
         onTap={interactive ? onSelect : undefined}
       />
-      {selected && <MarchingAntsLine points={canvasPoints} strokeWidth={line.width + 8} lineCap="round" lineJoin="round" tension={tension} />}
+      {selected && <MarchingAntsLine points={canvasPoints} strokeWidth={displayStrokeWidth + outlineWidth * 2 + 8} lineCap="round" lineJoin="round" tension={tension} />}
+      {outlineWidth > 0 && (
+        <Line
+          points={canvasPoints}
+          stroke={outlineColor}
+          strokeWidth={displayStrokeWidth + outlineWidth * 2}
+          opacity={displayOpacity}
+          dash={line.dashed ? [16, 10] : undefined}
+          lineCap="round"
+          lineJoin="round"
+          tension={tension}
+          listening={false}
+        />
+      )}
       <Line
         points={canvasPoints}
-        stroke={preview ? "#f0c665" : line.color}
-        strokeWidth={preview ? line.width + 2 : line.width}
-        opacity={preview ? Math.max(0.9, line.opacity) : line.opacity}
+        stroke={displayColor}
+        strokeWidth={displayStrokeWidth}
+        opacity={displayOpacity}
         dash={line.dashed ? [16, 10] : undefined}
         lineCap="round"
         lineJoin="round"

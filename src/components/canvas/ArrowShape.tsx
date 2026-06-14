@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Arrow, Circle } from "react-konva";
+import { Arrow, Circle, Line } from "react-konva";
 import type { ArrowKeyframe, BattleArrow, MapPoint } from "../../types/project";
 import { canvasToRelative, pointsToCanvas, relativeToCanvas } from "../../utils/coordinate";
 import { MarchingAntsArrow } from "./SelectionMarchingAnts";
@@ -37,6 +37,16 @@ function cubicPoint(start: MapPoint, controlA: MapPoint, controlB: MapPoint, end
   return {
     x: inverse * inverse * inverse * start.x + 3 * inverse * inverse * t * controlA.x + 3 * inverse * t * t * controlB.x + t * t * t * end.x,
     y: inverse * inverse * inverse * start.y + 3 * inverse * inverse * t * controlA.y + 3 * inverse * t * t * controlB.y + t * t * t * end.y,
+  };
+}
+
+function clampControlDistance(anchor: MapPoint, control: MapPoint, maxDistance: number): MapPoint {
+  const distance = pointDistance(anchor, control);
+  if (distance <= maxDistance || distance <= 0) return control;
+  const ratio = maxDistance / distance;
+  return {
+    x: anchor.x + (control.x - anchor.x) * ratio,
+    y: anchor.y + (control.y - anchor.y) * ratio,
   };
 }
 
@@ -92,7 +102,19 @@ function sampleCurvePath(points: MapPoint[], tension: number) {
     pushCurveSamples((t) => cubicPoint(start, controlA, controlB, end, t));
     index += 3;
   }
-  pushCurveSamples((t) => quadraticPoint(result[result.length - 1], tensionPoints[tensionPoints.length - 1], points[points.length - 1], t));
+  const finalStart = result[result.length - 1];
+  const finalEnd = points[points.length - 1];
+  const finalDistance = pointDistance(finalStart, finalEnd);
+  if (finalDistance > 0) {
+    const finalControlA = clampControlDistance(finalStart, tensionPoints[tensionPoints.length - 1], finalDistance * 0.65);
+    const finalControlB = {
+      x: finalEnd.x - (finalEnd.x - finalStart.x) * Math.min(0.35, tension),
+      y: finalEnd.y - (finalEnd.y - finalStart.y) * Math.min(0.35, tension),
+    };
+    pushCurveSamples((t) => cubicPoint(finalStart, finalControlA, finalControlB, finalEnd, t));
+  } else {
+    result.push(finalEnd);
+  }
 
   return result;
 }
@@ -129,6 +151,62 @@ function trimPointsAlongPath(points: MapPoint[], progress: number) {
   return trimmed;
 }
 
+function splitArrowPath(points: MapPoint[], pointerLength: number) {
+  if (points.length < 2) return null;
+  const tip = points[points.length - 1];
+  const segmentLengths = points.slice(0, -1).map((point, index) => pointDistance(point, points[index + 1]));
+  const totalLength = segmentLengths.reduce((sum, length) => sum + length, 0);
+  if (totalLength <= 0) return null;
+
+  const headLength = Math.min(pointerLength, totalLength * 0.9);
+  let remainingLength = headLength;
+  let base = points[0];
+  let shaftPoints = [points[0]];
+
+  for (let index = points.length - 2; index >= 0; index -= 1) {
+    const segmentLength = segmentLengths[index];
+    if (segmentLength <= 0) continue;
+    if (remainingLength <= segmentLength) {
+      const start = points[index];
+      const end = points[index + 1];
+      const ratio = (segmentLength - remainingLength) / segmentLength;
+      base = {
+        x: start.x + (end.x - start.x) * ratio,
+        y: start.y + (end.y - start.y) * ratio,
+      };
+      shaftPoints = points.slice(0, index + 1);
+      if (pointDistance(shaftPoints[shaftPoints.length - 1], base) > 0.001) {
+        shaftPoints.push(base);
+      }
+      break;
+    }
+    remainingLength -= segmentLength;
+  }
+
+  return { shaftPoints, base, tip };
+}
+
+function buildArrowGeometry(points: MapPoint[], pointerLength: number, pointerWidth: number) {
+  const splitPath = splitArrowPath(points, pointerLength);
+  if (!splitPath || splitPath.shaftPoints.length < 2) return null;
+  const { shaftPoints, base, tip } = splitPath;
+  const directionLength = pointDistance(base, tip);
+  if (directionLength <= 0) return null;
+  const directionX = (tip.x - base.x) / directionLength;
+  const directionY = (tip.y - base.y) / directionLength;
+  const perpendicularX = -directionY;
+  const perpendicularY = directionX;
+  const halfPointerWidth = pointerWidth / 2;
+  const headTop = { x: base.x + perpendicularX * halfPointerWidth, y: base.y + perpendicularY * halfPointerWidth };
+  const headBottom = { x: base.x - perpendicularX * halfPointerWidth, y: base.y - perpendicularY * halfPointerWidth };
+  const headPoints = [tip, headTop, headBottom];
+
+  return {
+    shaftPoints: pointsToCanvas(shaftPoints, 1, 1),
+    headPoints: pointsToCanvas(headPoints, 1, 1),
+  };
+}
+
 export function ArrowShape({ arrow, frame, selected, preview = false, revealProgress = 1, selectedPointIndices = [], mapWidth, mapHeight, onSelect, onPointSelect, onPointDragEnd, dragEnabled = true }: ArrowShapeProps) {
   const [dragPoints, setDragPoints] = useState<MapPoint[] | null>(null);
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
@@ -142,6 +220,15 @@ export function ArrowShape({ arrow, frame, selected, preview = false, revealProg
   const hasVisibleLength = displayPoints.length >= 2 && pointDistance(displayPoints[0], displayPoints[displayPoints.length - 1]) > 0.0001;
   const drawTension = 0;
   const interactive = !arrow.locked;
+  const outlineWidth = arrow.outlineEnabled ? Math.max(0, arrow.outlineWidth ?? 4) : 0;
+  const outlineColor = arrow.outlineColor ?? "#111827";
+  const displayStrokeWidth = preview ? arrow.width + 2 : arrow.width;
+  const displayOpacity = preview ? Math.max(0.9, arrow.opacity) : arrow.opacity;
+  const displayColor = preview ? "#f0c665" : arrow.color;
+  const pointerLength = 20 * arrowHeadSize;
+  const pointerWidth = 18 * arrowHeadSize;
+  const arrowGeometry = buildArrowGeometry(displayPoints, pointerLength, pointerWidth);
+  const outlineGeometry = outlineWidth > 0 ? arrowGeometry : null;
 
   useEffect(() => {
     setDragPoints(null);
@@ -156,9 +243,9 @@ export function ArrowShape({ arrow, frame, selected, preview = false, revealProg
             points={canvasPoints}
             stroke="rgba(255,255,255,0.01)"
             fill="rgba(255,255,255,0.01)"
-            strokeWidth={Math.max(20, arrow.width + 16)}
-            pointerLength={Math.max(26, 20 * arrowHeadSize + 6)}
-            pointerWidth={Math.max(24, 18 * arrowHeadSize + 6)}
+            strokeWidth={Math.max(20, displayStrokeWidth + outlineWidth * 2 + 16)}
+            pointerLength={Math.max(26, pointerLength + outlineWidth * 1.5 + 6)}
+            pointerWidth={Math.max(24, pointerWidth + outlineWidth * 2 + 6)}
             opacity={0.01}
             lineCap="round"
             lineJoin="round"
@@ -167,23 +254,66 @@ export function ArrowShape({ arrow, frame, selected, preview = false, revealProg
             onClick={interactive ? onSelect : undefined}
             onTap={interactive ? onSelect : undefined}
           />
-          {selected && <MarchingAntsArrow points={canvasPoints} strokeWidth={arrow.width + 8} pointerLength={20 * arrowHeadSize + 8} pointerWidth={18 * arrowHeadSize + 8} lineCap="round" lineJoin="round" tension={drawTension} />}
-          <Arrow
-            points={canvasPoints}
-            stroke={preview ? "#f0c665" : arrow.color}
-            fill={preview ? "#f0c665" : arrow.color}
-            strokeWidth={preview ? arrow.width + 2 : arrow.width}
-            pointerLength={20 * arrowHeadSize}
-            pointerWidth={18 * arrowHeadSize}
-            opacity={preview ? Math.max(0.9, arrow.opacity) : arrow.opacity}
-            dash={arrow.dashed ? [15, 10] : undefined}
-            lineCap="round"
-            lineJoin="round"
-            tension={drawTension}
-            listening={interactive}
-            onClick={interactive ? onSelect : undefined}
-            onTap={interactive ? onSelect : undefined}
-          />
+          {selected && (
+            <MarchingAntsArrow
+              points={canvasPoints}
+              strokeWidth={displayStrokeWidth + outlineWidth * 2 + 8}
+              pointerLength={pointerLength + outlineWidth * 1.5 + 8}
+              pointerWidth={pointerWidth + outlineWidth * 2 + 8}
+              lineCap="round"
+              lineJoin="round"
+              tension={drawTension}
+            />
+          )}
+          {outlineWidth > 0 && outlineGeometry && (
+            <>
+              <Line
+                points={outlineGeometry.shaftPoints}
+                stroke={outlineColor}
+                strokeWidth={displayStrokeWidth + outlineWidth * 2}
+                opacity={displayOpacity}
+                dash={arrow.dashed ? [15, 10] : undefined}
+                lineCap="butt"
+                lineJoin="round"
+                listening={false}
+              />
+              <Line
+                points={outlineGeometry.headPoints}
+                fill={outlineColor}
+                stroke={outlineColor}
+                strokeWidth={outlineWidth * 2}
+                closed
+                opacity={displayOpacity}
+                lineJoin="round"
+                listening={false}
+              />
+            </>
+          )}
+          {arrowGeometry && (
+            <>
+              <Line
+                points={arrowGeometry.shaftPoints}
+                stroke={displayColor}
+                strokeWidth={displayStrokeWidth}
+                opacity={displayOpacity}
+                dash={arrow.dashed ? [15, 10] : undefined}
+                lineCap="round"
+                lineJoin="round"
+                listening={interactive}
+                onClick={interactive ? onSelect : undefined}
+                onTap={interactive ? onSelect : undefined}
+              />
+              <Line
+                points={arrowGeometry.headPoints}
+                fill={displayColor}
+                closed
+                opacity={displayOpacity}
+                listening={interactive}
+                onClick={interactive ? onSelect : undefined}
+                onTap={interactive ? onSelect : undefined}
+              />
+            </>
+          )}
         </>
       )}
       {selected &&

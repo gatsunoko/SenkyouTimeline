@@ -916,6 +916,9 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   for (const arrow of normalized.arrows ?? []) {
     arrow.curveMode ||= "straight";
     arrow.hideWhenRoute = arrow.hideWhenRoute ?? false;
+    arrow.outlineEnabled = arrow.outlineEnabled ?? false;
+    arrow.outlineColor ||= "#111827";
+    arrow.outlineWidth = Math.min(24, Math.max(0, Number.isFinite(arrow.outlineWidth) ? arrow.outlineWidth ?? 4 : 4));
     arrow.revealAlongPath = arrow.revealAlongPath ?? false;
     arrow.revealDurationSeconds = Math.max(0.1, Number.isFinite(arrow.revealDurationSeconds) ? arrow.revealDurationSeconds ?? 1 : 1);
     arrow.arrowHeadSize ||= 1;
@@ -935,6 +938,9 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   for (const line of normalized.lines ?? []) {
     line.curveMode ||= "straight";
     line.hideWhenRoute = line.hideWhenRoute ?? false;
+    line.outlineEnabled = line.outlineEnabled ?? false;
+    line.outlineColor ||= "#111827";
+    line.outlineWidth = Math.min(24, Math.max(0, Number.isFinite(line.outlineWidth) ? line.outlineWidth ?? 4 : 4));
     line.displayStartTime ||= line.keyframes?.[0]?.time ?? normalized.timeline.start ?? "0";
     line.displayEndTime ||= normalized.timeline.end ?? line.displayStartTime;
   }
@@ -1666,8 +1672,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         factionId: firstFactionId(project),
         color: "#e4d08b",
         width: 4,
-        opacity: 0.85,
+        opacity: 1,
         dashed: false,
+        outlineEnabled: false,
+        outlineColor: "#111827",
+        outlineWidth: 4,
         curveMode: "straight",
         hideWhenRoute: false,
         locked: false,
@@ -1758,8 +1767,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         color: "#f46f5e",
         width: 5,
         arrowHeadSize: 1,
-        opacity: 0.85,
+        opacity: 1,
         dashed: false,
+        outlineEnabled: false,
+        outlineColor: "#111827",
+        outlineWidth: 4,
         curveMode: "straight",
         hideWhenRoute: false,
         revealAlongPath: false,

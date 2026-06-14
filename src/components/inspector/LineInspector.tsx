@@ -46,6 +46,13 @@ export function LineInspector({ id }: { id: string }) {
       <NumberField label="太さ" value={line.width} min={1} max={20} onChange={(value) => updateLine(line.id, { width: value })} />
       <NumberField label="透明度" value={line.opacity} min={0.1} max={1} step={0.05} onChange={(value) => updateLine(line.id, { opacity: value })} />
       <ToggleField label="点線" checked={line.dashed} onChange={(value) => updateLine(line.id, { dashed: value })} />
+      <ToggleField label="アウトライン" checked={line.outlineEnabled ?? false} onChange={(value) => updateLine(line.id, { outlineEnabled: value })} />
+      {line.outlineEnabled && (
+        <>
+          <ColorField label="アウトライン色" value={line.outlineColor ?? "#111827"} onChange={(value) => updateLine(line.id, { outlineColor: value })} />
+          <NumberField label="アウトライン幅" value={line.outlineWidth ?? 4} min={0} max={24} step={0.5} onChange={(value) => updateLine(line.id, { outlineWidth: value })} />
+        </>
+      )}
       <label>
         線の形
         <select value={line.curveMode ?? "straight"} onChange={(event) => updateLine(line.id, { curveMode: event.target.value as LineCurveMode })}>

@@ -360,6 +360,9 @@ export interface BattleLine {
   width: number;
   opacity: number;
   dashed: boolean;
+  outlineEnabled?: boolean;
+  outlineColor?: string;
+  outlineWidth?: number;
   curveMode?: LineCurveMode;
   hideWhenRoute?: boolean;
   locked: boolean;
@@ -382,6 +385,9 @@ export interface BattleArrow {
   arrowHeadSize?: number;
   opacity: number;
   dashed: boolean;
+  outlineEnabled?: boolean;
+  outlineColor?: string;
+  outlineWidth?: number;
   curveMode?: LineCurveMode;
   hideWhenRoute?: boolean;
   revealAlongPath?: boolean;

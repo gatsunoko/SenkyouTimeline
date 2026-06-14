@@ -653,7 +653,8 @@ export function MapCanvas() {
       const frame = resolveLineKeyframe(line, lineFrameTime, project.timeline.interpolationMode);
       const tension = line.curveMode === "curve" ? 0.45 : 0;
       const points = frame ? flattenedPointsToCanvasPoints(pointsToCanvas(frame.points, mapWidth, mapHeight)) : [];
-      if (points.length >= 2 && pathIntersectsRect(points, rect, Math.max(8, line.width / 2 + 6), tension)) items.push({ type: "line", id: line.id });
+      const outlineWidth = line.outlineEnabled ? Math.max(0, line.outlineWidth ?? 4) : 0;
+      if (points.length >= 2 && pathIntersectsRect(points, rect, Math.max(8, line.width / 2 + outlineWidth + 6), tension)) items.push({ type: "line", id: line.id });
     }
     for (const arrow of project.arrows) {
       if (arrow.locked) continue;
@@ -663,7 +664,8 @@ export function MapCanvas() {
       const frame = resolveArrowKeyframe(arrow, arrowFrameTime, project.timeline.interpolationMode);
       const tension = arrow.curveMode === "curve" ? 0.45 : 0;
       const points = frame ? flattenedPointsToCanvasPoints(pointsToCanvas(frame.points, mapWidth, mapHeight)) : [];
-      if (points.length >= 2 && pathIntersectsRect(points, rect, Math.max(9, arrow.width / 2 + 7), tension)) items.push({ type: "arrow", id: arrow.id });
+      const outlineWidth = arrow.outlineEnabled ? Math.max(0, arrow.outlineWidth ?? 4) : 0;
+      if (points.length >= 2 && pathIntersectsRect(points, rect, Math.max(9, arrow.width / 2 + outlineWidth + 7), tension)) items.push({ type: "arrow", id: arrow.id });
     }
     for (const label of project.labels) {
       if (label.locked) continue;
@@ -995,7 +997,8 @@ export function MapCanvas() {
       const line = project.lines.find((entry) => entry.id === item.id);
       if (!line || !shouldRenderLine(line)) return null;
       const frame = resolveLineKeyframe(line, previewRouteTime("line", line.id) ?? project.timeline.currentTime, project.timeline.interpolationMode);
-      return frame ? selectablePointsBounds(flattenedPointsToCanvasPoints(pointsToCanvas(frame.points, mapWidth, mapHeight)), Math.max(10, line.width + 8)) : null;
+      const outlineWidth = line.outlineEnabled ? Math.max(0, line.outlineWidth ?? 4) : 0;
+      return frame ? selectablePointsBounds(flattenedPointsToCanvasPoints(pointsToCanvas(frame.points, mapWidth, mapHeight)), Math.max(10, line.width + outlineWidth * 2 + 8)) : null;
     }
     if (item.type === "label") {
       const label = project.labels.find((entry) => entry.id === item.id);
@@ -1010,7 +1013,8 @@ export function MapCanvas() {
     const arrowFrameTime = previewRouteTime("arrow", arrow.id) ?? project.timeline.currentTime;
     if (compareTime(arrow.startTime, arrowFrameTime) > 0 || compareTime(arrow.endTime, arrowFrameTime) < 0) return null;
     const frame = resolveArrowKeyframe(arrow, arrowFrameTime, project.timeline.interpolationMode);
-    return frame ? selectablePointsBounds(flattenedPointsToCanvasPoints(pointsToCanvas(frame.points, mapWidth, mapHeight)), Math.max(12, arrow.width + 12)) : null;
+    const outlineWidth = arrow.outlineEnabled ? Math.max(0, arrow.outlineWidth ?? 4) : 0;
+    return frame ? selectablePointsBounds(flattenedPointsToCanvasPoints(pointsToCanvas(frame.points, mapWidth, mapHeight)), Math.max(12, arrow.width + outlineWidth * 2 + 12)) : null;
   };
   const selectedBounds = (() => {
     const bounds = multiSelected.map(getSelectableBounds).filter((entry): entry is CanvasRect => Boolean(entry));

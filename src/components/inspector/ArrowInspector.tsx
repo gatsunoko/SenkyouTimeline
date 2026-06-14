@@ -44,6 +44,13 @@ export function ArrowInspector({ id }: { id: string }) {
       <NumberField label="先端サイズ" value={arrow.arrowHeadSize ?? 1} min={0.5} max={4} step={0.1} onChange={(value) => updateArrow(arrow.id, { arrowHeadSize: value })} />
       <NumberField label="透明度" value={arrow.opacity} min={0.1} max={1} step={0.05} onChange={(value) => updateArrow(arrow.id, { opacity: value })} />
       <ToggleField label="点線" checked={arrow.dashed} onChange={(value) => updateArrow(arrow.id, { dashed: value })} />
+      <ToggleField label="アウトライン" checked={arrow.outlineEnabled ?? false} onChange={(value) => updateArrow(arrow.id, { outlineEnabled: value })} />
+      {arrow.outlineEnabled && (
+        <>
+          <ColorField label="アウトライン色" value={arrow.outlineColor ?? "#111827"} onChange={(value) => updateArrow(arrow.id, { outlineColor: value })} />
+          <NumberField label="アウトライン幅" value={arrow.outlineWidth ?? 4} min={0} max={24} step={0.5} onChange={(value) => updateArrow(arrow.id, { outlineWidth: value })} />
+        </>
+      )}
       <label>
         矢印の形
         <select value={arrow.curveMode ?? "straight"} onChange={(event) => updateArrow(arrow.id, { curveMode: event.target.value as LineCurveMode })}>
