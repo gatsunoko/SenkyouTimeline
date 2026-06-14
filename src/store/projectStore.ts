@@ -133,8 +133,7 @@ interface ProjectStore {
   updateCameraLegend: (patch: Partial<CameraLegendSettings>) => void;
   setCurrentTime: (time: string) => void;
   moveFrame: (direction: 1 | -1) => void;
-  addTimelineKeyframe: () => void;
-  updateTimelineFrame: (id: string, patch: { time?: string; displayDate?: string; memo?: string }) => void;
+  setTimelineEnd: (seconds: number) => void;
   addFaction: () => void;
   updateFaction: (id: string, patch: Partial<Faction>) => void;
   deleteFaction: (id: string) => void;
@@ -406,10 +405,9 @@ function commit(set: (partial: Partial<ProjectStore>) => void, get: () => Projec
   normalizeProjectTiming(next);
   normalizeTimelineFrames(next);
   const currentSelected = get().selected;
-  const selected = currentSelected.type === "frame" && currentSelected.id && !next.timeline.frames.some((frame) => frame.id === currentSelected.id) ? { type: null, id: null } : currentSelected;
   set({
     project: next,
-    selected,
+    selected: currentSelected,
     historyPast: trimHistory([...get().historyPast, previous]),
     historyFuture: [],
   });
@@ -617,13 +615,6 @@ function isSameTime(a: string, b: string) {
   return Math.abs(parseTimelineSeconds(a) - parseTimelineSeconds(b)) < 0.05;
 }
 
-function timelineMaxSeconds(project: ProjectData) {
-  const frameSeconds = project.timeline.frames.map((frame) => parseTimelineSeconds(frame.time)).filter(Number.isFinite);
-  const timelineEndSeconds = parseTimelineSeconds(project.timeline.end);
-  if (Number.isFinite(timelineEndSeconds)) frameSeconds.push(timelineEndSeconds);
-  return frameSeconds.length > 0 ? Math.max(...frameSeconds) : 0;
-}
-
 function extendObjectDisplayEnds(project: ProjectData, previousEndSeconds: number, nextEndTime: string) {
   const nextEndSeconds = parseTimelineSeconds(nextEndTime);
   if (!Number.isFinite(previousEndSeconds) || !Number.isFinite(nextEndSeconds) || nextEndSeconds <= previousEndSeconds + 0.05) return;
@@ -687,8 +678,10 @@ function cleanupEmptyTimelineFrames(project: ProjectData) {
   }
 
   const frameSeconds = project.timeline.frames.map((frame) => parseTimelineSeconds(frame.time));
-  project.timeline.start = Math.min(...frameSeconds).toFixed(1);
-  project.timeline.end = Math.max(...frameSeconds).toFixed(1);
+  const currentStartSeconds = parseTimelineSeconds(project.timeline.start);
+  const currentEndSeconds = parseTimelineSeconds(project.timeline.end);
+  project.timeline.start = Math.min(...frameSeconds, Number.isFinite(currentStartSeconds) ? currentStartSeconds : 0).toFixed(1);
+  project.timeline.end = Math.max(...frameSeconds, Number.isFinite(currentEndSeconds) ? currentEndSeconds : 0).toFixed(1);
 }
 
 function normalizeTimedEntries<T extends TimedEntry>(entries: T[] | undefined): T[] {
@@ -1096,285 +1089,20 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     get().setCurrentTime(nextFrameTime(project.timeline.frames, project.timeline.currentTime, direction));
   },
 
-  addTimelineKeyframe: () => {
-    const selectedBefore = get().selected;
-    let createdFrameId: string | null = null;
-
+  setTimelineEnd: (seconds) => {
+    if (!Number.isFinite(seconds)) return;
     commit(set, get, (project) => {
-      const currentSeconds = parseTimelineSeconds(project.timeline.currentTime);
-      const previousEndSeconds = timelineMaxSeconds(project);
-      const hasFrameAtCurrent = project.timeline.frames.some((frame) => Math.abs(parseTimelineSeconds(frame.time) - currentSeconds) < 0.05);
-      let targetSeconds = currentSeconds;
-
-      if (hasFrameAtCurrent) {
-        targetSeconds = Math.round((currentSeconds + 1) * 10) / 10;
-        const hasFrameAtTarget = () => project.timeline.frames.some((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) < 0.05);
-        while (hasFrameAtTarget()) targetSeconds = Math.round((targetSeconds + 1) * 10) / 10;
+      const previousEndSeconds = parseTimelineSeconds(project.timeline.end);
+      const startSeconds = parseTimelineSeconds(project.timeline.start);
+      const nextSeconds = Math.max(Number.isFinite(startSeconds) ? startSeconds : 0, 0, seconds);
+      const nextTime = nextSeconds.toFixed(1);
+      project.timeline.end = nextTime;
+      if (parseTimelineSeconds(project.timeline.currentTime) > nextSeconds) {
+        project.timeline.currentTime = nextTime;
       }
-
-      const time = targetSeconds.toFixed(1);
-      createdFrameId = createId("frame");
-      project.timeline.frames.push({
-        id: createdFrameId,
-        time,
-        displayDate: formatTimelineLabel(time),
-        order: project.timeline.frames.length + 1,
-        memo: "",
-      });
-      project.timeline.frames = sortedFrames(project.timeline.frames).map((frame, index) => ({ ...frame, order: index + 1 }));
-      if (parseTimelineSeconds(project.timeline.end) < targetSeconds) project.timeline.end = time;
-      project.timeline.currentTime = time;
-      extendObjectDisplayEnds(project, previousEndSeconds, time);
-
-      const selected = get().selected;
-      if (selected.type === "site" && selected.id) {
-        const site = project.sites.find((entry) => entry.id === selected.id);
-        if (site) {
-          const resolved = resolveSiteFrame(site, time);
-          const existing = site.keyframes?.find((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) < 0.05);
-          const keyframe = {
-            time,
-            displayDate: formatTimelineLabel(time),
-            factionId: resolved.effectiveFactionId,
-          };
-          site.keyframes ||= [];
-          if (existing) Object.assign(existing, keyframe);
-          else site.keyframes.push(keyframe);
-          site.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
-        }
-      }
-
-      if (selected.type === "unit" && selected.id) {
-        const unit = project.units.find((entry) => entry.id === selected.id);
-        if (unit) {
-          const resolved = resolveUnitFrame(unit, time, project.timeline.interpolationMode);
-          const existing = unit.keyframes.find((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) < 0.05);
-          const keyframe = {
-            time,
-            displayDate: formatTimelineLabel(time),
-            x: resolved?.x ?? 0.5,
-            y: resolved?.y ?? 0.5,
-            rotation: resolved?.rotation ?? 0,
-            status: resolved?.status ?? unit.status,
-            factionId: resolved?.effectiveFactionId,
-            certainty: resolved?.effectiveCertainty,
-            sourceNote: resolved?.sourceNote ?? unit.sourceNote,
-          };
-          if (existing) Object.assign(existing, keyframe);
-          else unit.keyframes.push(keyframe);
-          unit.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
-        }
-      }
-
-      if (selected.type === "image" && selected.id) {
-        const image = project.images.find((entry) => entry.id === selected.id);
-        if (image) {
-          const resolved = resolvePlacedImageFrame(image, time, project.timeline.interpolationMode);
-          const existing = image.keyframes.find((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) < 0.05);
-          const keyframe = {
-            time,
-            displayDate: formatTimelineLabel(time),
-            x: resolved.x,
-            y: resolved.y,
-          };
-          if (existing) Object.assign(existing, keyframe);
-          else image.keyframes.push(keyframe);
-          image.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
-        }
-      }
-
-      if (selected.type === "label" && selected.id) {
-        const label = project.labels.find((entry) => entry.id === selected.id);
-        if (label) {
-          const resolved = resolveLabelFrame(label, time, project.timeline.interpolationMode);
-          const existing = label.keyframes?.find((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) < 0.05);
-          const keyframe = {
-            time,
-            displayDate: formatTimelineLabel(time),
-            x: resolved.x,
-            y: resolved.y,
-          };
-          label.keyframes ||= [];
-          if (existing) Object.assign(existing, keyframe);
-          else label.keyframes.push(keyframe);
-          label.x = keyframe.x;
-          label.y = keyframe.y;
-          label.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
-        }
-      }
-
-      if (selected.type === "line" && selected.id) {
-        const line = project.lines.find((entry) => entry.id === selected.id);
-        if (line) {
-          const resolved = resolveLineKeyframe(line, time, project.timeline.interpolationMode);
-          const existing = line.keyframes.find((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) < 0.05);
-          const keyframe = {
-            time,
-            displayDate: formatTimelineLabel(time),
-            points: resolved?.points.map((point) => ({ ...point })) ?? [],
-            sourceNote: resolved?.sourceNote ?? line.sourceNote,
-          };
-          if (existing) Object.assign(existing, keyframe);
-          else line.keyframes.push(keyframe);
-          line.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
-        }
-      }
-
-      if (selected.type === "region" && selected.id) {
-        const region = project.regions.find((entry) => entry.id === selected.id);
-        if (region) {
-          const resolved = resolveRegionKeyframe(region, time, project.timeline.interpolationMode);
-          const existing = region.keyframes?.find((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) < 0.05);
-          const keyframe = {
-            time,
-            displayDate: formatTimelineLabel(time),
-            points: resolved?.points.map((point) => ({ ...point })) ?? region.points.map((point) => ({ ...point })),
-          };
-          region.keyframes ||= [];
-          if (existing) Object.assign(existing, keyframe);
-          else region.keyframes.push(keyframe);
-          region.points = keyframe.points.map(clampPoint);
-          region.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
-        }
-      }
-
-      if (selected.type === "arrow" && selected.id) {
-        const arrow = project.arrows.find((entry) => entry.id === selected.id);
-        if (arrow) {
-          arrow.keyframes ||= [
-            {
-              time: arrow.startTime,
-              displayDate: formatTimelineLabel(arrow.startTime),
-              points: arrow.points.map((point) => ({ ...point })),
-              sourceNote: arrow.sourceNote,
-            },
-          ];
-          const resolved = resolveArrowKeyframe(arrow, time, project.timeline.interpolationMode);
-          const existing = arrow.keyframes.find((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) < 0.05);
-          const keyframe = {
-            time,
-            displayDate: formatTimelineLabel(time),
-            points: resolved?.points.map((point) => ({ ...point })) ?? arrow.points.map((point) => ({ ...point })),
-            sourceNote: resolved?.sourceNote ?? arrow.sourceNote,
-          };
-          if (existing) Object.assign(existing, keyframe);
-          else arrow.keyframes.push(keyframe);
-          arrow.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
-        }
-      }
+      extendObjectDisplayEnds(project, previousEndSeconds, nextTime);
     });
-
-    if (createdFrameId && get().project.timeline.frames.some((frame) => frame.id === createdFrameId) && (selectedBefore.type === "frame" || selectedBefore.type === null)) {
-      get().selectObject("frame", createdFrameId);
-    }
   },
-
-  updateTimelineFrame: (id, patch) =>
-    commit(set, get, (project) => {
-      const frame = project.timeline.frames.find((entry) => entry.id === id);
-      if (!frame) return;
-
-      const oldTime = frame.time;
-      const oldSeconds = parseTimelineSeconds(oldTime);
-      const nextTime = patch.time !== undefined ? Number(parseTimelineSeconds(patch.time)).toFixed(1) : frame.time;
-      if (patch.time !== undefined && project.timeline.frames.some((entry) => entry.id !== id && isSameTime(entry.time, nextTime))) {
-        return;
-      }
-      const previousEndSeconds = timelineMaxSeconds(project);
-
-      frame.time = nextTime;
-      frame.displayDate = patch.displayDate ?? (patch.time !== undefined ? formatTimelineLabel(nextTime) : frame.displayDate);
-      if (patch.memo !== undefined) frame.memo = patch.memo;
-
-      if (patch.time !== undefined && Math.abs(parseTimelineSeconds(nextTime) - oldSeconds) >= 0.05) {
-        for (const unit of project.units) {
-          if (unit.displayStartTime && Math.abs(parseTimelineSeconds(unit.displayStartTime) - oldSeconds) < 0.05) unit.displayStartTime = nextTime;
-          if (unit.displayEndTime && Math.abs(parseTimelineSeconds(unit.displayEndTime) - oldSeconds) < 0.05) unit.displayEndTime = nextTime;
-          for (const keyframe of unit.keyframes) {
-            if (Math.abs(parseTimelineSeconds(keyframe.time) - oldSeconds) < 0.05) {
-              keyframe.time = nextTime;
-              keyframe.displayDate = formatTimelineLabel(nextTime);
-            }
-          }
-          unit.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
-        }
-
-        for (const line of project.lines) {
-          if (line.displayStartTime && Math.abs(parseTimelineSeconds(line.displayStartTime) - oldSeconds) < 0.05) line.displayStartTime = nextTime;
-          if (line.displayEndTime && Math.abs(parseTimelineSeconds(line.displayEndTime) - oldSeconds) < 0.05) line.displayEndTime = nextTime;
-          for (const keyframe of line.keyframes) {
-            if (Math.abs(parseTimelineSeconds(keyframe.time) - oldSeconds) < 0.05) {
-              keyframe.time = nextTime;
-              keyframe.displayDate = formatTimelineLabel(nextTime);
-            }
-          }
-          line.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
-        }
-
-        for (const region of project.regions) {
-          if (region.displayStartTime && Math.abs(parseTimelineSeconds(region.displayStartTime) - oldSeconds) < 0.05) region.displayStartTime = nextTime;
-          if (region.displayEndTime && Math.abs(parseTimelineSeconds(region.displayEndTime) - oldSeconds) < 0.05) region.displayEndTime = nextTime;
-          for (const keyframe of region.keyframes ?? []) {
-            if (Math.abs(parseTimelineSeconds(keyframe.time) - oldSeconds) < 0.05) {
-              keyframe.time = nextTime;
-              keyframe.displayDate = formatTimelineLabel(nextTime);
-            }
-          }
-          region.keyframes?.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
-        }
-
-        for (const event of project.events) {
-          if (Math.abs(parseTimelineSeconds(event.time) - oldSeconds) < 0.05) {
-            event.time = nextTime;
-            event.displayDate = formatTimelineLabel(nextTime);
-          }
-        }
-
-        for (const arrow of project.arrows) {
-          if (Math.abs(parseTimelineSeconds(arrow.startTime) - oldSeconds) < 0.05) arrow.startTime = nextTime;
-          if (Math.abs(parseTimelineSeconds(arrow.endTime) - oldSeconds) < 0.05) arrow.endTime = nextTime;
-          for (const keyframe of arrow.keyframes ?? []) {
-            if (Math.abs(parseTimelineSeconds(keyframe.time) - oldSeconds) < 0.05) {
-              keyframe.time = nextTime;
-              keyframe.displayDate = formatTimelineLabel(nextTime);
-            }
-          }
-          arrow.keyframes?.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
-        }
-
-        for (const label of project.labels) {
-          if (label.startTime && Math.abs(parseTimelineSeconds(label.startTime) - oldSeconds) < 0.05) label.startTime = nextTime;
-          if (label.endTime && Math.abs(parseTimelineSeconds(label.endTime) - oldSeconds) < 0.05) label.endTime = nextTime;
-          for (const keyframe of label.keyframes ?? []) {
-            if (Math.abs(parseTimelineSeconds(keyframe.time) - oldSeconds) < 0.05) {
-              keyframe.time = nextTime;
-              keyframe.displayDate = patch.displayDate ?? frame.displayDate;
-            }
-          }
-          label.keyframes?.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
-        }
-
-        for (const image of project.images) {
-          for (const keyframe of image.keyframes ?? []) {
-            if (Math.abs(parseTimelineSeconds(keyframe.time) - oldSeconds) < 0.05) {
-              keyframe.time = nextTime;
-              keyframe.displayDate = formatTimelineLabel(nextTime);
-            }
-          }
-          image.keyframes?.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
-        }
-
-        if (Math.abs(parseTimelineSeconds(project.timeline.currentTime) - oldSeconds) < 0.05) project.timeline.currentTime = nextTime;
-        if (Math.abs(parseTimelineSeconds(project.timeline.start) - oldSeconds) < 0.05) project.timeline.start = nextTime;
-        if (Math.abs(parseTimelineSeconds(project.timeline.end) - oldSeconds) < 0.05) project.timeline.end = nextTime;
-      }
-
-      project.timeline.frames = sortedFrames(project.timeline.frames).map((entry, index) => ({ ...entry, order: index + 1 }));
-      const frameSeconds = project.timeline.frames.map((entry) => parseTimelineSeconds(entry.time));
-      project.timeline.start = Math.min(...frameSeconds, parseTimelineSeconds(project.timeline.start)).toFixed(1);
-      project.timeline.end = Math.max(...frameSeconds, parseTimelineSeconds(project.timeline.end)).toFixed(1);
-      if (patch.time !== undefined) extendObjectDisplayEnds(project, previousEndSeconds, project.timeline.end);
-    }),
 
   addFaction: () =>
     commit(set, get, (project) => {

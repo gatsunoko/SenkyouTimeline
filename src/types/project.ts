@@ -109,7 +109,7 @@ export type EventType =
   | "peace"
   | "other";
 
-export type SelectableType = "faction" | "factionSettings" | "unit" | "site" | "image" | "region" | "line" | "arrow" | "event" | "label" | "frame" | "camera" | "mapImage";
+export type SelectableType = "faction" | "factionSettings" | "unit" | "site" | "image" | "region" | "line" | "arrow" | "event" | "label" | "camera" | "mapImage";
 export type ToolMode = "select" | "addUnit" | "addSite" | "addImage" | "drawRegion" | "drawLine" | "drawArrow" | "addLabel" | "mapImageEdit";
 
 export interface MapPoint {

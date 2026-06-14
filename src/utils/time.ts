@@ -49,12 +49,14 @@ export function formatTimelineLabel(time: string) {
   return formatSeconds(parseTimelineSeconds(time));
 }
 
-export function getTimelineBounds(frames: TimelineFrame[], start: string, end: string) {
-  const values = [parseTimelineSeconds(start), parseTimelineSeconds(end), ...frames.map((frame) => parseTimelineSeconds(frame.time))];
-  const finite = values.filter(Number.isFinite);
+export function getTimelineBounds(_frames: TimelineFrame[], start: string, end: string) {
+  const startSeconds = parseTimelineSeconds(start);
+  const endSeconds = parseTimelineSeconds(end);
+  const safeStart = Number.isFinite(startSeconds) ? Math.max(0, startSeconds) : 0;
+  const safeEnd = Number.isFinite(endSeconds) ? Math.max(safeStart, endSeconds) : Math.max(safeStart, 10);
   return {
-    start: Math.min(...finite, 0),
-    end: Math.max(...finite, 10),
+    start: safeStart,
+    end: safeEnd,
   };
 }
 

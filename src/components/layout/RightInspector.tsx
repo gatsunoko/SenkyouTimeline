@@ -3,7 +3,6 @@ import { useProjectStore } from "../../store/projectStore";
 import { ArrowInspector } from "../inspector/ArrowInspector";
 import { CameraInspector } from "../inspector/CameraInspector";
 import { EventInspector } from "../inspector/EventInspector";
-import { FrameInspector } from "../inspector/FrameInspector";
 import { ImageInspector } from "../inspector/ImageInspector";
 import { LabelInspector } from "../inspector/LabelInspector";
 import { LineInspector } from "../inspector/LineInspector";
@@ -122,7 +121,6 @@ export function RightInspector() {
   if (selected.type === "arrow") return <ArrowInspector id={selected.id} />;
   if (selected.type === "event") return <EventInspector id={selected.id} />;
   if (selected.type === "label") return <LabelInspector id={selected.id} />;
-  if (selected.type === "frame") return <FrameInspector id={selected.id} />;
   if (selected.type === "camera") return <CameraInspector />;
   if (selected.type === "mapImage") return <MapImageInspector />;
 

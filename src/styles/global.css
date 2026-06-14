@@ -41,14 +41,9 @@ button:hover {
 }
 
 button.is-active,
-.tabs button.is-active,
-.frame-strip button.is-active {
+.tabs button.is-active {
   background: #304a70;
   border-color: #82a7d9;
-}
-
-.frame-strip button.is-selected {
-  box-shadow: inset 0 0 0 2px #f0c665;
 }
 
 button.danger {
@@ -80,7 +75,7 @@ textarea {
 
 .app-shell {
   display: grid;
-  grid-template-rows: 54px minmax(0, 1fr) 104px;
+  grid-template-rows: 54px minmax(0, 1fr) 62px;
   width: 100%;
   height: 100%;
   background: #0c1016;
@@ -738,7 +733,7 @@ textarea {
 
 .timeline-panel {
   display: grid;
-  grid-template-rows: 36px 26px 38px;
+  grid-template-rows: 36px 26px;
   border-top: 1px solid #263142;
   background: linear-gradient(180deg, #111a27 0%, #0d141f 100%);
   min-width: 0;
@@ -801,6 +796,12 @@ textarea {
   padding: 4px;
 }
 
+.timeline-end-control input {
+  width: 76px;
+  height: 28px;
+  padding: 4px 6px;
+}
+
 .time-ruler {
   display: grid;
   grid-template-columns: 72px 1fr 72px;
@@ -814,87 +815,6 @@ textarea {
 
 .time-ruler input {
   padding: 0;
-}
-
-.frame-strip {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  align-items: center;
-  padding: 4px 12px;
-  min-height: 38px;
-  scrollbar-gutter: stable;
-  scrollbar-color: #6f7f96 #141d2b;
-}
-
-.frame-strip button {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-rows: 1fr;
-  gap: 6px;
-  align-items: center;
-  flex: 0 0 108px;
-  min-width: 108px;
-  min-height: 24px;
-  height: 24px;
-  padding: 3px 6px;
-  text-align: left;
-  border-color: #314054;
-  background: #121b29;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
-}
-
-.frame-strip button:hover {
-  transform: translateY(-1px);
-}
-
-.frame-strip button span {
-  display: grid;
-  place-items: center;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #253246;
-  color: #cbd6e6;
-  font-size: 9px;
-  font-weight: 700;
-}
-
-.frame-strip button strong {
-  font-size: 11px;
-  line-height: 1;
-  color: #f7f2e7;
-}
-
-.frame-strip button small {
-  display: none;
-  color: #9eaabc;
-  max-width: 110px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
-}
-
-.frame-strip::-webkit-scrollbar {
-  height: 6px;
-}
-
-.frame-strip::-webkit-scrollbar-track {
-  background: #141d2b;
-  border-radius: 999px;
-}
-
-.frame-strip::-webkit-scrollbar-thumb {
-  background: #6f7f96;
-  border: 2px solid #141d2b;
-  border-radius: 999px;
-}
-
-.frame-strip::-webkit-scrollbar-thumb:hover {
-  background: #8ca0bc;
 }
 
 .empty-message {
@@ -989,12 +909,6 @@ textarea {
 .keyframe-jump-row:focus-visible {
   border-color: #5d78a5;
   background: #182235;
-}
-
-.frame-key-target {
-  grid-template-columns: 54px 1fr auto;
-  width: 100%;
-  text-align: left;
 }
 
 .point-row span {
