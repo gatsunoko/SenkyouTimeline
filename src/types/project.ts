@@ -346,6 +346,11 @@ export interface RegionKeyframe {
   points: MapPoint[];
 }
 
+export interface LabelKeyframe extends MapPoint {
+  time: string;
+  displayDate: string;
+}
+
 export interface BattleLine {
   id: string;
   name: string;
@@ -431,11 +436,17 @@ export interface MapLabel extends MapPoint {
   endTime?: string;
   fontSize: number;
   color: string;
+  backgroundEnabled?: boolean;
   backgroundColor: string;
+  outlineEnabled?: boolean;
+  outlineColor?: string;
+  borderEnabled?: boolean;
   borderColor: string;
+  bold?: boolean;
   opacity: number;
   locked: boolean;
   memo: string;
+  keyframes?: LabelKeyframe[];
 }
 
 export interface ProjectData {

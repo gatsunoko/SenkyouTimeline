@@ -3,7 +3,7 @@ import { useProjectStore } from "../../store/projectStore";
 import { formatTimelineLabel, parseTimelineSeconds } from "../../utils/time";
 import { TextAreaField, TextField } from "./InspectorFields";
 
-type KeyedObjectType = "unit" | "site" | "image" | "region" | "line" | "arrow" | "camera";
+type KeyedObjectType = "unit" | "site" | "image" | "region" | "line" | "arrow" | "label" | "camera";
 
 type KeyedObject = {
   id: string;
@@ -85,6 +85,15 @@ export function FrameInspector({ id }: { id: string }) {
         typeLabel: "矢印",
         name: arrow.name,
         summary: `${keyframe.points.length} 点`,
+      })),
+    ),
+    ...project.labels.flatMap((label) =>
+      (label.keyframes ?? []).filter((keyframe) => sameTime(keyframe.time, frame.time)).map((keyframe) => ({
+        id: label.id,
+        type: "label" as const,
+        typeLabel: "ラベル",
+        name: label.text || "ラベル",
+        summary: `X ${keyframe.x.toFixed(3)} / Y ${keyframe.y.toFixed(3)}`,
       })),
     ),
     ...((project.map.exportCamera?.keyframes ?? []).filter((keyframe) => sameTime(keyframe.time, frame.time)).map((keyframe) => ({

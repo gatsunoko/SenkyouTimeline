@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Pause, Play, Plus, SkipBack, SkipForward, Trash2 } from "lucide-react";
 import { useProjectStore } from "../../store/projectStore";
-import { getUnitRouteTimeRange, resolveArrowRoutePoints, resolveLineRoutePoints, resolveRegionKeyframe, resolveUnitFrame } from "../../utils/interpolation";
+import { getUnitRouteTimeRange, resolveArrowRoutePoints, resolveLabelFrame, resolveLineRoutePoints, resolveRegionKeyframe, resolveUnitFrame } from "../../utils/interpolation";
 import { formatSeconds, formatTimelineLabel, getTimelineBounds, parseTimelineSeconds, sortedFrames } from "../../utils/time";
 
 export function TimelinePanel() {
@@ -146,6 +146,12 @@ export function TimelinePanel() {
     }
 
     for (const label of next.labels) {
+      const resolvedBeforeDelete = resolveLabelFrame(label, activeFrame.time, next.timeline.interpolationMode);
+      label.keyframes = label.keyframes?.filter((keyframe) => !isDeletedTime(keyframe.time)) ?? [];
+      if (label.keyframes.length === 0 && resolvedBeforeDelete) {
+        label.x = resolvedBeforeDelete.x;
+        label.y = resolvedBeforeDelete.y;
+      }
       if (isDeletedTime(label.startTime)) label.startTime = replacementStart;
       if (isDeletedTime(label.endTime)) label.endTime = replacementEnd;
     }

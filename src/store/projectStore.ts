@@ -10,6 +10,7 @@ import type {
   ExportCamera,
   Faction,
   ImageAsset,
+  LabelKeyframe,
   MapLabel,
   MapPoint,
   MapRegion,
@@ -33,7 +34,7 @@ import { clampPoint } from "../utils/coordinate";
 import { createId } from "../utils/id";
 import { compareTime, formatTimelineLabel, getCurrentFrame, nextFrameTime, parseTimelineSeconds, sortedFrames } from "../utils/time";
 import { cloneProject, trimHistory } from "./historyStore";
-import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveArrowRoutePoints, resolveCameraFrame, resolveLineKeyframe, resolveLineRoutePoints, resolvePlacedImageFrame, resolveRegionKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRoutePoint } from "../utils/interpolation";
+import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveArrowRoutePoints, resolveCameraFrame, resolveLabelFrame, resolveLineKeyframe, resolveLineRoutePoints, resolvePlacedImageFrame, resolveRegionKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRoutePoint } from "../utils/interpolation";
 
 const emptyProject: ProjectData = {
   version: "1.0.0",
@@ -184,6 +185,8 @@ interface ProjectStore {
   deleteEvent: (id: string) => void;
   addLabel: (point?: MapPoint) => void;
   updateLabel: (id: string, patch: Partial<MapLabel>) => void;
+  updateLabelKeyframe: (labelId: string, time: string, keyframe: Partial<LabelKeyframe>) => void;
+  deleteLabelKeyframe: (labelId: string, time: string) => void;
   deleteLabel: (id: string) => void;
   moveSelectionItems: (updates: SelectionMoveUpdate[]) => void;
   selectObject: (type: SelectionState["type"], id: string | null) => void;
@@ -579,6 +582,36 @@ function applyPlacedImagePositionKeyframe(project: ProjectData, imageId: string,
   image.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
 }
 
+function applyLabelPositionKeyframe(project: ProjectData, labelId: string, time: string, point: MapPoint) {
+  const label = project.labels.find((entry) => entry.id === labelId);
+  if (!label || label.locked) return;
+  const frame = ensureTimelineFrame(project, time);
+  const keyframeTime = frame.time;
+  const targetSeconds = parseTimelineSeconds(keyframeTime);
+  label.keyframes ||= [
+    {
+      time: label.startTime ?? keyframeTime,
+      displayDate: getCurrentFrame(project.timeline.frames, label.startTime ?? keyframeTime)?.displayDate ?? formatTimelineLabel(label.startTime ?? keyframeTime),
+      x: label.x,
+      y: label.y,
+    },
+  ];
+  const existing = label.keyframes.find((entry) => Math.abs(parseTimelineSeconds(entry.time) - targetSeconds) < 0.05);
+  const resolved = resolveLabelFrame(label, keyframeTime, project.timeline.interpolationMode);
+  const normalizedPoint = clampPoint(point);
+  const next: LabelKeyframe = {
+    time: keyframeTime,
+    displayDate: frame.displayDate ?? formatTimelineLabel(keyframeTime),
+    x: normalizedPoint.x ?? resolved.x,
+    y: normalizedPoint.y ?? resolved.y,
+  };
+  if (existing) Object.assign(existing, next);
+  else label.keyframes.push(next);
+  label.x = next.x;
+  label.y = next.y;
+  label.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+}
+
 function isSameTime(a: string, b: string) {
   return Math.abs(parseTimelineSeconds(a) - parseTimelineSeconds(b)) < 0.05;
 }
@@ -620,6 +653,7 @@ function hasObjectKeyAtTime(project: ProjectData, time: string) {
     project.regions.some((region) => (region.keyframes ?? []).some((keyframe) => isSameTime(keyframe.time, time))) ||
     project.lines.some((line) => line.keyframes.some((keyframe) => isSameTime(keyframe.time, time))) ||
     project.arrows.some((arrow) => (arrow.keyframes ?? []).some((keyframe) => isSameTime(keyframe.time, time))) ||
+    project.labels.some((label) => (label.keyframes ?? []).some((keyframe) => isSameTime(keyframe.time, time))) ||
     (project.map.exportCamera?.keyframes ?? []).some((keyframe) => isSameTime(keyframe.time, time))
   );
 }
@@ -929,7 +963,28 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     }
   }
   for (const label of normalized.labels ?? []) {
+    label.x = Number.isFinite(label.x) ? label.x : label.keyframes?.[0]?.x ?? 0.5;
+    label.y = Number.isFinite(label.y) ? label.y : label.keyframes?.[0]?.y ?? 0.5;
+    label.backgroundEnabled = label.backgroundEnabled ?? true;
+    label.borderEnabled = label.borderEnabled ?? true;
     label.borderColor ||= "#f0c665";
+    label.outlineEnabled = label.outlineEnabled ?? false;
+    label.outlineColor ||= "#111827";
+    label.bold = label.bold ?? false;
+    const fallbackTime = label.startTime ?? normalized.timeline?.currentTime ?? normalized.timeline?.start ?? "0";
+    label.keyframes ||= [
+      {
+        time: fallbackTime,
+        displayDate: getCurrentFrame(normalized.timeline.frames, fallbackTime)?.displayDate ?? formatTimelineLabel(fallbackTime),
+        x: label.x,
+        y: label.y,
+      },
+    ];
+    label.keyframes = normalizeTimedEntries(label.keyframes).map((keyframe) => ({
+      ...keyframe,
+      x: Number.isFinite(keyframe.x) ? keyframe.x : label.x,
+      y: Number.isFinite(keyframe.y) ? keyframe.y : label.y,
+    }));
   }
   normalizeProjectTiming(normalized);
   normalized.timeline.currentTime = getCurrentFrame(normalized.timeline.frames, normalized.timeline.currentTime)?.time ?? normalized.timeline.frames[0]?.time ?? normalized.timeline.currentTime ?? "";
@@ -1127,6 +1182,26 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         }
       }
 
+      if (selected.type === "label" && selected.id) {
+        const label = project.labels.find((entry) => entry.id === selected.id);
+        if (label) {
+          const resolved = resolveLabelFrame(label, time, project.timeline.interpolationMode);
+          const existing = label.keyframes?.find((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) < 0.05);
+          const keyframe = {
+            time,
+            displayDate: formatTimelineLabel(time),
+            x: resolved.x,
+            y: resolved.y,
+          };
+          label.keyframes ||= [];
+          if (existing) Object.assign(existing, keyframe);
+          else label.keyframes.push(keyframe);
+          label.x = keyframe.x;
+          label.y = keyframe.y;
+          label.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+        }
+      }
+
       if (selected.type === "line" && selected.id) {
         const line = project.lines.find((entry) => entry.id === selected.id);
         if (line) {
@@ -1269,6 +1344,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         for (const label of project.labels) {
           if (label.startTime && Math.abs(parseTimelineSeconds(label.startTime) - oldSeconds) < 0.05) label.startTime = nextTime;
           if (label.endTime && Math.abs(parseTimelineSeconds(label.endTime) - oldSeconds) < 0.05) label.endTime = nextTime;
+          for (const keyframe of label.keyframes ?? []) {
+            if (Math.abs(parseTimelineSeconds(keyframe.time) - oldSeconds) < 0.05) {
+              keyframe.time = nextTime;
+              keyframe.displayDate = patch.displayDate ?? frame.displayDate;
+            }
+          }
+          label.keyframes?.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
         }
 
         for (const image of project.images) {
@@ -2070,22 +2152,62 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   addLabel: (point = { x: 0.5, y: 0.5 }) =>
     commit(set, get, (project) => {
       const id = createId("label");
+      const frame = currentFrame(project);
+      const time = frame?.time ?? project.timeline.currentTime;
+      const displayDate = frame?.displayDate ?? formatTimelineLabel(time);
+      const position = clampPoint(point);
       project.labels.push({
         id,
         text: "注釈",
-        ...clampPoint(point),
+        ...position,
         fontSize: 24,
         color: "#fff7e6",
+        backgroundEnabled: true,
         backgroundColor: "#111827",
+        outlineEnabled: false,
+        outlineColor: "#111827",
+        borderEnabled: true,
         borderColor: "#f0c665",
+        bold: false,
         opacity: 0.9,
         locked: false,
         memo: "",
+        keyframes: [
+          {
+            time,
+            displayDate,
+            ...position,
+          },
+        ],
       });
       get().selectObject("label", id);
     }),
 
   updateLabel: (id, patch) => commit(set, get, (project) => applyListPatch(project.labels, id, patch)),
+  updateLabelKeyframe: (labelId, time, keyframe) =>
+    commit(set, get, (project) => {
+      const label = project.labels.find((entry) => entry.id === labelId);
+      if (!label) return;
+      const resolved = resolveLabelFrame(label, time, project.timeline.interpolationMode);
+      applyLabelPositionKeyframe(project, labelId, time, {
+        x: keyframe.x ?? resolved.x,
+        y: keyframe.y ?? resolved.y,
+      });
+    }),
+  deleteLabelKeyframe: (labelId, time) =>
+    commit(set, get, (project) => {
+      const label = project.labels.find((entry) => entry.id === labelId);
+      if (!label?.keyframes) return;
+      const targetSeconds = parseTimelineSeconds(time);
+      const resolvedBeforeDelete = resolveLabelFrame(label, time, project.timeline.interpolationMode);
+      label.keyframes = label.keyframes.filter((frame) => Math.abs(parseTimelineSeconds(frame.time) - targetSeconds) >= 0.05);
+      if (label.keyframes.length === 0) {
+        label.x = resolvedBeforeDelete.x;
+        label.y = resolvedBeforeDelete.y;
+      }
+      label.keyframes.sort((a, b) => parseTimelineSeconds(a.time) - parseTimelineSeconds(b.time));
+      cleanupEmptyTimelineFrames(project);
+    }),
   deleteLabel: (id) => commit(set, get, (project) => (project.labels = project.labels.filter((label) => label.id !== id))),
   moveSelectionItems: (updates) =>
     commit(set, get, (project) => {
@@ -2103,7 +2225,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           if (region && !region.locked) applyRegionPointsKeyframe(project, update.id, project.timeline.currentTime, update.points);
         } else if (update.type === "label") {
           const label = project.labels.find((entry) => entry.id === update.id);
-          if (label && !label.locked) Object.assign(label, clampPoint({ x: update.x, y: update.y }));
+          if (label && !label.locked) applyLabelPositionKeyframe(project, update.id, project.timeline.currentTime, { x: update.x, y: update.y });
         } else if (update.type === "line") {
           const line = project.lines.find((entry) => entry.id === update.id);
           if (line && !line.locked) applyLinePointsKeyframe(project, update.id, project.timeline.currentTime, update.points);

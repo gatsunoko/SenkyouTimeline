@@ -8,7 +8,7 @@ import type { MapLabel, MapRegion, MovableSelectionType, PlacedImage, SelectionM
 import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas, relativeToCanvas } from "../../utils/coordinate";
 import { downloadBlob, downloadDataUrl } from "../../utils/fileIO";
 import { loadCachedImage } from "../../utils/imageCache";
-import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveCameraFrame, resolveLineKeyframe, resolvePlacedImageFrame, resolveRegionKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRouteApproachPoint, resolveUnitRouteExitPoint, resolveUnitRoutePoint } from "../../utils/interpolation";
+import { getUnitRouteSegments, getUnitRouteTimeRange, resolveArrowKeyframe, resolveCameraFrame, resolveLabelFrame, resolveLineKeyframe, resolvePlacedImageFrame, resolveRegionKeyframe, resolveSiteFrame, resolveUnitFrame, resolveUnitRouteApproachPoint, resolveUnitRouteExitPoint, resolveUnitRoutePoint } from "../../utils/interpolation";
 import { createZip, type ZipEntry } from "../../utils/zip";
 import { compareTime, parseTimelineSeconds } from "../../utils/time";
 import { ArrowShape } from "./ArrowShape";
@@ -338,7 +338,7 @@ export function MapCanvas() {
   const updateLineKeyframe = useProjectStore((state) => state.updateLineKeyframe);
   const updateArrowKeyframe = useProjectStore((state) => state.updateArrowKeyframe);
   const updateImageKeyframe = useProjectStore((state) => state.updateImageKeyframe);
-  const updateLabel = useProjectStore((state) => state.updateLabel);
+  const updateLabelKeyframe = useProjectStore((state) => state.updateLabelKeyframe);
   const updateRegionPoints = useProjectStore((state) => state.updateRegionPoints);
   const moveSelectionItems = useProjectStore((state) => state.moveSelectionItems);
   const updateMapImagePlacement = useProjectStore((state) => state.updateMapImagePlacement);
@@ -988,8 +988,9 @@ export function MapCanvas() {
     if (item.type === "label") {
       const label = project.labels.find((entry) => entry.id === item.id);
       if (!label || (label.startTime && compareTime(label.startTime, project.timeline.currentTime) > 0) || (label.endTime && compareTime(label.endTime, project.timeline.currentTime) < 0)) return null;
+      const frame = resolveLabelFrame(label, project.timeline.currentTime, project.timeline.interpolationMode);
       const size = labelBoundsSize(label);
-      const position = { x: label.x * mapWidth, y: label.y * mapHeight };
+      const position = { x: frame.x * mapWidth, y: frame.y * mapHeight };
       return { x: position.x - size.width / 2, y: position.y - size.height / 2, width: size.width, height: size.height };
     }
     const arrow = project.arrows.find((entry) => entry.id === item.id);
@@ -1075,7 +1076,8 @@ export function MapCanvas() {
         if (arrow && frame && !arrow.locked) updates.push({ type: "arrow", id: arrow.id, points: frame.points.map((point) => offsetPoint(point, relativeDelta)) });
       } else {
         const label = project.labels.find((entry) => entry.id === item.id);
-        if (label && !label.locked) updates.push({ type: "label", id: label.id, x: label.x + relativeDelta.x, y: label.y + relativeDelta.y });
+        const frame = label ? resolveLabelFrame(label, project.timeline.currentTime, project.timeline.interpolationMode) : null;
+        if (label && frame && !label.locked) updates.push({ type: "label", id: label.id, x: frame.x + relativeDelta.x, y: frame.y + relativeDelta.y });
       }
     }
     if (updates.length > 0) moveSelectionItems(updates);
@@ -1192,11 +1194,17 @@ export function MapCanvas() {
       y: previewPoint.y,
       fontSize: 24,
       color: "#fff7e6",
+      backgroundEnabled: true,
       backgroundColor: "#111827",
+      outlineEnabled: false,
+      outlineColor: "#111827",
+      borderEnabled: true,
       borderColor: "#f0c665",
+      bold: false,
       opacity: 0.9,
       locked: true,
       memo: "",
+      keyframes: [],
     };
     return previewLabel;
   })();
@@ -1504,9 +1512,21 @@ export function MapCanvas() {
 
           {withoutSelected(project.labels, "label")
             .filter((label) => (!label.startTime || compareTime(label.startTime, project.timeline.currentTime) <= 0) && (!label.endTime || compareTime(label.endTime, project.timeline.currentTime) >= 0))
-            .map((label) => (
-              <LabelShape key={label.id} label={label} selected={isSelected("label", label.id)} mapWidth={mapWidth} mapHeight={mapHeight} dragEnabled={objectDragEnabled} onSelect={() => selectSingle("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />
-            ))}
+            .map((label) => {
+              const frame = resolveLabelFrame(label, project.timeline.currentTime, project.timeline.interpolationMode);
+              return (
+                <LabelShape
+                  key={label.id}
+                  label={{ ...label, x: frame.x, y: frame.y }}
+                  selected={isSelected("label", label.id)}
+                  mapWidth={mapWidth}
+                  mapHeight={mapHeight}
+                  dragEnabled={objectDragEnabled}
+                  onSelect={() => selectSingle("label", label.id)}
+                  onDragEnd={(x, y) => updateLabelKeyframe(label.id, project.timeline.currentTime, { x, y })}
+                />
+              );
+            })}
 
           {labelPlacementPreview && (
             <Group opacity={0.48} listening={false}>
@@ -1697,8 +1717,21 @@ export function MapCanvas() {
               if (item.type === "label") {
                 const label = project.labels.find((entry) => entry.id === item.id);
                 if (!label || (label.startTime && compareTime(label.startTime, project.timeline.currentTime) > 0) || (label.endTime && compareTime(label.endTime, project.timeline.currentTime) < 0)) return null;
-                const displayLabel = multiDragDelta && isMultiSelected("label", label.id) ? offsetPoint(label) : label;
-                return <LabelShape key={`${label.id}-selected-front`} label={displayLabel} selected mapWidth={mapWidth} mapHeight={mapHeight} dragEnabled={objectDragEnabled} onSelect={() => selectSingle("label", label.id)} onDragEnd={(x, y) => updateLabel(label.id, { x, y })} />;
+                const frame = resolveLabelFrame(label, project.timeline.currentTime, project.timeline.interpolationMode);
+                const displayPoint = multiDragDelta && isMultiSelected("label", label.id) ? offsetPoint(frame) : frame;
+                const displayLabel = { ...label, x: displayPoint.x, y: displayPoint.y };
+                return (
+                  <LabelShape
+                    key={`${label.id}-selected-front`}
+                    label={displayLabel}
+                    selected
+                    mapWidth={mapWidth}
+                    mapHeight={mapHeight}
+                    dragEnabled={objectDragEnabled}
+                    onSelect={() => selectSingle("label", label.id)}
+                    onDragEnd={(x, y) => updateLabelKeyframe(label.id, project.timeline.currentTime, { x, y })}
+                  />
+                );
               }
               const unit = project.units.find((entry) => entry.id === item.id);
               if (!unit) return null;

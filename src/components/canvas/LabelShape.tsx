@@ -22,16 +22,16 @@ function estimateTextWidth(text: string, fontSize: number) {
   }, 0);
 }
 
-function labelFont(fontSize: number) {
-  return `normal ${fontSize}px ${UI_FONT_FAMILY}`;
+function labelFont(fontSize: number, bold = false) {
+  return `${bold ? "bold" : "normal"} ${fontSize}px ${UI_FONT_FAMILY}`;
 }
 
-function measureLabelTextWidth(text: string, fontSize: number) {
+function measureLabelTextWidth(text: string, fontSize: number, bold = false) {
   if (typeof document === "undefined") return estimateTextWidth(text, fontSize);
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
   if (!context) return estimateTextWidth(text, fontSize);
-  context.font = labelFont(fontSize);
+  context.font = labelFont(fontSize, bold);
   return context.measureText(text).width;
 }
 
@@ -39,8 +39,14 @@ export function LabelShape({ label, selected, mapWidth, mapHeight, onSelect, onD
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const position = relativeToCanvas(label, mapWidth, mapHeight);
   const horizontalPadding = 11;
-  const textWidth = measureLabelTextWidth(label.text, label.fontSize);
-  const width = Math.max(70, textWidth + horizontalPadding * 2);
+  const labelBold = label.bold ?? false;
+  const borderEnabled = label.borderEnabled ?? true;
+  const backgroundEnabled = label.backgroundEnabled ?? true;
+  const outlineEnabled = label.outlineEnabled ?? false;
+  const outlineColor = label.outlineColor ?? "#111827";
+  const outlineWidth = outlineEnabled ? Math.max(2, label.fontSize * 0.12) : 0;
+  const textWidth = measureLabelTextWidth(label.text, label.fontSize, labelBold);
+  const width = Math.max(70, textWidth + horizontalPadding * 2 + outlineWidth * 2);
   const height = label.fontSize + 16;
   const textAreaWidth = width - horizontalPadding * 2;
   return (
@@ -65,7 +71,7 @@ export function LabelShape({ label, selected, mapWidth, mapHeight, onSelect, onD
       }}
     >
       {selected && <MarchingAntsRect x={-width / 2 - 5} y={-height / 2 - 5} width={width + 10} height={height + 10} cornerRadius={6} />}
-      <Rect x={-width / 2} y={-height / 2} width={width} height={height} fill={label.backgroundColor} stroke={label.borderColor} strokeWidth={2} cornerRadius={6} />
+      <Rect x={-width / 2} y={-height / 2} width={width} height={height} fill={backgroundEnabled ? label.backgroundColor : undefined} stroke={borderEnabled ? label.borderColor : undefined} strokeWidth={borderEnabled ? 2 : 0} cornerRadius={6} />
       <Shape
         x={-width / 2 + horizontalPadding}
         y={-height / 2}
@@ -75,7 +81,7 @@ export function LabelShape({ label, selected, mapWidth, mapHeight, onSelect, onD
         sceneFunc={(context) => {
           const canvasContext = (context as unknown as { _context: CanvasRenderingContext2D })._context;
           canvasContext.save();
-          canvasContext.font = labelFont(label.fontSize);
+          canvasContext.font = labelFont(label.fontSize, labelBold);
           canvasContext.fillStyle = label.color;
           canvasContext.textAlign = "center";
           canvasContext.textBaseline = "alphabetic";
@@ -83,6 +89,12 @@ export function LabelShape({ label, selected, mapWidth, mapHeight, onSelect, onD
           const ascent = metrics.actualBoundingBoxAscent || label.fontSize * 0.82;
           const descent = metrics.actualBoundingBoxDescent || label.fontSize * 0.18;
           const baselineY = height / 2 + (ascent - descent) / 2;
+          if (outlineEnabled) {
+            canvasContext.strokeStyle = outlineColor;
+            canvasContext.lineWidth = outlineWidth;
+            canvasContext.lineJoin = "round";
+            canvasContext.strokeText(label.text, textAreaWidth / 2, baselineY);
+          }
           canvasContext.fillText(label.text, textAreaWidth / 2, baselineY);
           canvasContext.restore();
         }}
