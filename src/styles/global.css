@@ -981,6 +981,16 @@ textarea {
   grid-template-columns: 72px 1fr 44px;
 }
 
+.keyframe-jump-row {
+  cursor: pointer;
+}
+
+.keyframe-jump-row:hover,
+.keyframe-jump-row:focus-visible {
+  border-color: #5d78a5;
+  background: #182235;
+}
+
 .frame-key-target {
   grid-template-columns: 54px 1fr auto;
   width: 100%;

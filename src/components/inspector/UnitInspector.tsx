@@ -41,6 +41,7 @@ export function UnitInspector({ id }: { id: string }) {
   const registerUnitAsset = useProjectStore((state) => state.registerUnitAsset);
   const updateUnitKeyframe = useProjectStore((state) => state.updateUnitKeyframe);
   const deleteUnitKeyframe = useProjectStore((state) => state.deleteUnitKeyframe);
+  const setCurrentTime = useProjectStore((state) => state.setCurrentTime);
   const setUnitRoute = useProjectStore((state) => state.setUnitRoute);
   const toggleUnitRoutePreview = useProjectStore((state) => state.toggleUnitRoutePreview);
   const routePreviewUnitId = useProjectStore((state) => state.routePreviewUnitId);
@@ -306,14 +307,34 @@ export function UnitInspector({ id }: { id: string }) {
       <h3>このコマのキーフレーム</h3>
       <div className="point-list">
         {unitKeyframes.map((entry, index) => (
-          <div className="point-row keyframe-row" key={`${unit.id}-keyframe-${entry.time}-${index}`}>
+          <div
+            className="point-row keyframe-row keyframe-jump-row"
+            role="button"
+            tabIndex={0}
+            key={`${unit.id}-keyframe-${entry.time}-${index}`}
+            onClick={() => setCurrentTime(entry.time)}
+            onKeyDown={(event) => {
+              if (event.target !== event.currentTarget) return;
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setCurrentTime(entry.time);
+              }
+            }}
+          >
             <span>{entry.displayDate || entry.time}</span>
             <small>
               x {entry.x.toFixed(3)} / y {entry.y.toFixed(3)}
               {entry.size !== undefined ? ` / size ${entry.size.toFixed(2)}` : ""}
               {unitShape !== "rectangle" ? ` / angle ${entry.rotation.toFixed(0)}` : ""}
             </small>
-            <button type="button" className="icon-only danger" onClick={() => deleteUnitKeyframe(unit.id, entry.time)}>
+            <button
+              type="button"
+              className="icon-only danger"
+              onClick={(event) => {
+                event.stopPropagation();
+                deleteUnitKeyframe(unit.id, entry.time);
+              }}
+            >
               削除
             </button>
           </div>

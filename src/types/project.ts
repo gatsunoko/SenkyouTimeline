@@ -199,7 +199,7 @@ export interface UnitAsset {
 export interface SiteAsset {
   id: string;
   name: string;
-  imageDataUrl: string;
+  imageDataUrl?: string;
   size: number;
   factionId: string;
   nameFontSize?: number;

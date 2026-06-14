@@ -104,7 +104,7 @@ export function SiteInspector({ id }: { id: string }) {
           event.currentTarget.value = "";
         }}
       />
-      {site.iconUrl && !site.assetId && (
+      {!site.assetId && (
         <button type="button" onClick={() => registerSiteAsset(site.id)}>
           アセットとして登録
         </button>

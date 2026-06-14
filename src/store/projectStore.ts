@@ -534,25 +534,26 @@ function applyArrowPointsKeyframe(project: ProjectData, arrowId: string, time: s
 function applyRegionPointsKeyframe(project: ProjectData, regionId: string, time: string, points: MapPoint[]) {
   const region = project.regions.find((entry) => entry.id === regionId);
   if (!region || region.locked || points.length < 3) return;
-  const frame = getCurrentFrame(project.timeline.frames, time);
-  const targetSeconds = parseTimelineSeconds(time);
+  const frame = ensureTimelineFrame(project, time);
+  const keyframeTime = frame.time;
+  const targetSeconds = parseTimelineSeconds(keyframeTime);
   const normalizedPoints = points.map(clampPoint);
   region.keyframes ||= [
     {
-      time: region.displayStartTime ?? time,
-      displayDate: getCurrentFrame(project.timeline.frames, region.displayStartTime ?? time)?.displayDate ?? formatTimelineLabel(region.displayStartTime ?? time),
+      time: region.displayStartTime ?? keyframeTime,
+      displayDate: getCurrentFrame(project.timeline.frames, region.displayStartTime ?? keyframeTime)?.displayDate ?? formatTimelineLabel(region.displayStartTime ?? keyframeTime),
       points: (region.points ?? normalizedPoints).map(clampPoint),
     },
   ];
   const existing = region.keyframes.find((entry) => Math.abs(parseTimelineSeconds(entry.time) - targetSeconds) < 0.05);
   if (existing) {
-    existing.time = time;
-    existing.displayDate = frame?.displayDate ?? formatTimelineLabel(time);
+    existing.time = keyframeTime;
+    existing.displayDate = frame.displayDate ?? formatTimelineLabel(keyframeTime);
     existing.points = normalizedPoints;
   } else {
     region.keyframes.push({
-      time,
-      displayDate: frame?.displayDate ?? formatTimelineLabel(time),
+      time: keyframeTime,
+      displayDate: frame.displayDate ?? formatTimelineLabel(keyframeTime),
       points: normalizedPoints,
     });
   }
@@ -1684,12 +1685,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     commit(set, get, (project) => {
       project.siteAssets ||= [];
       const site = project.sites.find((entry) => entry.id === siteId);
-      if (!site?.iconUrl) return;
+      if (!site) return;
       const siteFrame = resolveSiteFrame(site, project.timeline.currentTime);
       const asset: SiteAsset = {
         id: createId("site_asset"),
-        name: site.name.trim() || "画像拠点",
-        imageDataUrl: site.iconUrl,
+        name: site.name.trim() || "拠点",
         size: site.size ?? 1,
         factionId: siteFrame.effectiveFactionId,
         nameFontSize: site.nameFontSize ?? 14,
@@ -1700,6 +1700,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         nameOutlineEnabled: site.nameOutlineEnabled ?? false,
         nameOutlineColor: site.nameOutlineColor ?? "#111827",
       };
+      if (site.iconUrl) asset.imageDataUrl = site.iconUrl;
       project.siteAssets.push(asset);
       site.assetId = asset.id;
       site.showName = site.showName ?? true;

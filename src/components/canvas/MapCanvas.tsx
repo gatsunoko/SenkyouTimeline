@@ -740,7 +740,7 @@ export function MapCanvas() {
     if (tool === "addUnit") {
       if (unitPlacementAssetId) duplicateUnitFromAsset(unitPlacementAssetId, point);
       else addUnit(point);
-      setTool("select");
+      if (!unitPlacementAssetId) setTool("select");
       return;
     }
     if (tool === "addSite") {

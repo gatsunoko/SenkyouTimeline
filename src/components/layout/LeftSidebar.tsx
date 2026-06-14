@@ -388,7 +388,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                     }}
                   >
                     <span className="site-list-icon" style={{ backgroundColor: factionColor }}>
-                      <img src={asset.imageDataUrl} alt="" />
+                      <img src={asset.imageDataUrl ?? defaultSiteIconUrl} alt="" />
                     </span>
                     <span>
                       <strong>{assetName}</strong>
