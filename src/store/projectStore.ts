@@ -198,7 +198,6 @@ interface ProjectStore {
   clearSelection: () => void;
   updateUnitKeyframe: (unitId: string, time: string, keyframe: Partial<UnitKeyframe>) => void;
   deleteUnitKeyframe: (unitId: string, time: string) => void;
-  setInterpolationMode: (mode: ProjectData["timeline"]["interpolationMode"]) => void;
   setMapImage: (dataUrl: string, naturalSize?: { width: number; height: number }) => void;
   updateMapImagePlacement: (patch: { imageX?: number; imageY?: number; imageWidth?: number; imageHeight?: number }) => void;
   updateExportCamera: (patch: Partial<Pick<ExportCamera, "width" | "height" | "scale">>) => void;
@@ -728,6 +727,7 @@ function normalizeTimelineFrames(project: ProjectData) {
 
 function normalizeProjectTiming(project: ProjectData) {
   normalizeTimelineFrames(project);
+  project.timeline.interpolationMode = "linear";
 
   for (const unit of project.units ?? []) {
     unit.shape = unit.shape === "rectangle" || unit.shape === "convex" ? unit.shape : "pentagon";
@@ -2103,11 +2103,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         unit.displayEndTime = routeRange?.endTime ?? unit.keyframes[unit.keyframes.length - 1]?.time ?? unit.displayEndTime;
       }
       cleanupEmptyTimelineFrames(project);
-    }),
-
-  setInterpolationMode: (mode) =>
-    commit(set, get, (project) => {
-      project.timeline.interpolationMode = mode;
     }),
 
   setMapImage: (dataUrl, naturalSize) =>

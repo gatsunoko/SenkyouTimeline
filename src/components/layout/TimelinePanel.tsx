@@ -7,9 +7,7 @@ export function TimelinePanel() {
   const project = useProjectStore((state) => state.project);
   const setCurrentTime = useProjectStore((state) => state.setCurrentTime);
   const setTimelineEnd = useProjectStore((state) => state.setTimelineEnd);
-  const setInterpolationMode = useProjectStore((state) => state.setInterpolationMode);
   const [playing, setPlaying] = useState(false);
-  const [loop, setLoop] = useState(true);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [endDraft, setEndDraft] = useState(() => parseTimelineSeconds(project.timeline.end).toFixed(1));
   const lastTickRef = useRef<number | null>(null);
@@ -39,13 +37,10 @@ export function TimelinePanel() {
       if (nextSeconds <= bounds.end) {
         setCurrentTime(nextSeconds.toFixed(4));
         animationFrameRef.current = window.requestAnimationFrame(tick);
-      } else if (loop) {
+      } else {
         setCurrentTime(bounds.start.toFixed(4));
         lastTickRef.current = performance.now();
         animationFrameRef.current = window.requestAnimationFrame(tick);
-      } else {
-        setCurrentTime(bounds.end.toFixed(4));
-        setPlaying(false);
       }
     };
 
@@ -58,7 +53,7 @@ export function TimelinePanel() {
       }
       lastTickRef.current = null;
     };
-  }, [bounds.end, bounds.start, loop, playbackRate, playing, setCurrentTime]);
+  }, [bounds.end, bounds.start, playbackRate, playing, setCurrentTime]);
 
   useEffect(() => {
     setEndDraft(parseTimelineSeconds(project.timeline.end).toFixed(1));
@@ -94,17 +89,6 @@ export function TimelinePanel() {
           {playing ? <Pause size={16} /> : <Play size={16} />}
           {playing ? "停止" : "再生"}
         </button>
-        <label>
-          <input type="checkbox" checked={loop} onChange={(event) => setLoop(event.target.checked)} />
-          ループ
-        </label>
-        <label>
-          補間
-          <select value={project.timeline.interpolationMode} onChange={(event) => setInterpolationMode(event.target.value as "none" | "linear")}>
-            <option value="none">なし</option>
-            <option value="linear">線形</option>
-          </select>
-        </label>
         <label>
           速度
           <input type="range" min="0.25" max="4" step="0.25" value={playbackRate} onChange={(event) => setPlaybackRate(Number(event.target.value))} />
