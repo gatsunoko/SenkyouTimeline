@@ -15,7 +15,7 @@ import { ArrowShape } from "./ArrowShape";
 import { EventMarker } from "./EventMarker";
 import { LabelShape } from "./LabelShape";
 import { LineShape } from "./LineShape";
-import { MarchingAntsRect } from "./SelectionMarchingAnts";
+import { MarchingAntsLine, MarchingAntsRect } from "./SelectionMarchingAnts";
 import { PlacedImageShape, placedImageSize } from "./PlacedImageShape";
 import { RegionShape } from "./RegionShape";
 import { SitePiece } from "./SitePiece";
@@ -1385,40 +1385,56 @@ export function MapCanvas() {
           })}
 
           {drawingPoints.length > 0 && tool !== "drawRegion" && (
-            <Line
-              points={pointsToCanvas(drawingPoints, mapWidth, mapHeight)}
-              stroke={tool === "drawArrow" ? "#f46f5e" : "#f4d06f"}
-              strokeWidth={4}
-              dash={[10, 8]}
-              lineCap="round"
-              lineJoin="round"
-            />
+            <>
+              {drawingPoints.length >= 2 && <MarchingAntsLine points={pointsToCanvas(drawingPoints, mapWidth, mapHeight)} strokeWidth={10} lineCap="round" lineJoin="round" />}
+              <Line
+                points={pointsToCanvas(drawingPoints, mapWidth, mapHeight)}
+                stroke={tool === "drawArrow" ? "#f46f5e" : "#f4d06f"}
+                strokeWidth={4}
+                dash={[10, 8]}
+                lineCap="round"
+                lineJoin="round"
+              />
+            </>
           )}
 
           {tool === "drawRegion" && drawingPoints.length > 0 && (
-            <Line
-              points={pointsToCanvas(drawingPoints, mapWidth, mapHeight)}
-              closed={drawingPoints.length >= 3}
-              fill={drawingPoints.length >= 3 ? "rgba(47, 126, 216, 0.28)" : undefined}
-              stroke="#82a7d9"
-              strokeWidth={3}
-              dash={[10, 8]}
-              lineJoin="round"
-              listening={false}
-            />
+            <>
+              {drawingPoints.length >= 2 && (
+                <MarchingAntsLine
+                  points={pointsToCanvas(drawingPoints.length >= 3 ? [...drawingPoints, drawingPoints[0]] : drawingPoints, mapWidth, mapHeight)}
+                  strokeWidth={9}
+                  lineCap="round"
+                  lineJoin="round"
+                />
+              )}
+              <Line
+                points={pointsToCanvas(drawingPoints, mapWidth, mapHeight)}
+                closed={drawingPoints.length >= 3}
+                fill={drawingPoints.length >= 3 ? "rgba(47, 126, 216, 0.28)" : undefined}
+                stroke="#82a7d9"
+                strokeWidth={3}
+                dash={[10, 8]}
+                lineJoin="round"
+                listening={false}
+              />
+            </>
           )}
 
           {drawingPoints.length > 0 && previewPoint && (
-            <Line
-              points={pointsToCanvas([drawingPoints[drawingPoints.length - 1], previewPoint], mapWidth, mapHeight)}
-              stroke={tool === "drawRegion" ? "#b8d4ff" : tool === "drawArrow" ? "#ff9a8f" : "#ffe9a8"}
-              strokeWidth={3}
-              dash={[8, 8]}
-              opacity={0.75}
-              lineCap="round"
-              lineJoin="round"
-              listening={false}
-            />
+            <>
+              <MarchingAntsLine points={pointsToCanvas([drawingPoints[drawingPoints.length - 1], previewPoint], mapWidth, mapHeight)} strokeWidth={9} lineCap="round" lineJoin="round" />
+              <Line
+                points={pointsToCanvas([drawingPoints[drawingPoints.length - 1], previewPoint], mapWidth, mapHeight)}
+                stroke={tool === "drawRegion" ? "#b8d4ff" : tool === "drawArrow" ? "#ff9a8f" : "#ffe9a8"}
+                strokeWidth={3}
+                dash={[8, 8]}
+                opacity={0.75}
+                lineCap="round"
+                lineJoin="round"
+                listening={false}
+              />
+            </>
           )}
 
           {withoutSelected(project.sites, "site").map((site) => {
