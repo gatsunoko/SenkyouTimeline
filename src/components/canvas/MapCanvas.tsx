@@ -339,7 +339,9 @@ export function MapCanvas() {
   const setRegionPointSelection = useProjectStore((state) => state.setRegionPointSelection);
   const clearRegionPointSelection = useProjectStore((state) => state.clearRegionPointSelection);
   const toggleLinePointSelection = useProjectStore((state) => state.toggleLinePointSelection);
+  const clearLinePointSelection = useProjectStore((state) => state.clearLinePointSelection);
   const toggleArrowPointSelection = useProjectStore((state) => state.toggleArrowPointSelection);
+  const clearArrowPointSelection = useProjectStore((state) => state.clearArrowPointSelection);
   const updateUnitKeyframe = useProjectStore((state) => state.updateUnitKeyframe);
   const updateSite = useProjectStore((state) => state.updateSite);
   const updateLineKeyframe = useProjectStore((state) => state.updateLineKeyframe);
@@ -1027,38 +1029,93 @@ export function MapCanvas() {
     const dy = multiDragDelta?.y ?? 0;
     return { x: left + dx, y: top + dy, width: right - left, height: bottom - top };
   })();
-  const regionPointInsertControl = (() => {
-    if (exportViewport || selected.type !== "region" || !selected.id || multiSelected.length > 0) return null;
-    const region = project.regions.find((entry) => entry.id === selected.id);
-    if (!region || region.locked || !shouldRenderRegion(region)) return null;
-    const frame = resolveDisplayRegion(region);
-    if (!frame) return null;
-    const selectedPoints = selectedRegionPointIndices.filter((index) => index >= 0 && index < frame.points.length).sort((a, b) => a - b);
-    if (selectedPoints.length !== 2) return null;
-    const [firstIndex, secondIndex] = selectedPoints;
-    const insertPoint = midpoint(frame.points[firstIndex], frame.points[secondIndex]);
-    const canvasPoint = relativeToCanvas(insertPoint, mapWidth, mapHeight);
+  const pointInsertControl = (() => {
+    if (exportViewport || !selected.type || !selected.id || multiSelected.length > 0) return null;
     const width = 104;
     const height = 28;
     const displayScale = 1 / Math.max(0.01, scale);
-    return {
-      regionId: region.id,
-      points: frame.points,
-      insertPoint,
-      insertIndex: regionInsertionIndex(frame.points.length, firstIndex, secondIndex),
-      x: canvasPoint.x,
-      y: canvasPoint.y,
-      scale: displayScale,
-      width,
-      height,
+    const buildControl = (entry: { type: "region" | "line" | "arrow"; id: string; points: CanvasPoint[]; selectedPoints: number[]; insertIndex: number }) => {
+      const [firstIndex, secondIndex] = entry.selectedPoints;
+      const insertPoint = midpoint(entry.points[firstIndex], entry.points[secondIndex]);
+      const canvasPoint = relativeToCanvas(insertPoint, mapWidth, mapHeight);
+      return {
+        ...entry,
+        insertPoint,
+        x: canvasPoint.x,
+        y: canvasPoint.y,
+        scale: displayScale,
+        width,
+        height,
+      };
     };
+
+    if (selected.type === "region") {
+      const region = project.regions.find((entry) => entry.id === selected.id);
+      if (!region || region.locked || !shouldRenderRegion(region)) return null;
+      const frame = resolveDisplayRegion(region);
+      if (!frame) return null;
+      const selectedPoints = selectedRegionPointIndices.filter((index) => index >= 0 && index < frame.points.length).sort((a, b) => a - b);
+      if (selectedPoints.length !== 2) return null;
+      const [firstIndex, secondIndex] = selectedPoints;
+      return buildControl({
+        type: "region",
+        id: region.id,
+        points: frame.points,
+        selectedPoints,
+        insertIndex: regionInsertionIndex(frame.points.length, firstIndex, secondIndex),
+      });
+    }
+
+    if (selected.type === "line") {
+      const line = project.lines.find((entry) => entry.id === selected.id);
+      if (!line || line.locked || !shouldRenderLine(line)) return null;
+      const frame = resolveLineKeyframe(line, previewRouteTime("line", line.id) ?? project.timeline.currentTime, project.timeline.interpolationMode);
+      if (!frame) return null;
+      const selectedPoints = selectedLinePointIndices.filter((index) => index >= 0 && index < frame.points.length).sort((a, b) => a - b);
+      if (selectedPoints.length !== 2) return null;
+      return buildControl({
+        type: "line",
+        id: line.id,
+        points: frame.points,
+        selectedPoints,
+        insertIndex: selectedPoints[1],
+      });
+    }
+
+    if (selected.type === "arrow") {
+      const arrow = project.arrows.find((entry) => entry.id === selected.id);
+      if (!arrow || arrow.locked || !shouldRenderArrow(arrow)) return null;
+      const arrowFrameTime = previewRouteTime("arrow", arrow.id) ?? project.timeline.currentTime;
+      if (compareTime(arrow.startTime, arrowFrameTime) > 0 || compareTime(arrow.endTime, arrowFrameTime) < 0) return null;
+      const frame = resolveArrowKeyframe(arrow, arrowFrameTime, project.timeline.interpolationMode);
+      if (!frame) return null;
+      const selectedPoints = selectedArrowPointIndices.filter((index) => index >= 0 && index < frame.points.length).sort((a, b) => a - b);
+      if (selectedPoints.length !== 2) return null;
+      return buildControl({
+        type: "arrow",
+        id: arrow.id,
+        points: frame.points,
+        selectedPoints,
+        insertIndex: selectedPoints[1],
+      });
+    }
+
+    return null;
   })();
-  const insertRegionPointFromCanvas = () => {
-    if (!regionPointInsertControl) return;
-    const nextPoints = [...regionPointInsertControl.points];
-    nextPoints.splice(regionPointInsertControl.insertIndex, 0, regionPointInsertControl.insertPoint);
-    updateRegionPoints(regionPointInsertControl.regionId, nextPoints);
-    clearRegionPointSelection();
+  const insertPointFromCanvas = () => {
+    if (!pointInsertControl) return;
+    const nextPoints = [...pointInsertControl.points];
+    nextPoints.splice(pointInsertControl.insertIndex, 0, pointInsertControl.insertPoint);
+    if (pointInsertControl.type === "region") {
+      updateRegionPoints(pointInsertControl.id, nextPoints);
+      clearRegionPointSelection();
+    } else if (pointInsertControl.type === "line") {
+      updateLineKeyframe(pointInsertControl.id, project.timeline.currentTime, nextPoints);
+      clearLinePointSelection();
+    } else {
+      updateArrowKeyframe(pointInsertControl.id, project.timeline.currentTime, nextPoints);
+      clearArrowPointSelection();
+    }
   };
   const selectedRegionPointHitTargets = (() => {
     if (exportViewport || selected.type !== "region" || !selected.id || multiSelected.length > 0) return [];
@@ -1586,54 +1643,6 @@ export function MapCanvas() {
             />
           )}
 
-          {regionPointInsertControl && (
-            <Group
-              x={regionPointInsertControl.x}
-              y={regionPointInsertControl.y}
-              scaleX={regionPointInsertControl.scale}
-              scaleY={regionPointInsertControl.scale}
-              onMouseDown={(event) => {
-                event.cancelBubble = true;
-              }}
-              onClick={(event) => {
-                event.cancelBubble = true;
-                insertRegionPointFromCanvas();
-              }}
-              onTap={(event) => {
-                event.cancelBubble = true;
-                insertRegionPointFromCanvas();
-              }}
-            >
-              <Rect
-                x={-regionPointInsertControl.width / 2}
-                y={-regionPointInsertControl.height / 2}
-                width={regionPointInsertControl.width}
-                height={regionPointInsertControl.height}
-                fill="#f4d06f"
-                stroke="#111827"
-                strokeWidth={2}
-                cornerRadius={6}
-                shadowBlur={8}
-                shadowColor="#000000"
-                shadowOpacity={0.28}
-              />
-              <Text
-                text="間に点を追加"
-                x={-regionPointInsertControl.width / 2}
-                y={-regionPointInsertControl.height / 2}
-                width={regionPointInsertControl.width}
-                height={regionPointInsertControl.height}
-                align="center"
-                verticalAlign="middle"
-                fill="#111827"
-                fontSize={13}
-                fontFamily={UI_FONT_FAMILY}
-                fontStyle="bold"
-                listening={false}
-              />
-            </Group>
-          )}
-
           {!exportViewport &&
             frontSelectedItems.map((item) => {
               if (item.type === "region") {
@@ -1872,6 +1881,54 @@ export function MapCanvas() {
               }}
             />
           ))}
+
+          {pointInsertControl && (
+            <Group
+              x={pointInsertControl.x}
+              y={pointInsertControl.y}
+              scaleX={pointInsertControl.scale}
+              scaleY={pointInsertControl.scale}
+              onMouseDown={(event) => {
+                event.cancelBubble = true;
+              }}
+              onClick={(event) => {
+                event.cancelBubble = true;
+                insertPointFromCanvas();
+              }}
+              onTap={(event) => {
+                event.cancelBubble = true;
+                insertPointFromCanvas();
+              }}
+            >
+              <Rect
+                x={-pointInsertControl.width / 2}
+                y={-pointInsertControl.height / 2}
+                width={pointInsertControl.width}
+                height={pointInsertControl.height}
+                fill="#f4d06f"
+                stroke="#111827"
+                strokeWidth={2}
+                cornerRadius={6}
+                shadowBlur={8}
+                shadowColor="#000000"
+                shadowOpacity={0.28}
+              />
+              <Text
+                text="間に点を追加"
+                x={-pointInsertControl.width / 2}
+                y={-pointInsertControl.height / 2}
+                width={pointInsertControl.width}
+                height={pointInsertControl.height}
+                align="center"
+                verticalAlign="middle"
+                fill="#111827"
+                fontSize={13}
+                fontFamily={UI_FONT_FAMILY}
+                fontStyle="bold"
+                listening={false}
+              />
+            </Group>
+          )}
 
           {cameraLegendOverlay && (
             <Group x={cameraLegendOverlay.x} y={cameraLegendOverlay.y} scaleX={cameraLegendOverlay.scale} scaleY={cameraLegendOverlay.scale} listening={false}>
