@@ -20,6 +20,7 @@ import { PlacedImageShape, placedImageSize } from "./PlacedImageShape";
 import { RegionShape } from "./RegionShape";
 import { SitePiece } from "./SitePiece";
 import { UnitPiece } from "./UnitPiece";
+import { usePrimaryButtonDrag } from "./usePrimaryButtonDrag";
 
 type TimelineExportFormat = "png-sequence" | "jpeg-sequence" | "mp4";
 type TimelineExportRequest = { format: TimelineExportFormat; fps: number };
@@ -314,6 +315,7 @@ export function MapCanvas() {
   const [selectedRegionPointDragPreview, setSelectedRegionPointDragPreview] = useState<{ regionId: string; pointIndex: number; point: CanvasPoint } | null>(null);
   const middlePanRef = useRef<{ active: boolean; x: number; y: number }>({ active: false, x: 0, y: 0 });
   const mapImageResizeStartRef = useRef<{ width: number; height: number } | null>(null);
+  const mapImageDrag = usePrimaryButtonDrag();
   const selectionStartRef = useRef<CanvasPoint | null>(null);
   const selectionJustFinishedRef = useRef(false);
   const multiDragStartRef = useRef<CanvasPoint | null>(null);
@@ -782,7 +784,9 @@ export function MapCanvas() {
       addLabel(point);
       window.setTimeout(() => setTool("select"), 0);
     } else if (tool === "mapImageEdit") {
-      if (project.map.imageDataUrl) selectSingle("mapImage", "mapImage");
+      setMultiSelected([]);
+      clearSelection();
+      setTool("select");
     } else {
       setMultiSelected([]);
       clearSelection();
@@ -1355,6 +1359,9 @@ export function MapCanvas() {
               x={mapImageRect.x}
               y={mapImageRect.y}
               draggable={isMapImageEditing && !spacePressed}
+              onMouseDown={mapImageDrag.updateDragButton}
+              onDragStart={mapImageDrag.stopBlockedDrag}
+              dragBoundFunc={(nextPosition) => (mapImageDrag.isDragAllowed() ? nextPosition : { x: mapImageRect.x, y: mapImageRect.y })}
               onClick={(event) => {
                 if (tool !== "mapImageEdit") return;
                 event.cancelBubble = true;
@@ -1366,6 +1373,12 @@ export function MapCanvas() {
                 selectSingle("mapImage", "mapImage");
               }}
               onDragEnd={(event) => {
+                if (!mapImageDrag.isDragAllowed()) {
+                  event.target.position({ x: mapImageRect.x, y: mapImageRect.y });
+                  mapImageDrag.resetDragButton();
+                  return;
+                }
+                mapImageDrag.resetDragButton();
                 updateMapImagePlacement({ imageX: event.target.x(), imageY: event.target.y() });
               }}
             >
