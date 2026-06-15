@@ -772,7 +772,7 @@ export function MapCanvas() {
     }
     if (tool === "addImage") {
       if (imagePlacement) addImage(point);
-      setTool("select");
+      if (!imagePlacement?.assetId) setTool("select");
       return;
     }
     if (tool === "drawRegion" || tool === "drawLine" || tool === "drawArrow") {
