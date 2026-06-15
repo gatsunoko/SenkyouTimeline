@@ -1,11 +1,11 @@
-import { useRef } from "react";
+import { Fragment, useRef } from "react";
 import { ImagePlus, Trash2 } from "lucide-react";
 import { useProjectStore } from "../../store/projectStore";
 import type { RouteDirection, RouteSourceType, Unit, UnitRoute, UnitRouteSegment, UnitShape } from "../../types/project";
 import { createId } from "../../utils/id";
 import { readFileAsDataUrl } from "../../utils/fileIO";
 import { getUnitRouteSegments, getUnitRouteTimeRange, resolveUnitFrame, resolveUnitRouteApproachPoint, resolveUnitRouteExitPoint, resolveUnitRoutePoint } from "../../utils/interpolation";
-import { compareTime, parseTimelineSeconds, sortedFrames } from "../../utils/time";
+import { compareTime, formatTimelineLabel, parseTimelineSeconds, sortedFrames } from "../../utils/time";
 import { DisplayPeriodFields } from "./DisplayPeriodFields";
 import { ColorField, NumberField, SelectField, TextField, ToggleField } from "./InspectorFields";
 
@@ -83,6 +83,15 @@ export function UnitInspector({ id }: { id: string }) {
   ];
   const routeSegments = getUnitRouteSegments(unit.route);
   const isPreviewingRoute = routePreviewUnitId === unit.id;
+  const activeKeyframeIndex = unitKeyframes.findIndex((entry) => Math.abs(parseTimelineSeconds(entry.time) - currentSeconds) < 0.05);
+  const activeGapStartIndex =
+    activeKeyframeIndex >= 0
+      ? -1
+      : unitKeyframes.findIndex((entry, index) => {
+          const nextEntry = unitKeyframes[index + 1];
+          return Boolean(nextEntry) && compareTime(entry.time, project.timeline.currentTime) < 0 && compareTime(nextEntry.time, project.timeline.currentTime) > 0;
+        });
+  const currentTimeLabel = formatTimelineLabel(project.timeline.currentTime);
 
   const routeFromSegments = (segments: UnitRouteSegment[]): UnitRoute | undefined => {
     if (segments.length === 0) return undefined;
@@ -306,39 +315,52 @@ export function UnitInspector({ id }: { id: string }) {
 
       <h3>このコマのキーフレーム</h3>
       <div className="point-list">
-        {unitKeyframes.map((entry, index) => (
-          <div
-            className="point-row keyframe-row keyframe-jump-row"
-            role="button"
-            tabIndex={0}
-            key={`${unit.id}-keyframe-${entry.time}-${index}`}
-            onClick={() => setCurrentTime(entry.time)}
-            onKeyDown={(event) => {
-              if (event.target !== event.currentTarget) return;
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                setCurrentTime(entry.time);
-              }
-            }}
-          >
-            <span>{entry.displayDate || entry.time}</span>
-            <small>
-              x {entry.x.toFixed(3)} / y {entry.y.toFixed(3)}
-              {entry.size !== undefined ? ` / size ${entry.size.toFixed(2)}` : ""}
-              {unitShape !== "rectangle" ? ` / angle ${entry.rotation.toFixed(0)}` : ""}
-            </small>
-            <button
-              type="button"
-              className="icon-only danger"
-              onClick={(event) => {
-                event.stopPropagation();
-                deleteUnitKeyframe(unit.id, entry.time);
-              }}
-            >
-              削除
-            </button>
-          </div>
-        ))}
+        {unitKeyframes.map((entry, index) => {
+          const isCurrentKeyframe = index === activeKeyframeIndex;
+          const isGapEdge = activeGapStartIndex >= 0 && (index === activeGapStartIndex || index === activeGapStartIndex + 1);
+          return (
+            <Fragment key={`${unit.id}-keyframe-${entry.time}-${index}`}>
+              <div
+                className={`point-row keyframe-row keyframe-jump-row ${isCurrentKeyframe ? "is-selected is-current-keyframe" : ""} ${isGapEdge ? "is-keyframe-gap-edge" : ""}`}
+                role="button"
+                tabIndex={0}
+                aria-current={isCurrentKeyframe ? "time" : undefined}
+                onClick={() => setCurrentTime(entry.time)}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return;
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setCurrentTime(entry.time);
+                  }
+                }}
+              >
+                <span>{entry.displayDate || entry.time}</span>
+                <small>
+                  x {entry.x.toFixed(3)} / y {entry.y.toFixed(3)}
+                  {entry.size !== undefined ? ` / size ${entry.size.toFixed(2)}` : ""}
+                  {unitShape !== "rectangle" ? ` / angle ${entry.rotation.toFixed(0)}` : ""}
+                </small>
+                <button
+                  type="button"
+                  className="icon-only danger"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    deleteUnitKeyframe(unit.id, entry.time);
+                  }}
+                >
+                  削除
+                </button>
+              </div>
+              {activeGapStartIndex === index && (
+                <div className="keyframe-current-gap" aria-label={`現在時間 ${currentTimeLabel}`}>
+                  <span className="keyframe-current-gap-line" />
+                  <span className="keyframe-current-gap-label">現在時間 {currentTimeLabel}</span>
+                  <span className="keyframe-current-gap-line" />
+                </div>
+              )}
+            </Fragment>
+          );
+        })}
       </div>
     </aside>
   );
