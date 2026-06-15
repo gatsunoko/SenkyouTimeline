@@ -784,6 +784,8 @@ export function MapCanvas() {
       addLabel(point);
       window.setTimeout(() => setTool("select"), 0);
     } else if (tool === "mapImageEdit") {
+      const isPrimaryClick = !("button" in event.evt) || event.evt.button === 0;
+      if (!isPrimaryClick) return;
       setMultiSelected([]);
       clearSelection();
       setTool("select");
