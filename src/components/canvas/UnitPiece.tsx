@@ -88,6 +88,7 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
   const isPentagon = shape === "pentagon";
   const isConvex = shape === "convex";
   const isDirectionalShape = isPentagon || isConvex;
+  const bodyBorderColor = unit.borderColor ?? "#1b1f29";
   const interactive = !unit.locked;
   const currentRotation = rotationPreview ?? frame.rotation ?? 0;
   const bodyRotation = isDirectionalShape ? currentRotation : 0;
@@ -300,7 +301,7 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
                 </Group>
               </Group>
               <Group rotation={bodyRotation}>
-                <Line points={polygonPoints} stroke={color} strokeWidth={3} closed shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
+                <Line points={polygonPoints} stroke={bodyBorderColor} strokeWidth={3} closed shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
               </Group>
             </>
           ) : (
@@ -321,7 +322,7 @@ export function UnitPiece({ unit, frame, color, selected, mapWidth, mapHeight, o
       ) : (
         <Group rotation={bodyRotation}>
           {isDirectionalShape ? (
-            <Line points={polygonPoints} fill={color} stroke="#1b1f29" strokeWidth={2} closed shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
+            <Line points={polygonPoints} fill={color} stroke={bodyBorderColor} strokeWidth={2} closed shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
           ) : (
             <Rect x={-width / 2} y={-bodyHeight / 2} width={width} height={bodyHeight} fill={color} stroke="#1b1f29" strokeWidth={2} cornerRadius={8} shadowBlur={8} shadowColor="#000" shadowOpacity={0.35} />
           )}

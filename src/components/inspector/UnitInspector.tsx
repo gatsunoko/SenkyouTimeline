@@ -162,6 +162,7 @@ export function UnitInspector({ id }: { id: string }) {
       </label>
       <ToggleField label="ロック" checked={unit.locked} onChange={(value) => updateUnit(unit.id, { locked: value })} />
       <SelectField label="形状" value={unitShape} options={unitShapeLabels} onChange={(value) => updateUnit(unit.id, { shape: value })} />
+      {unitShape !== "rectangle" && <ColorField label="枠線色" value={unit.borderColor ?? "#1b1f29"} onChange={(value) => updateUnit(unit.id, { borderColor: value })} />}
       <NumberField label="サイズ" value={currentSize} min={0.2} max={4} step={0.05} onChange={(value) => updateUnitKeyframe(unit.id, project.timeline.currentTime, { x: currentX, y: currentY, size: value, status: unit.status })} />
       <NumberField label="名前の文字サイズ" value={currentNameFontSize} min={8} max={72} step={1} onChange={(value) => updateUnit(unit.id, { nameFontSize: value })} />
 

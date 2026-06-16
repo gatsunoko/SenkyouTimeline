@@ -185,6 +185,7 @@ export interface UnitAsset {
   size: number;
   factionId: string;
   shape?: UnitShape;
+  borderColor?: string;
   rotation?: number;
   showName?: boolean;
   nameFontSize?: number;
@@ -272,6 +273,7 @@ export interface Unit {
   size: number;
   rotation?: number;
   shape?: UnitShape;
+  borderColor?: string;
   displayStartTime?: string;
   displayEndTime?: string;
   assetId?: string;

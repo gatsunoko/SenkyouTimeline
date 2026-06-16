@@ -856,6 +856,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     asset.size ||= 1;
     asset.factionId ||= normalized.factions?.[0]?.id ?? "faction_default_a";
     asset.shape = asset.shape === "rectangle" || asset.shape === "convex" ? asset.shape : "pentagon";
+    asset.borderColor ||= "#1b1f29";
     asset.rotation = Number.isFinite(asset.rotation) ? asset.rotation : 0;
     asset.showName = asset.showName ?? true;
     asset.nameFontSize ||= 14 * asset.size;
@@ -946,6 +947,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   }
   for (const unit of normalized.units ?? []) {
     removeLegacyAbbrevName(unit);
+    unit.borderColor ||= "#1b1f29";
     unit.nameTextColor ||= "#f5efe3";
     unit.nameBold = unit.nameBold ?? true;
     unit.nameBackgroundEnabled = unit.nameBackgroundEnabled ?? false;
@@ -1172,6 +1174,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         locked: false,
         size: 1,
         shape: "convex",
+        borderColor: "#1b1f29",
         displayStartTime: frame?.time ?? project.timeline.currentTime,
         displayEndTime: project.timeline.end,
         showName: false,
@@ -1233,6 +1236,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         size: currentFrame?.size ?? unit.size,
         factionId: currentFrame?.effectiveFactionId ?? unit.factionId,
         shape: unit.shape ?? "pentagon",
+        borderColor: unit.borderColor ?? "#1b1f29",
         rotation: currentFrame?.rotation ?? 0,
         showName: unit.showName ?? true,
         nameFontSize: unit.nameFontSize ?? 14 * (currentFrame?.size ?? unit.size),
@@ -1280,6 +1284,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         locked: false,
         size: asset.size ?? 1,
         shape: asset.shape ?? "pentagon",
+        borderColor: asset.borderColor ?? "#1b1f29",
         displayStartTime: frame?.time ?? project.timeline.currentTime,
         displayEndTime: project.timeline.end,
         assetId: asset.id,

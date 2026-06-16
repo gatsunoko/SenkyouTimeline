@@ -1197,6 +1197,7 @@ export function MapCanvas() {
       locked: true,
       size: asset?.size ?? 1,
       shape: asset?.shape ?? "convex",
+      borderColor: asset?.borderColor ?? "#1b1f29",
       assetId: asset?.id,
       iconUrl: asset?.imageDataUrl,
       showName: asset?.showName ?? false,
