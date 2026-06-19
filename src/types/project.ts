@@ -176,6 +176,10 @@ export interface Faction {
 export interface CameraLegendSettings {
   showFactions: boolean;
   factionSize: number;
+  backgroundEnabled?: boolean;
+  backgroundColor?: string;
+  backgroundOpacity?: number;
+  textBold?: boolean;
 }
 
 export interface UnitAsset {

@@ -40,7 +40,7 @@ const emptyProject: ProjectData = {
   version: "1.0.0",
   projectName: "新規戦況図",
   description: "表示確認用のデータ。",
-  cameraLegend: { showFactions: true, factionSize: 1 },
+  cameraLegend: { showFactions: true, factionSize: 1, backgroundEnabled: false, backgroundColor: "#111827", backgroundOpacity: 0.65, textBold: true },
   timeline: {
     start: "0",
     end: "12",
@@ -240,6 +240,11 @@ function clampCameraScale(value: number | undefined, fallback = 1) {
 function clampLegendSize(value: number | undefined, fallback = 1) {
   const next = Number.isFinite(value) ? Number(value) : fallback;
   return Math.round(Math.min(3, Math.max(0.5, next)) * 10) / 10;
+}
+
+function clampOpacity(value: number | undefined, fallback = 0.65) {
+  const next = Number.isFinite(value) ? Number(value) : fallback;
+  return Math.round(Math.min(1, Math.max(0, next)) * 100) / 100;
 }
 
 function fitImageToMap(project: ProjectData, naturalWidth: number, naturalHeight: number) {
@@ -796,6 +801,10 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   normalized.cameraLegend = {
     showFactions: normalized.cameraLegend?.showFactions ?? true,
     factionSize: clampLegendSize(normalized.cameraLegend?.factionSize, 1),
+    backgroundEnabled: normalized.cameraLegend?.backgroundEnabled ?? false,
+    backgroundColor: normalized.cameraLegend?.backgroundColor || "#111827",
+    backgroundOpacity: clampOpacity(normalized.cameraLegend?.backgroundOpacity, 0.65),
+    textBold: normalized.cameraLegend?.textBold ?? true,
   };
   normalizeExportCamera(normalized);
   if (normalized.map.imageDataUrl && normalized.map.imageNaturalWidth && normalized.map.imageNaturalHeight && (normalized.map.imageWidth === undefined || normalized.map.imageHeight === undefined)) {
@@ -1080,6 +1089,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       project.cameraLegend = {
         showFactions: patch.showFactions ?? project.cameraLegend?.showFactions ?? true,
         factionSize: patch.factionSize !== undefined ? clampLegendSize(patch.factionSize, project.cameraLegend?.factionSize ?? 1) : clampLegendSize(project.cameraLegend?.factionSize, 1),
+        backgroundEnabled: patch.backgroundEnabled ?? project.cameraLegend?.backgroundEnabled ?? false,
+        backgroundColor: patch.backgroundColor ?? project.cameraLegend?.backgroundColor ?? "#111827",
+        backgroundOpacity: patch.backgroundOpacity !== undefined ? clampOpacity(patch.backgroundOpacity, project.cameraLegend?.backgroundOpacity ?? 0.65) : clampOpacity(project.cameraLegend?.backgroundOpacity, 0.65),
+        textBold: patch.textBold ?? project.cameraLegend?.textBold ?? true,
       };
     }),
 

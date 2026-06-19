@@ -17,16 +17,25 @@ export function RightInspector() {
   const updateCameraLegend = useProjectStore((state) => state.updateCameraLegend);
   const updateFaction = useProjectStore((state) => state.updateFaction);
   const currentFactionLegendSize = Math.min(3, Math.max(0.5, project.cameraLegend?.factionSize ?? 1));
+  const currentLegendBackgroundOpacity = Math.min(1, Math.max(0, project.cameraLegend?.backgroundOpacity ?? 0.65));
   const [legendSizeDraft, setLegendSizeDraft] = useState(String(currentFactionLegendSize));
+  const [legendBackgroundOpacityDraft, setLegendBackgroundOpacityDraft] = useState(String(currentLegendBackgroundOpacity));
 
   useEffect(() => {
     setLegendSizeDraft(String(currentFactionLegendSize));
-  }, [currentFactionLegendSize, selected.type, selected.id]);
+    setLegendBackgroundOpacityDraft(String(currentLegendBackgroundOpacity));
+  }, [currentFactionLegendSize, currentLegendBackgroundOpacity, selected.type, selected.id]);
 
   const commitLegendSizeDraft = () => {
     const next = Number(legendSizeDraft);
     if (Number.isFinite(next)) updateCameraLegend({ factionSize: next });
     else setLegendSizeDraft(String(currentFactionLegendSize));
+  };
+
+  const commitLegendBackgroundOpacityDraft = () => {
+    const next = Number(legendBackgroundOpacityDraft);
+    if (Number.isFinite(next)) updateCameraLegend({ backgroundOpacity: next });
+    else setLegendBackgroundOpacityDraft(String(currentLegendBackgroundOpacity));
   };
 
   if (!selected.type || !selected.id) return null;
@@ -35,6 +44,10 @@ export function RightInspector() {
     const cameraLegend = {
       showFactions: project.cameraLegend?.showFactions ?? true,
       factionSize: currentFactionLegendSize,
+      backgroundEnabled: project.cameraLegend?.backgroundEnabled ?? false,
+      backgroundColor: project.cameraLegend?.backgroundColor ?? "#111827",
+      backgroundOpacity: currentLegendBackgroundOpacity,
+      textBold: project.cameraLegend?.textBold ?? true,
     };
     return (
       <aside className="right-inspector">
@@ -68,6 +81,48 @@ export function RightInspector() {
               }}
             />
           </div>
+        </label>
+        <label className="check-row">
+          <input type="checkbox" checked={cameraLegend.backgroundEnabled} onChange={(event) => updateCameraLegend({ backgroundEnabled: event.target.checked })} />
+          背景を表示
+        </label>
+        {cameraLegend.backgroundEnabled && (
+          <>
+            <label>
+              背景色
+              <input type="color" value={cameraLegend.backgroundColor} onChange={(event) => updateCameraLegend({ backgroundColor: event.target.value })} />
+            </label>
+            <label>
+              背景透明度
+              <div className="legend-size-control">
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={cameraLegend.backgroundOpacity}
+                  onChange={(event) => {
+                    setLegendBackgroundOpacityDraft(event.target.value);
+                    updateCameraLegend({ backgroundOpacity: Number(event.target.value) });
+                  }}
+                />
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={legendBackgroundOpacityDraft}
+                  onChange={(event) => setLegendBackgroundOpacityDraft(event.target.value)}
+                  onBlur={commitLegendBackgroundOpacityDraft}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") event.currentTarget.blur();
+                  }}
+                />
+              </div>
+            </label>
+          </>
+        )}
+        <label className="check-row">
+          <input type="checkbox" checked={cameraLegend.textBold} onChange={(event) => updateCameraLegend({ textBold: event.target.checked })} />
+          文字を太字
         </label>
         <h3>表示する陣営</h3>
         <div className="legend-faction-list">

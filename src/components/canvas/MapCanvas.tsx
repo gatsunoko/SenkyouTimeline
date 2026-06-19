@@ -807,6 +807,10 @@ export function MapCanvas() {
   const contentOffset = exportViewport ? { x: -exportViewport.x * exportContentScale.x, y: -exportViewport.y * exportContentScale.y } : { x: 0, y: 0 };
   const cameraLegendEnabled = project.cameraLegend?.showFactions ?? true;
   const cameraLegendSize = Math.min(3, Math.max(0.5, project.cameraLegend?.factionSize ?? 1));
+  const cameraLegendBackgroundEnabled = project.cameraLegend?.backgroundEnabled ?? false;
+  const cameraLegendBackgroundColor = project.cameraLegend?.backgroundColor ?? "#111827";
+  const cameraLegendBackgroundOpacity = Math.min(1, Math.max(0, project.cameraLegend?.backgroundOpacity ?? 0.65));
+  const cameraLegendTextBold = project.cameraLegend?.textBold ?? true;
   const cameraLegendFactions = cameraLegendEnabled ? project.factions.filter((faction) => faction.showInCameraLegend) : [];
   const cameraLegendOverlay = (() => {
     if (cameraLegendFactions.length === 0) return null;
@@ -820,8 +824,8 @@ export function MapCanvas() {
     );
     const fontSize = 14 * cameraLegendSize;
     const rowHeight = 22 * cameraLegendSize;
-    const paddingX = 0;
-    const paddingY = 0;
+    const paddingX = cameraLegendBackgroundEnabled ? 8 * cameraLegendSize : 0;
+    const paddingY = cameraLegendBackgroundEnabled ? 6 * cameraLegendSize : 0;
     const gap = 8 * cameraLegendSize;
     const radius = 7.5 * cameraLegendSize;
     const textYOffset = 2 * cameraLegendSize;
@@ -1953,6 +1957,17 @@ export function MapCanvas() {
 
           {cameraLegendOverlay && (
             <Group x={cameraLegendOverlay.x} y={cameraLegendOverlay.y} scaleX={cameraLegendOverlay.scale} scaleY={cameraLegendOverlay.scale} listening={false}>
+              {cameraLegendBackgroundEnabled && (
+                <Rect
+                  x={0}
+                  y={0}
+                  width={cameraLegendOverlay.width}
+                  height={cameraLegendOverlay.height}
+                  fill={cameraLegendBackgroundColor}
+                  opacity={cameraLegendBackgroundOpacity}
+                  cornerRadius={4 * cameraLegendSize}
+                />
+              )}
               {cameraLegendFactions.map((faction, index) => {
                 const y = cameraLegendOverlay.paddingY + index * cameraLegendOverlay.rowHeight;
                 return (
@@ -1976,7 +1991,7 @@ export function MapCanvas() {
                       strokeWidth={cameraLegendOverlay.textStrokeWidth}
                       fontSize={cameraLegendOverlay.fontSize}
                       fontFamily={UI_FONT_FAMILY}
-                      fontStyle="bold"
+                      fontStyle={cameraLegendTextBold ? "bold" : "normal"}
                       verticalAlign="middle"
                     />
                   </Group>
