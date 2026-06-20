@@ -35,12 +35,22 @@ function measureLabelTextWidth(text: string, fontSize: number, bold = false) {
   return context.measureText(text).width;
 }
 
+function resolvedBorderWidth(value: number | undefined, fallback = 2) {
+  return Number.isFinite(value) ? Math.max(0, Number(value)) : fallback;
+}
+
 export function LabelShape({ label, selected, mapWidth, mapHeight, onSelect, onDragEnd, dragEnabled = true }: LabelShapeProps) {
   const { updateDragButton, stopBlockedDrag, isDragAllowed, resetDragButton } = usePrimaryButtonDrag();
   const position = relativeToCanvas(label, mapWidth, mapHeight);
   const horizontalPadding = 11;
   const labelBold = label.bold ?? false;
   const borderEnabled = label.borderEnabled ?? true;
+  const borderWidth = borderEnabled ? resolvedBorderWidth(label.borderWidth, 2) : 0;
+  const outerBorderEnabled = borderEnabled && (label.outerBorderEnabled ?? false);
+  const outerBorderWidth = outerBorderEnabled ? resolvedBorderWidth(label.outerBorderWidth, 2) : 0;
+  const outerBorderColor = label.outerBorderColor ?? "#111827";
+  const outerBorderOffset = borderWidth / 2 + outerBorderWidth / 2;
+  const selectionMargin = 5 + borderWidth / 2 + outerBorderWidth;
   const backgroundEnabled = label.backgroundEnabled ?? true;
   const outlineEnabled = label.outlineEnabled ?? false;
   const outlineColor = label.outlineColor ?? "#111827";
@@ -72,8 +82,28 @@ export function LabelShape({ label, selected, mapWidth, mapHeight, onSelect, onD
         onDragEnd(event.target.x() / mapWidth, event.target.y() / mapHeight);
       }}
     >
-      {selected && <MarchingAntsRect x={-width / 2 - 5} y={-height / 2 - 5} width={width + 10} height={height + 10} cornerRadius={6} />}
-      <Rect x={-width / 2} y={-height / 2} width={width} height={height} fill={backgroundEnabled ? label.backgroundColor : undefined} stroke={borderEnabled ? label.borderColor : undefined} strokeWidth={borderEnabled ? 2 : 0} cornerRadius={6} />
+      {selected && <MarchingAntsRect x={-width / 2 - selectionMargin} y={-height / 2 - selectionMargin} width={width + selectionMargin * 2} height={height + selectionMargin * 2} cornerRadius={6 + selectionMargin} />}
+      {outerBorderEnabled && outerBorderWidth > 0 && (
+        <Rect
+          x={-width / 2 - outerBorderOffset}
+          y={-height / 2 - outerBorderOffset}
+          width={width + outerBorderOffset * 2}
+          height={height + outerBorderOffset * 2}
+          stroke={outerBorderColor}
+          strokeWidth={outerBorderWidth}
+          cornerRadius={6 + outerBorderOffset}
+        />
+      )}
+      <Rect
+        x={-width / 2}
+        y={-height / 2}
+        width={width}
+        height={height}
+        fill={backgroundEnabled ? label.backgroundColor : undefined}
+        stroke={borderEnabled && borderWidth > 0 ? label.borderColor : undefined}
+        strokeWidth={borderEnabled ? borderWidth : 0}
+        cornerRadius={6}
+      />
       <Shape
         x={-width / 2 + horizontalPadding}
         y={-height / 2}

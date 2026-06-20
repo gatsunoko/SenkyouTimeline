@@ -4,7 +4,7 @@ import type Konva from "konva";
 import { UI_FONT_FAMILY } from "../../constants/fonts";
 import { defaultSiteIconUrl } from "../../data/defaultAssets";
 import { useProjectStore } from "../../store/projectStore";
-import type { MapLabel, MapRegion, MovableSelectionType, PlacedImage, SelectionMoveUpdate, Site, Unit } from "../../types/project";
+import type { CanvasMapImage, MapLabel, MapRegion, MovableSelectionType, PlacedImage, SelectionMoveUpdate, Site, Unit } from "../../types/project";
 import { canvasToRelative, MAP_HEIGHT, MAP_WIDTH, pointsToCanvas, relativeToCanvas } from "../../utils/coordinate";
 import { downloadBlob, downloadDataUrl } from "../../utils/fileIO";
 import { loadCachedImage } from "../../utils/imageCache";
@@ -28,6 +28,8 @@ type ExportViewport = { x: number; y: number; width: number; height: number; out
 type StillImageExportFormat = "png" | "jpeg";
 type CanvasPoint = { x: number; y: number };
 type CanvasRect = { x: number; y: number; width: number; height: number };
+type MapImageResizePreview = { id: string; width: number; height: number };
+type MapImageRenderEntry = { imageRecord: CanvasMapImage; htmlImage: HTMLImageElement; rect: CanvasRect };
 type MultiSelectionItem = { type: MovableSelectionType; id: string };
 
 const mp4MimeTypes = ["video/mp4", "video/mp4;codecs=avc1.42E01E", "video/mp4;codecs=h264"];
@@ -78,7 +80,9 @@ async function dataUrlToBytes(dataUrl: string) {
 
 async function preloadProjectImages(project: ReturnType<typeof useProjectStore.getState>["project"]) {
   const sources = new Set<string>();
-  if (project.map.imageDataUrl) sources.add(project.map.imageDataUrl);
+  for (const image of project.map.images ?? []) {
+    if (image.imageDataUrl) sources.add(image.imageDataUrl);
+  }
   sources.add(defaultSiteIconUrl);
   for (const site of project.sites) {
     if (site.iconUrl) sources.add(site.iconUrl);
@@ -101,6 +105,23 @@ function dispatchExportStatus(message: string, busy: boolean) {
   window.dispatchEvent(new CustomEvent("sengoku-export-status", { detail: { message, busy } }));
 }
 
+function resolveMapImageRect(imageRecord: CanvasMapImage, htmlImage: HTMLImageElement, mapWidth: number, mapHeight: number, resizePreview: MapImageResizePreview | null) {
+  if (!htmlImage.naturalWidth || !htmlImage.naturalHeight) return null;
+  const imageAspect = htmlImage.naturalWidth / htmlImage.naturalHeight;
+  const canvasAspect = mapWidth / mapHeight;
+  const fallback =
+    imageAspect > canvasAspect
+      ? { x: 0, y: (mapHeight - mapWidth / imageAspect) / 2, width: mapWidth, height: mapWidth / imageAspect }
+      : { x: (mapWidth - mapHeight * imageAspect) / 2, y: 0, width: mapHeight * imageAspect, height: mapHeight };
+  const imageWidth = resizePreview?.id === imageRecord.id ? resizePreview.width : imageRecord.imageWidth ?? fallback.width;
+  const imageHeight = imageWidth / imageAspect;
+  return {
+    x: imageRecord.imageX ?? fallback.x,
+    y: imageRecord.imageY ?? fallback.y,
+    width: imageWidth,
+    height: imageHeight,
+  };
+}
 function resolveExportViewport(project: ReturnType<typeof useProjectStore.getState>["project"]): ExportViewport {
   const camera = project.map.exportCamera ?? {
     width: project.map.outputWidth || 1920,
@@ -307,19 +328,19 @@ export function MapCanvas() {
   const [exportViewport, setExportViewport] = useState<ExportViewport | null>(null);
   const [spacePressed, setSpacePressed] = useState(false);
   const [previewPoint, setPreviewPoint] = useState<{ x: number; y: number } | null>(null);
-  const [mapImageResizePreview, setMapImageResizePreview] = useState<{ width: number; height: number } | null>(null);
+  const [mapImageResizePreview, setMapImageResizePreview] = useState<MapImageResizePreview | null>(null);
   const [cameraDragPreview, setCameraDragPreview] = useState<{ x: number; y: number } | null>(null);
   const [selectionRect, setSelectionRect] = useState<CanvasRect | null>(null);
   const [multiSelected, setMultiSelected] = useState<MultiSelectionItem[]>([]);
   const [multiDragDelta, setMultiDragDelta] = useState<CanvasPoint | null>(null);
   const [selectedRegionPointDragPreview, setSelectedRegionPointDragPreview] = useState<{ regionId: string; pointIndex: number; point: CanvasPoint } | null>(null);
   const middlePanRef = useRef<{ active: boolean; x: number; y: number }>({ active: false, x: 0, y: 0 });
-  const mapImageResizeStartRef = useRef<{ width: number; height: number } | null>(null);
+  const mapImageResizeStartRef = useRef<MapImageResizePreview | null>(null);
   const mapImageDrag = usePrimaryButtonDrag();
   const selectionStartRef = useRef<CanvasPoint | null>(null);
   const selectionJustFinishedRef = useRef(false);
   const multiDragStartRef = useRef<CanvasPoint | null>(null);
-  const [mapImage, setMapImage] = useState<HTMLImageElement | null>(null);
+  const [mapImages, setMapImages] = useState<Record<string, HTMLImageElement>>({});
 
   const project = useProjectStore((state) => state.project);
   const mapWidth = project.map.width ?? MAP_WIDTH;
@@ -386,15 +407,30 @@ export function MapCanvas() {
   }, [scale, setCanvasView, stagePosition.x, stagePosition.y]);
 
   useEffect(() => {
-    if (!project.map.imageDataUrl) {
-      setMapImage(null);
+    let cancelled = false;
+    const imageRecords = project.map.images ?? [];
+    if (imageRecords.length === 0) {
+      setMapImages({});
       return;
     }
-    const image = new window.Image();
-    image.onload = () => setMapImage(image);
-    image.src = project.map.imageDataUrl;
-  }, [project.map.imageDataUrl]);
-
+    void Promise.all(
+      imageRecords.map((imageRecord) =>
+        loadCachedImage(imageRecord.imageDataUrl)
+          .then((htmlImage) => ({ id: imageRecord.id, htmlImage }))
+          .catch(() => null),
+      ),
+    ).then((loadedImages) => {
+      if (cancelled) return;
+      const next: Record<string, HTMLImageElement> = {};
+      for (const loaded of loadedImages) {
+        if (loaded) next[loaded.id] = loaded.htmlImage;
+      }
+      setMapImages(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.map.images]);
   useEffect(() => {
     if (tool !== "addUnit" && tool !== "addSite" && tool !== "addImage" && tool !== "addLabel" && tool !== "drawRegion" && tool !== "drawLine" && tool !== "drawArrow") setPreviewPoint(null);
   }, [tool]);
@@ -591,6 +627,7 @@ export function MapCanvas() {
   };
 
   const selectSingle = (type: Parameters<typeof selectObject>[0], id: string | null) => {
+    if (tool === "mapImageEdit" && type !== "mapImage") return;
     setMultiSelected([]);
     setMultiDragDelta(null);
     selectObject(type, id);
@@ -850,28 +887,23 @@ export function MapCanvas() {
     };
   })();
 
-  const mapImageRect = (() => {
-    if (!mapImage?.naturalWidth || !mapImage.naturalHeight) return null;
-    const imageAspect = mapImage.naturalWidth / mapImage.naturalHeight;
-    const canvasAspect = mapWidth / mapHeight;
-    const fallback =
-      imageAspect > canvasAspect
-        ? { x: 0, y: (mapHeight - mapWidth / imageAspect) / 2, width: mapWidth, height: mapWidth / imageAspect }
-        : { x: (mapWidth - mapHeight * imageAspect) / 2, y: 0, width: mapHeight * imageAspect, height: mapHeight };
-    const imageWidth = mapImageResizePreview?.width ?? project.map.imageWidth ?? fallback.width;
-    const imageHeight = imageWidth / imageAspect;
-    return {
-      x: project.map.imageX ?? fallback.x,
-      y: project.map.imageY ?? fallback.y,
-      width: imageWidth,
-      height: imageHeight,
-    };
-  })();
+  const mapImageEntries: MapImageRenderEntry[] = (project.map.images ?? []).flatMap((imageRecord) => {
+    const htmlImage = mapImages[imageRecord.id];
+    if (!htmlImage) return [];
+    const rect = resolveMapImageRect(imageRecord, htmlImage, mapWidth, mapHeight, mapImageResizePreview);
+    return rect ? [{ imageRecord, htmlImage, rect }] : [];
+  });
+  const selectedMapImageEntry = selected.type === "mapImage" ? mapImageEntries.find((entry) => entry.imageRecord.id === selected.id) ?? null : null;
+  const mapImageRects = mapImageEntries.map((entry) => entry.rect);
+  const imageLeft = Math.min(0, ...mapImageRects.map((rect) => rect.x));
+  const imageTop = Math.min(0, ...mapImageRects.map((rect) => rect.y));
+  const imageRight = Math.max(mapWidth, ...mapImageRects.map((rect) => rect.x + rect.width));
+  const imageBottom = Math.max(mapHeight, ...mapImageRects.map((rect) => rect.y + rect.height));
   const gridPadding = 320;
-  const gridLeft = Math.floor((Math.min(viewportWorld.x, 0, cameraFrame.x, mapImageRect?.x ?? 0) - gridPadding) / 80) * 80;
-  const gridTop = Math.floor((Math.min(viewportWorld.y, 0, cameraFrame.y, mapImageRect?.y ?? 0) - gridPadding) / 80) * 80;
-  const gridRight = Math.ceil((Math.max(viewportWorld.x + viewportWorld.width, mapWidth, cameraFrame.x + cameraFrame.width, mapImageRect ? mapImageRect.x + mapImageRect.width : 0) + gridPadding) / 80) * 80;
-  const gridBottom = Math.ceil((Math.max(viewportWorld.y + viewportWorld.height, mapHeight, cameraFrame.y + cameraFrame.height, mapImageRect ? mapImageRect.y + mapImageRect.height : 0) + gridPadding) / 80) * 80;
+  const gridLeft = Math.floor((Math.min(viewportWorld.x, 0, cameraFrame.x, imageLeft) - gridPadding) / 80) * 80;
+  const gridTop = Math.floor((Math.min(viewportWorld.y, 0, cameraFrame.y, imageTop) - gridPadding) / 80) * 80;
+  const gridRight = Math.ceil((Math.max(viewportWorld.x + viewportWorld.width, mapWidth, cameraFrame.x + cameraFrame.width, imageRight) + gridPadding) / 80) * 80;
+  const gridBottom = Math.ceil((Math.max(viewportWorld.y + viewportWorld.height, mapHeight, cameraFrame.y + cameraFrame.height, imageBottom) + gridPadding) / 80) * 80;
   const gridLines = [];
   for (let x = gridLeft; x <= gridRight; x += 80) gridLines.push(<Line key={`x${x}`} points={[x, gridTop, x, gridBottom]} stroke="#273241" strokeWidth={1} listening={false} />);
   for (let y = gridTop; y <= gridBottom; y += 80) gridLines.push(<Line key={`y${y}`} points={[gridLeft, y, gridRight, y]} stroke="#273241" strokeWidth={1} listening={false} />);
@@ -882,9 +914,9 @@ export function MapCanvas() {
   };
   const isMultiSelected = (type: typeof selected.type, id: string) => multiSelected.some((item) => item.type === type && item.id === id);
   const isSelected = (type: typeof selected.type, id: string) => !exportViewport && ((selected.type === type && selected.id === id) || isMultiSelected(type, id));
-  const isMapImageEditing = !exportViewport && tool === "mapImageEdit" && selected.type === "mapImage" && selected.id === "mapImage";
+  const isMapImageEditing = !exportViewport && tool === "mapImageEdit" && selected.type === "mapImage" && Boolean(selectedMapImageEntry);
   const drawingToolActive = tool === "drawRegion" || tool === "drawLine" || tool === "drawArrow";
-  const objectDragEnabled = !drawingToolActive;
+  const objectDragEnabled = !drawingToolActive && tool !== "mapImageEdit";
   const cameraHandleOffset = { x: -40, y: -36 };
   const routePreviewUnit = routePreviewUnitId ? project.units.find((unit) => unit.id === routePreviewUnitId) : undefined;
   const activePreviewRoute = routePreviewUnit?.route;
@@ -1361,38 +1393,41 @@ export function MapCanvas() {
           <Group x={contentOffset.x} y={contentOffset.y} scaleX={exportContentScale.x} scaleY={exportContentScale.y}>
           <Rect x={gridLeft} y={gridTop} width={gridRight - gridLeft} height={gridBottom - gridTop} fill="#16202b" listening={false} />
           {gridLines}
-          {mapImage && mapImageRect && (
-            <Group
-              x={mapImageRect.x}
-              y={mapImageRect.y}
-              draggable={isMapImageEditing && !spacePressed}
-              onMouseDown={mapImageDrag.updateDragButton}
-              onDragStart={mapImageDrag.stopBlockedDrag}
-              dragBoundFunc={(nextPosition) => (mapImageDrag.isDragAllowed() ? nextPosition : { x: mapImageRect.x, y: mapImageRect.y })}
-              onClick={(event) => {
-                if (tool !== "mapImageEdit") return;
-                event.cancelBubble = true;
-                selectSingle("mapImage", "mapImage");
-              }}
-              onTap={(event) => {
-                if (tool !== "mapImageEdit") return;
-                event.cancelBubble = true;
-                selectSingle("mapImage", "mapImage");
-              }}
-              onDragEnd={(event) => {
-                if (!mapImageDrag.isDragAllowed()) {
-                  event.target.position({ x: mapImageRect.x, y: mapImageRect.y });
+          {mapImageEntries.map(({ imageRecord, htmlImage, rect }) => {
+            const editingThisImage = !exportViewport && tool === "mapImageEdit" && selected.type === "mapImage" && selected.id === imageRecord.id;
+            return (
+              <Group
+                key={imageRecord.id}
+                x={rect.x}
+                y={rect.y}
+                draggable={editingThisImage && !spacePressed}
+                onMouseDown={editingThisImage ? mapImageDrag.updateDragButton : undefined}
+                onDragStart={editingThisImage ? mapImageDrag.stopBlockedDrag : undefined}
+                dragBoundFunc={(nextPosition) => (mapImageDrag.isDragAllowed() ? nextPosition : { x: rect.x, y: rect.y })}
+                onClick={(event) => {
+                  if (tool !== "mapImageEdit") return;
+                  event.cancelBubble = true;
+                  selectSingle("mapImage", imageRecord.id);
+                }}
+                onTap={(event) => {
+                  if (tool !== "mapImageEdit") return;
+                  event.cancelBubble = true;
+                  selectSingle("mapImage", imageRecord.id);
+                }}
+                onDragEnd={(event) => {
+                  if (!mapImageDrag.isDragAllowed()) {
+                    event.target.position({ x: rect.x, y: rect.y });
+                    mapImageDrag.resetDragButton();
+                    return;
+                  }
                   mapImageDrag.resetDragButton();
-                  return;
-                }
-                mapImageDrag.resetDragButton();
-                updateMapImagePlacement({ imageX: event.target.x(), imageY: event.target.y() });
-              }}
-            >
-              <KonvaImage image={mapImage} width={mapImageRect.width} height={mapImageRect.height} opacity={0.95} listening={isMapImageEditing} />
-            </Group>
-          )}
-
+                  updateMapImagePlacement(imageRecord.id, { imageX: event.target.x(), imageY: event.target.y() });
+                }}
+              >
+                <KonvaImage image={htmlImage} width={rect.width} height={rect.height} opacity={imageRecord.opacity ?? 1} listening={!exportViewport && tool === "mapImageEdit"} />
+              </Group>
+            );
+          })}
           {orderedRegions
             .map(({ region, frame }) => {
               if (!frame) return null;
@@ -2000,12 +2035,12 @@ export function MapCanvas() {
             </Group>
           )}
 
-          {isMapImageEditing && mapImageRect && (
-            <Group x={mapImageRect.x} y={mapImageRect.y}>
-              <MarchingAntsRect x={0} y={0} width={mapImageRect.width} height={mapImageRect.height} />
+          {isMapImageEditing && selectedMapImageEntry && (
+            <Group x={selectedMapImageEntry.rect.x} y={selectedMapImageEntry.rect.y}>
+              <MarchingAntsRect x={0} y={0} width={selectedMapImageEntry.rect.width} height={selectedMapImageEntry.rect.height} />
               <Circle
-                x={mapImageRect.width}
-                y={mapImageRect.height}
+                x={selectedMapImageEntry.rect.width}
+                y={selectedMapImageEntry.rect.height}
                 radius={8}
                 fill="#f4d06f"
                 stroke="#1b1f29"
@@ -2013,34 +2048,35 @@ export function MapCanvas() {
                 draggable
                 onMouseDown={(event) => {
                   event.cancelBubble = true;
-                  mapImageResizeStartRef.current = { width: mapImageRect.width, height: mapImageRect.height };
+                  mapImageResizeStartRef.current = { id: selectedMapImageEntry.imageRecord.id, width: selectedMapImageEntry.rect.width, height: selectedMapImageEntry.rect.height };
                 }}
                 onDragStart={(event) => {
                   event.cancelBubble = true;
-                  mapImageResizeStartRef.current = { width: mapImageRect.width, height: mapImageRect.height };
+                  mapImageResizeStartRef.current = { id: selectedMapImageEntry.imageRecord.id, width: selectedMapImageEntry.rect.width, height: selectedMapImageEntry.rect.height };
                 }}
                 onDragMove={(event) => {
                   event.cancelBubble = true;
-                  const startSize = mapImageResizeStartRef.current ?? { width: mapImageRect.width, height: mapImageRect.height };
+                  const startSize = mapImageResizeStartRef.current ?? { id: selectedMapImageEntry.imageRecord.id, width: selectedMapImageEntry.rect.width, height: selectedMapImageEntry.rect.height };
                   const diagonal = Math.hypot(startSize.width, startSize.height);
                   const nextScale = diagonal > 0 ? Math.max(16 / Math.max(startSize.width, startSize.height), Math.hypot(event.target.x(), event.target.y()) / diagonal) : 1;
                   const width = Math.max(16, startSize.width * nextScale);
                   const height = Math.max(16, startSize.height * nextScale);
                   event.target.position({ x: width, y: height });
                   setMapImageResizePreview({
+                    id: selectedMapImageEntry.imageRecord.id,
                     width,
                     height,
                   });
                 }}
                 onDragEnd={(event) => {
                   event.cancelBubble = true;
-                  const startSize = mapImageResizeStartRef.current ?? { width: mapImageRect.width, height: mapImageRect.height };
+                  const startSize = mapImageResizeStartRef.current ?? { id: selectedMapImageEntry.imageRecord.id, width: selectedMapImageEntry.rect.width, height: selectedMapImageEntry.rect.height };
                   const diagonal = Math.hypot(startSize.width, startSize.height);
                   const nextScale = diagonal > 0 ? Math.max(16 / Math.max(startSize.width, startSize.height), Math.hypot(event.target.x(), event.target.y()) / diagonal) : 1;
                   const width = Math.max(16, startSize.width * nextScale);
                   setMapImageResizePreview(null);
                   mapImageResizeStartRef.current = null;
-                  updateMapImagePlacement({ imageWidth: width });
+                  updateMapImagePlacement(selectedMapImageEntry.imageRecord.id, { imageWidth: width });
                 }}
               />
             </Group>

@@ -29,6 +29,8 @@ export function LabelInspector({ id }: { id: string }) {
   const displayEndTime = label.endTime ?? project.timeline.end;
   const frame = resolveLabelFrame(label, project.timeline.currentTime, project.timeline.interpolationMode);
   const keyframes = [...(label.keyframes ?? [])].sort((a, b) => compareTime(a.time, b.time));
+  const border1Enabled = label.borderEnabled ?? true;
+  const border2Enabled = label.outerBorderEnabled ?? false;
 
   return (
     <aside className="right-inspector">
@@ -55,8 +57,12 @@ export function LabelInspector({ id }: { id: string }) {
       {(label.backgroundEnabled ?? true) && <ColorField label="背景色" value={label.backgroundColor} onChange={(value) => updateLabel(label.id, { backgroundColor: value })} />}
       <ToggleField label="文字にアウトライン" checked={label.outlineEnabled ?? false} onChange={(value) => updateLabel(label.id, { outlineEnabled: value })} />
       {label.outlineEnabled && <ColorField label="アウトライン色" value={label.outlineColor ?? "#111827"} onChange={(value) => updateLabel(label.id, { outlineColor: value })} />}
-      <ToggleField label="枠線を表示" checked={label.borderEnabled ?? true} onChange={(value) => updateLabel(label.id, { borderEnabled: value })} />
-      {(label.borderEnabled ?? true) && <ColorField label="枠線色" value={label.borderColor} onChange={(value) => updateLabel(label.id, { borderColor: value })} />}
+      <ToggleField label="枠線1" checked={border1Enabled} onChange={(value) => updateLabel(label.id, { borderEnabled: value })} />
+      {border1Enabled && <ColorField label="枠線1の色" value={label.borderColor} onChange={(value) => updateLabel(label.id, { borderColor: value })} />}
+      {border1Enabled && <NumberField label="枠線1の太さ" value={label.borderWidth ?? 2} min={0} max={16} step={0.5} onChange={(value) => updateLabel(label.id, { borderWidth: value })} />}
+      {border1Enabled && <ToggleField label="枠線2" checked={border2Enabled} onChange={(value) => updateLabel(label.id, { outerBorderEnabled: value })} />}
+      {border1Enabled && border2Enabled && <ColorField label="枠線2の色" value={label.outerBorderColor ?? "#111827"} onChange={(value) => updateLabel(label.id, { outerBorderColor: value })} />}
+      {border1Enabled && border2Enabled && <NumberField label="枠線2の太さ" value={label.outerBorderWidth ?? 2} min={0} max={16} step={0.5} onChange={(value) => updateLabel(label.id, { outerBorderWidth: value })} />}
       <NumberField label="透明度" value={label.opacity} min={0.1} max={1} step={0.05} onChange={(value) => updateLabel(label.id, { opacity: value })} />
       <ToggleField label="ロック" checked={label.locked} onChange={(value) => updateLabel(label.id, { locked: value })} />
 

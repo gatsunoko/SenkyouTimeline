@@ -116,12 +116,11 @@ export function Toolbar() {
     if (!file) return;
     const dataUrl = await readFileAsDataUrl(file);
     const naturalSize = await readImageDimensions(dataUrl).catch(() => undefined);
-    setMapImage(dataUrl, naturalSize);
+    const mapImageId = setMapImage(dataUrl, naturalSize, file.name.replace(/\.[^.]+$/, "") || "\u5730\u56f3\u753b\u50cf");
     setTool("mapImageEdit");
-    selectObject("mapImage", "mapImage");
+    selectObject("mapImage", mapImageId);
     setActiveMenu(null);
   };
-
   const onObjectImageFile = async (file?: File) => {
     if (!file) return;
     const dataUrl = await readFileAsDataUrl(file);
@@ -167,7 +166,8 @@ export function Toolbar() {
 
   const editMapImage = () => {
     setTool("mapImageEdit");
-    selectObject("mapImage", "mapImage");
+    const firstMapImage = project.map.images?.[0];
+    if (firstMapImage) selectObject("mapImage", firstMapImage.id);
     setActiveMenu(null);
   };
 
@@ -322,7 +322,7 @@ export function Toolbar() {
             <Camera size={17} />
             書き出しカメラ
           </button>
-          {project.map.imageDataUrl && (
+          {(project.map.images?.length ?? 0) > 0 && (
             <button type="button" onClick={editMapImage} title="地図画像の位置とサイズを編集">
               <ImagePlus size={17} />
               地図画像編集

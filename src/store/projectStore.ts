@@ -6,6 +6,7 @@ import type {
   BattleLine,
   CameraKeyframe,
   CameraLegendSettings,
+  CanvasMapImage,
   Certainty,
   ExportCamera,
   Faction,
@@ -198,8 +199,10 @@ interface ProjectStore {
   clearSelection: () => void;
   updateUnitKeyframe: (unitId: string, time: string, keyframe: Partial<UnitKeyframe>) => void;
   deleteUnitKeyframe: (unitId: string, time: string) => void;
-  setMapImage: (dataUrl: string, naturalSize?: { width: number; height: number }) => void;
-  updateMapImagePlacement: (patch: { imageX?: number; imageY?: number; imageWidth?: number; imageHeight?: number }) => void;
+  setMapImage: (dataUrl: string, naturalSize?: { width: number; height: number }, name?: string) => string;
+  updateMapImagePlacement: (id: string, patch: Partial<Pick<CanvasMapImage, "imageX" | "imageY" | "imageWidth" | "imageHeight" | "opacity" | "name">>) => void;
+  moveMapImageOrder: (id: string, direction: "up" | "down") => void;
+  deleteMapImage: (id: string) => void;
   updateExportCamera: (patch: Partial<Pick<ExportCamera, "width" | "height" | "scale">>) => void;
   updateCameraKeyframe: (time: string, patch: Partial<MapPoint & { scale: number }>) => void;
   deleteCameraKeyframe: (time: string) => void;
@@ -247,6 +250,11 @@ function clampOpacity(value: number | undefined, fallback = 0.65) {
   return Math.round(Math.min(1, Math.max(0, next)) * 100) / 100;
 }
 
+function clampLabelBorderWidth(value: number | undefined, fallback = 2) {
+  const next = Number.isFinite(value) ? Number(value) : fallback;
+  return Math.round(Math.min(16, Math.max(0, next)) * 10) / 10;
+}
+
 function fitImageToMap(project: ProjectData, naturalWidth: number, naturalHeight: number) {
   const mapWidth = project.map.width ?? 1600;
   const mapHeight = project.map.height ?? 900;
@@ -265,29 +273,71 @@ function fitImageToMap(project: ProjectData, naturalWidth: number, naturalHeight
   return { imageX: (mapWidth - imageWidth) / 2, imageY: 0, imageWidth, imageHeight };
 }
 
-function getMapImageAspect(map: ProjectData["map"]) {
+function getMapImageAspect(image: Partial<CanvasMapImage>) {
   const naturalAspect =
-    map.imageNaturalWidth && map.imageNaturalHeight && map.imageNaturalWidth > 0 && map.imageNaturalHeight > 0
-      ? map.imageNaturalWidth / map.imageNaturalHeight
+    image.imageNaturalWidth && image.imageNaturalHeight && image.imageNaturalWidth > 0 && image.imageNaturalHeight > 0
+      ? image.imageNaturalWidth / image.imageNaturalHeight
       : null;
   if (naturalAspect && Number.isFinite(naturalAspect) && naturalAspect > 0) return naturalAspect;
-  const placedAspect = map.imageWidth && map.imageHeight && map.imageWidth > 0 && map.imageHeight > 0 ? map.imageWidth / map.imageHeight : null;
+  const placedAspect = image.imageWidth && image.imageHeight && image.imageWidth > 0 && image.imageHeight > 0 ? image.imageWidth / image.imageHeight : null;
   if (placedAspect && Number.isFinite(placedAspect) && placedAspect > 0) return placedAspect;
   return 16 / 9;
 }
 
-function resizeMapImageWithAspect(map: ProjectData["map"], size: number, source: "width" | "height" = "width") {
-  const aspect = getMapImageAspect(map);
+function resizeMapImageWithAspect(image: Partial<CanvasMapImage>, size: number, source: "width" | "height" = "width") {
+  const aspect = getMapImageAspect(image);
   if (source === "height") {
-    const imageHeight = clampPixelValue(size, map.imageHeight ?? map.height ?? 900, 16, 20000);
-    const imageWidth = clampPixelValue(imageHeight * aspect, map.imageWidth ?? map.width ?? 1600, 16, 20000);
+    const imageHeight = clampPixelValue(size, image.imageHeight ?? 900, 16, 20000);
+    const imageWidth = clampPixelValue(imageHeight * aspect, image.imageWidth ?? 1600, 16, 20000);
     return { imageWidth, imageHeight: clampPixelValue(imageWidth / aspect, imageHeight, 16, 20000) };
   }
-  const imageWidth = clampPixelValue(size, map.imageWidth ?? map.width ?? 1600, 16, 20000);
-  const imageHeight = clampPixelValue(imageWidth / aspect, map.imageHeight ?? map.height ?? 900, 16, 20000);
+  const imageWidth = clampPixelValue(size, image.imageWidth ?? 1600, 16, 20000);
+  const imageHeight = clampPixelValue(imageWidth / aspect, image.imageHeight ?? 900, 16, 20000);
   return { imageWidth: clampPixelValue(imageHeight * aspect, imageWidth, 16, 20000), imageHeight };
 }
 
+function normalizeMapImages(project: ProjectData) {
+  const map = project.map;
+  map.images ||= [];
+  if (map.imageDataUrl) {
+    map.images.push({
+      id: createId("map_image"),
+      name: "\u5730\u56f3\u753b\u50cf",
+      imageDataUrl: map.imageDataUrl,
+      imagePath: map.imagePath,
+      imageX: map.imageX,
+      imageY: map.imageY,
+      imageWidth: map.imageWidth,
+      imageHeight: map.imageHeight,
+      imageNaturalWidth: map.imageNaturalWidth,
+      imageNaturalHeight: map.imageNaturalHeight,
+      opacity: 1,
+    });
+    delete map.imageDataUrl;
+    delete map.imagePath;
+    delete map.imageX;
+    delete map.imageY;
+    delete map.imageWidth;
+    delete map.imageHeight;
+    delete map.imageNaturalWidth;
+    delete map.imageNaturalHeight;
+  }
+  map.images = map.images
+    .filter((image): image is CanvasMapImage => Boolean(image?.imageDataUrl))
+    .map((image, index) => {
+      image.id ||= createId("map_image");
+      image.name ||= `\u5730\u56f3\u753b\u50cf${index + 1}`;
+      image.opacity = clampOpacity(image.opacity, 1);
+      if (image.imageNaturalWidth && image.imageNaturalHeight && (image.imageWidth === undefined || image.imageHeight === undefined)) {
+        Object.assign(image, fitImageToMap(project, image.imageNaturalWidth, image.imageNaturalHeight));
+      } else if (image.imageWidth !== undefined) {
+        Object.assign(image, resizeMapImageWithAspect(image, image.imageWidth, "width"));
+      }
+      image.imageX = clampPixelValue(image.imageX, image.imageX ?? 0, -20000, 20000);
+      image.imageY = clampPixelValue(image.imageY, image.imageY ?? 0, -20000, 20000);
+      return image;
+    });
+}
 function removeLegacyAbbrevName(entry: unknown) {
   const legacyKey = ["short", "Name"].join("");
   if (entry && typeof entry === "object" && legacyKey in entry) {
@@ -807,11 +857,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     textBold: normalized.cameraLegend?.textBold ?? true,
   };
   normalizeExportCamera(normalized);
-  if (normalized.map.imageDataUrl && normalized.map.imageNaturalWidth && normalized.map.imageNaturalHeight && (normalized.map.imageWidth === undefined || normalized.map.imageHeight === undefined)) {
-    Object.assign(normalized.map, fitImageToMap(normalized, normalized.map.imageNaturalWidth, normalized.map.imageNaturalHeight));
-  } else if (normalized.map.imageDataUrl && normalized.map.imageWidth !== undefined) {
-    Object.assign(normalized.map, resizeMapImageWithAspect(normalized.map, normalized.map.imageWidth, "width"));
-  }
+  normalizeMapImages(normalized);
   normalized.factions ||= [];
   for (const faction of normalized.factions) {
     removeLegacyAbbrevName(faction);
@@ -978,6 +1024,10 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     label.backgroundEnabled = label.backgroundEnabled ?? true;
     label.borderEnabled = label.borderEnabled ?? true;
     label.borderColor ||= "#f0c665";
+    label.borderWidth = clampLabelBorderWidth(label.borderWidth, 2);
+    label.outerBorderEnabled = label.outerBorderEnabled ?? false;
+    label.outerBorderColor ||= "#111827";
+    label.outerBorderWidth = clampLabelBorderWidth(label.outerBorderWidth, 2);
     label.outlineEnabled = label.outlineEnabled ?? false;
     label.outlineColor ||= "#111827";
     label.bold = label.bold ?? false;
@@ -1921,6 +1971,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         outlineColor: "#111827",
         borderEnabled: true,
         borderColor: "#f0c665",
+        borderWidth: 2,
+        outerBorderEnabled: false,
+        outerBorderColor: "#111827",
+        outerBorderWidth: 2,
         bold: false,
         opacity: 0.9,
         locked: false,
@@ -2135,25 +2189,53 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       cleanupEmptyTimelineFrames(project);
     }),
 
-  setMapImage: (dataUrl, naturalSize) =>
+  setMapImage: (dataUrl, naturalSize, name) => {
+    const id = createId("map_image");
     commit(set, get, (project) => {
-      project.map.imageDataUrl = dataUrl;
+      project.map.images ||= [];
+      const image: CanvasMapImage = {
+        id,
+        name: name || `\u5730\u56f3\u753b\u50cf${project.map.images.length + 1}`,
+        imageDataUrl: dataUrl,
+        opacity: 1,
+      };
       if (naturalSize && naturalSize.width > 0 && naturalSize.height > 0) {
-        project.map.imageNaturalWidth = naturalSize.width;
-        project.map.imageNaturalHeight = naturalSize.height;
-        Object.assign(project.map, fitImageToMap(project, naturalSize.width, naturalSize.height));
+        image.imageNaturalWidth = naturalSize.width;
+        image.imageNaturalHeight = naturalSize.height;
+        Object.assign(image, fitImageToMap(project, naturalSize.width, naturalSize.height));
       }
-    }),
+      project.map.images.push(image);
+    });
+    return id;
+  },
 
-  updateMapImagePlacement: (patch) =>
+  updateMapImagePlacement: (id, patch) =>
     commit(set, get, (project) => {
-      if (!project.map.imageDataUrl) return;
-      if (patch.imageX !== undefined) project.map.imageX = clampPixelValue(patch.imageX, project.map.imageX ?? 0, -20000, 20000);
-      if (patch.imageY !== undefined) project.map.imageY = clampPixelValue(patch.imageY, project.map.imageY ?? 0, -20000, 20000);
-      if (patch.imageWidth !== undefined) Object.assign(project.map, resizeMapImageWithAspect(project.map, patch.imageWidth, "width"));
-      else if (patch.imageHeight !== undefined) Object.assign(project.map, resizeMapImageWithAspect(project.map, patch.imageHeight, "height"));
+      const image = project.map.images?.find((entry) => entry.id === id);
+      if (!image) return;
+      if (patch.name !== undefined) image.name = patch.name;
+      if (patch.opacity !== undefined) image.opacity = clampOpacity(patch.opacity, image.opacity ?? 1);
+      if (patch.imageX !== undefined) image.imageX = clampPixelValue(patch.imageX, image.imageX ?? 0, -20000, 20000);
+      if (patch.imageY !== undefined) image.imageY = clampPixelValue(patch.imageY, image.imageY ?? 0, -20000, 20000);
+      if (patch.imageWidth !== undefined) Object.assign(image, resizeMapImageWithAspect(image, patch.imageWidth, "width"));
+      else if (patch.imageHeight !== undefined) Object.assign(image, resizeMapImageWithAspect(image, patch.imageHeight, "height"));
     }),
 
+  moveMapImageOrder: (id, direction) =>
+    commit(set, get, (project) => {
+      const images = project.map.images ?? [];
+      const index = images.findIndex((entry) => entry.id === id);
+      if (index < 0) return;
+      const nextIndex = direction === "up" ? Math.min(images.length - 1, index + 1) : Math.max(0, index - 1);
+      if (nextIndex === index) return;
+      const [image] = images.splice(index, 1);
+      images.splice(nextIndex, 0, image);
+    }),
+
+  deleteMapImage: (id) =>
+    commit(set, get, (project) => {
+      project.map.images = (project.map.images ?? []).filter((image) => image.id !== id);
+    }),
   updateExportCamera: (patch) =>
     commit(set, get, (project) => {
       normalizeExportCamera(project);
@@ -2325,6 +2407,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (selected.type === "event") get().deleteEvent(selected.id);
     if (selected.type === "label") get().deleteLabel(selected.id);
     if (selected.type === "image") get().deleteImage(selected.id);
+    if (selected.type === "mapImage") get().deleteMapImage(selected.id);
     set({ selected: { type: null, id: null }, selectedRegionPointIndices: [], selectedLinePointIndices: [], selectedArrowPointIndices: [], routePreviewUnitId: null, unitPlacementAssetId: null, sitePlacementAssetId: null, imagePlacementAssetId: null, imagePlacement: null });
   },
 

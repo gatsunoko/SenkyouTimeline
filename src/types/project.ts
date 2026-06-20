@@ -130,7 +130,22 @@ export interface ExportCamera {
   keyframes: CameraKeyframe[];
 }
 
+export interface CanvasMapImage {
+  id: string;
+  name: string;
+  imageDataUrl: string;
+  imagePath?: string;
+  imageX?: number;
+  imageY?: number;
+  imageWidth?: number;
+  imageHeight?: number;
+  imageNaturalWidth?: number;
+  imageNaturalHeight?: number;
+  opacity?: number;
+}
+
 export interface ProjectMap {
+  images?: CanvasMapImage[];
   imageDataUrl?: string;
   imagePath?: string;
   imageX?: number;
@@ -145,7 +160,6 @@ export interface ProjectMap {
   outputHeight: number;
   exportCamera?: ExportCamera;
 }
-
 export interface TimelineFrame {
   id: string;
   time: string;
@@ -454,6 +468,10 @@ export interface MapLabel extends MapPoint {
   outlineColor?: string;
   borderEnabled?: boolean;
   borderColor: string;
+  borderWidth?: number;
+  outerBorderEnabled?: boolean;
+  outerBorderColor?: string;
+  outerBorderWidth?: number;
   bold?: boolean;
   opacity: number;
   locked: boolean;

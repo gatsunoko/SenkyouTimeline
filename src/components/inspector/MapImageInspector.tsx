@@ -1,24 +1,69 @@
 import { useProjectStore } from "../../store/projectStore";
-import { NumberField } from "./InspectorFields";
+import { NumberField, TextField } from "./InspectorFields";
 
 export function MapImageInspector() {
   const project = useProjectStore((state) => state.project);
+  const selected = useProjectStore((state) => state.selected);
+  const selectObject = useProjectStore((state) => state.selectObject);
+  const setTool = useProjectStore((state) => state.setTool);
   const updateMapImagePlacement = useProjectStore((state) => state.updateMapImagePlacement);
-  const map = project.map;
-  const x = map.imageX ?? 0;
-  const y = map.imageY ?? 0;
-  const width = map.imageWidth ?? map.width ?? 1600;
+  const moveMapImageOrder = useProjectStore((state) => state.moveMapImageOrder);
+  const deleteMapImage = useProjectStore((state) => state.deleteMapImage);
+  const images = project.map.images ?? [];
+  const selectedImage = images.find((image) => image.id === selected.id) ?? images[0];
+  const selectedIndex = selectedImage ? images.findIndex((image) => image.id === selectedImage.id) : -1;
+
+  const selectMapImage = (id: string) => {
+    setTool("mapImageEdit");
+    selectObject("mapImage", id);
+  };
+
+  const removeSelectedImage = () => {
+    if (!selectedImage) return;
+    const nextImage = images[selectedIndex + 1] ?? images[selectedIndex - 1] ?? null;
+    deleteMapImage(selectedImage.id);
+    if (nextImage) selectMapImage(nextImage.id);
+    else selectObject(null, null);
+  };
 
   return (
     <aside className="right-inspector">
-      <h2>地図画像</h2>
-      {!map.imageDataUrl ? (
+      <h2>地図画像編集</h2>
+      {images.length === 0 ? (
         <p className="inspector-note">地図画像が読み込まれていません。</p>
       ) : (
         <>
-          <NumberField label="X" value={Math.round(x)} step={10} onChange={(value) => updateMapImagePlacement({ imageX: value })} />
-          <NumberField label="Y" value={Math.round(y)} step={10} onChange={(value) => updateMapImagePlacement({ imageY: value })} />
-          <NumberField label="サイズ" value={Math.round(width)} min={16} max={20000} step={10} onChange={(value) => updateMapImagePlacement({ imageWidth: value })} />
+          <div className="point-list">
+            {images.map((image, index) => (
+              <div className={`point-row ${selectedImage?.id === image.id ? "selected" : ""}`} key={image.id} onClick={() => selectMapImage(image.id)}>
+                <span>{image.name || `地図画像${index + 1}`}</span>
+                <small>
+                  表示順 {index + 1} / 透明度 {Math.round((image.opacity ?? 1) * 100)}%
+                </small>
+              </div>
+            ))}
+          </div>
+
+          {selectedImage && (
+            <>
+              <TextField label="名前" value={selectedImage.name} onChange={(value) => updateMapImagePlacement(selectedImage.id, { name: value })} />
+              <NumberField label="X" value={Math.round(selectedImage.imageX ?? 0)} step={10} onChange={(value) => updateMapImagePlacement(selectedImage.id, { imageX: value })} />
+              <NumberField label="Y" value={Math.round(selectedImage.imageY ?? 0)} step={10} onChange={(value) => updateMapImagePlacement(selectedImage.id, { imageY: value })} />
+              <NumberField label="サイズ" value={Math.round(selectedImage.imageWidth ?? project.map.width ?? 1600)} min={16} max={20000} step={10} onChange={(value) => updateMapImagePlacement(selectedImage.id, { imageWidth: value })} />
+              <NumberField label="透明度" value={selectedImage.opacity ?? 1} min={0} max={1} step={0.05} onChange={(value) => updateMapImagePlacement(selectedImage.id, { opacity: value })} />
+              <div className="inspector-button-row">
+                <button type="button" onClick={() => moveMapImageOrder(selectedImage.id, "down")} disabled={selectedIndex <= 0}>
+                  下へ
+                </button>
+                <button type="button" onClick={() => moveMapImageOrder(selectedImage.id, "up")} disabled={selectedIndex >= images.length - 1}>
+                  上へ
+                </button>
+                <button type="button" className="danger" onClick={removeSelectedImage}>
+                  削除
+                </button>
+              </div>
+            </>
+          )}
         </>
       )}
     </aside>
