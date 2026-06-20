@@ -35,7 +35,7 @@ export function MapImageInspector() {
         <>
           <div className="point-list">
             {images.map((image, index) => (
-              <div className={`point-row ${selectedImage?.id === image.id ? "selected" : ""}`} key={image.id} onClick={() => selectMapImage(image.id)}>
+              <div className={`point-row map-image-row ${selectedImage?.id === image.id ? "is-selected" : ""}`} key={image.id} onClick={() => selectMapImage(image.id)}>
                 <span>{image.name || `地図画像${index + 1}`}</span>
                 <small>
                   表示順 {index + 1} / 透明度 {Math.round((image.opacity ?? 1) * 100)}%

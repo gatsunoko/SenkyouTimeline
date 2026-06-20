@@ -923,6 +923,26 @@ textarea {
   box-shadow: inset 0 0 0 1px #f0c665;
 }
 
+
+.map-image-row {
+  grid-template-columns: 1fr;
+  cursor: pointer;
+}
+
+.map-image-row:hover {
+  border-color: #5d78a5;
+  background: #162235;
+}
+
+.map-image-row.is-selected {
+  border-color: #f0c665;
+  background: #243653;
+  box-shadow: inset 0 0 0 1px #f0c665, 0 0 0 1px rgba(240, 198, 101, 0.22);
+}
+
+.map-image-row.is-selected small {
+  color: #f4dca1;
+}
 .point-row.is-current-keyframe span,
 .point-row.is-current-keyframe small {
   color: #fff3bf;
