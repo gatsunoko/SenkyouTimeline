@@ -1,3 +1,3 @@
-import defaultSiteIconUrl from "../../siro3.png";
+import defaultSiteIconUrl from "../../siro4.png";
 
 export { defaultSiteIconUrl };
