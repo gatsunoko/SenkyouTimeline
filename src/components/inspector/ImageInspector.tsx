@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { ImagePlus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ImagePlus, Trash2 } from "lucide-react";
 import { useProjectStore } from "../../store/projectStore";
 import { readFileAsDataUrl } from "../../utils/fileIO";
 import { resolvePlacedImageFrame } from "../../utils/interpolation";
@@ -19,6 +19,7 @@ export function ImageInspector({ id }: { id: string }) {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const project = useProjectStore((state) => state.project);
   const updateImage = useProjectStore((state) => state.updateImage);
+  const moveImageOrder = useProjectStore((state) => state.moveImageOrder);
   const registerImageAsset = useProjectStore((state) => state.registerImageAsset);
   const updateImageKeyframe = useProjectStore((state) => state.updateImageKeyframe);
   const deleteImageKeyframe = useProjectStore((state) => state.deleteImageKeyframe);
@@ -29,6 +30,15 @@ export function ImageInspector({ id }: { id: string }) {
   const frame = resolvePlacedImageFrame(imageObject, project.timeline.currentTime, project.timeline.interpolationMode);
   const keyframes = [...(imageObject.keyframes ?? [])].sort((a, b) => compareTime(a.time, b.time));
   const linkedAsset = project.imageAssets.find((asset) => asset.id === imageObject.assetId);
+  const orderedImages = project.images
+    .map((entry, index) => ({
+      entry,
+      index,
+      order: Number.isFinite(entry.displayOrder) ? entry.displayOrder ?? index : index,
+    }))
+    .sort((left, right) => left.order - right.order || left.index - right.index)
+    .map(({ entry }) => entry);
+  const orderIndex = orderedImages.findIndex((entry) => entry.id === imageObject.id);
 
   const onImageFile = async (file?: File) => {
     if (!file) return;
@@ -46,6 +56,16 @@ export function ImageInspector({ id }: { id: string }) {
       <h2>画像編集</h2>
       <TextField label="名前" value={imageObject.name} onChange={(value) => updateImage(imageObject.id, { name: value })} />
       <NumberField label="サイズ" value={imageObject.size ?? 1} min={0.1} max={8} step={0.05} onChange={(value) => updateImage(imageObject.id, { size: value })} />
+      <div className="inspector-button-row">
+        <button type="button" onClick={() => moveImageOrder(imageObject.id, "down")} disabled={orderIndex <= 0}>
+          <ArrowDown size={16} />
+          下へ
+        </button>
+        <button type="button" onClick={() => moveImageOrder(imageObject.id, "up")} disabled={orderIndex < 0 || orderIndex >= orderedImages.length - 1}>
+          <ArrowUp size={16} />
+          上へ
+        </button>
+      </div>
       <div className="coordinate-grid">
         <NumberField label="x" value={frame.x} min={0} max={1} step={0.001} onChange={(value) => updateImageKeyframe(imageObject.id, project.timeline.currentTime, { x: value, y: frame.y })} />
         <NumberField label="y" value={frame.y} min={0} max={1} step={0.001} onChange={(value) => updateImageKeyframe(imageObject.id, project.timeline.currentTime, { x: frame.x, y: value })} />

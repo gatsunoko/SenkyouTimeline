@@ -804,7 +804,7 @@ export function MapCanvas() {
     if (tool === "addSite") {
       if (sitePlacementAssetId) duplicateSiteFromAsset(sitePlacementAssetId, point);
       else addSite(point);
-      setTool("select");
+      if (!sitePlacementAssetId) setTool("select");
       return;
     }
     if (tool === "addImage") {
@@ -848,6 +848,7 @@ export function MapCanvas() {
   const cameraLegendBackgroundColor = project.cameraLegend?.backgroundColor ?? "#111827";
   const cameraLegendBackgroundOpacity = Math.min(1, Math.max(0, project.cameraLegend?.backgroundOpacity ?? 0.65));
   const cameraLegendTextBold = project.cameraLegend?.textBold ?? true;
+  const cameraLegendPosition = project.cameraLegend?.position ?? "top-left";
   const cameraLegendFactions = cameraLegendEnabled ? project.factions.filter((faction) => faction.showInCameraLegend) : [];
   const cameraLegendOverlay = (() => {
     if (cameraLegendFactions.length === 0) return null;
@@ -869,12 +870,16 @@ export function MapCanvas() {
     const textStrokeWidth = Math.max(0.35, 0.55 * cameraLegendSize);
     const margin = 4;
     const textWidth = Math.max(...cameraLegendFactions.map((faction) => estimateLabelTextWidth(faction.name, fontSize)), 48);
+    const width = paddingX * 2 + radius * 2 + gap + textWidth;
+    const height = paddingY * 2 + rowHeight * cameraLegendFactions.length;
+    const x = cameraLegendPosition.endsWith("right") ? viewport.x + viewport.width - (margin + width) * exportPixelToWorld : viewport.x + margin * exportPixelToWorld;
+    const y = cameraLegendPosition.startsWith("bottom") ? viewport.y + viewport.height - (margin + height) * exportPixelToWorld : viewport.y + margin * exportPixelToWorld;
     return {
-      x: viewport.x + margin * exportPixelToWorld,
-      y: viewport.y + margin * exportPixelToWorld,
+      x,
+      y,
       scale: exportPixelToWorld,
-      width: paddingX * 2 + radius * 2 + gap + textWidth,
-      height: paddingY * 2 + rowHeight * cameraLegendFactions.length,
+      width,
+      height,
       fontSize,
       rowHeight,
       paddingX,
@@ -944,6 +949,7 @@ export function MapCanvas() {
     return project.factions.find((faction) => faction.id === region.factionId)?.color ?? region.fillColor;
   };
   const regionDisplayOrder = (region: MapRegion) => (Number.isFinite(region.displayOrder) ? region.displayOrder : 0);
+  const placedImageDisplayOrder = (imageObject: PlacedImage, fallbackIndex: number) => (Number.isFinite(imageObject.displayOrder) ? imageObject.displayOrder ?? fallbackIndex : fallbackIndex);
   const orderedRegions = project.regions
     .map((region, index) => ({
       region,
@@ -957,6 +963,10 @@ export function MapCanvas() {
     if (currentIndex < 0) return [];
     return orderedRegions.slice(currentIndex + 1).map(({ frame }) => pointsToCanvas(frame?.points ?? [], mapWidth, mapHeight));
   };
+  const orderedPlacedImages = project.images
+    .map((imageObject, index) => ({ imageObject, index, order: placedImageDisplayOrder(imageObject, index) }))
+    .sort((left, right) => left.order - right.order || left.index - right.index)
+    .map(({ imageObject }) => imageObject);
   const resolveDisplayRegion = (region: MapRegion) => resolveRegionKeyframe(region, project.timeline.currentTime, project.timeline.interpolationMode);
   const resolveDisplayUnitFrame = (unit: (typeof project.units)[number]) => {
     const routeRange = getUnitRouteTimeRange(unit.route);
@@ -1454,7 +1464,7 @@ export function MapCanvas() {
               );
             })}
 
-          {withoutSelected(project.images, "image").map((imageObject) => {
+          {withoutSelected(orderedPlacedImages, "image").map((imageObject) => {
             const frame = resolvePlacedImageFrame(imageObject, project.timeline.currentTime, project.timeline.interpolationMode);
             return (
               <PlacedImageShape

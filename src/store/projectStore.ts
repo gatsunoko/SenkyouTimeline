@@ -41,7 +41,7 @@ const emptyProject: ProjectData = {
   version: "1.0.0",
   projectName: "新規戦況図",
   description: "表示確認用のデータ。",
-  cameraLegend: { showFactions: true, factionSize: 1, backgroundEnabled: false, backgroundColor: "#111827", backgroundOpacity: 0.65, textBold: true },
+  cameraLegend: { showFactions: true, factionSize: 1, position: "top-left", backgroundEnabled: false, backgroundColor: "#111827", backgroundOpacity: 0.65, textBold: true },
   timeline: {
     start: "0",
     end: "12",
@@ -111,6 +111,25 @@ type TimedEntry = { time: string; displayDate?: string };
 
 const defaultCanvasView: CanvasViewState = { x: 40, y: 30, scale: 0.58 };
 
+function placedImageDisplayOrder(image: PlacedImage, fallbackIndex: number) {
+  return Number.isFinite(image.displayOrder) ? image.displayOrder ?? fallbackIndex : fallbackIndex;
+}
+
+function sortPlacedImagesByDisplayOrder(images: PlacedImage[]) {
+  return images
+    .map((image, index) => ({ image, index, order: placedImageDisplayOrder(image, index) }))
+    .sort((left, right) => left.order - right.order || left.index - right.index)
+    .map(({ image }) => image);
+}
+
+function normalizePlacedImageDisplayOrder(images: PlacedImage[]) {
+  const ordered = sortPlacedImagesByDisplayOrder(images);
+  ordered.forEach((image, index) => {
+    image.displayOrder = index;
+  });
+  return ordered;
+}
+
 interface ProjectStore {
   project: ProjectData;
   selected: SelectionState;
@@ -159,6 +178,7 @@ interface ProjectStore {
   deleteSite: (id: string) => void;
   addImage: (point?: MapPoint) => void;
   updateImage: (id: string, patch: Partial<PlacedImage>) => void;
+  moveImageOrder: (id: string, direction: "up" | "down") => void;
   registerImageAsset: (imageId: string) => void;
   deleteImageAsset: (assetId: string) => void;
   updateImageKeyframe: (imageId: string, time: string, keyframe: Partial<PlacedImageKeyframe>) => void;
@@ -851,6 +871,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
   normalized.cameraLegend = {
     showFactions: normalized.cameraLegend?.showFactions ?? true,
     factionSize: clampLegendSize(normalized.cameraLegend?.factionSize, 1),
+    position: normalized.cameraLegend?.position ?? "top-left",
     backgroundEnabled: normalized.cameraLegend?.backgroundEnabled ?? false,
     backgroundColor: normalized.cameraLegend?.backgroundColor || "#111827",
     backgroundOpacity: clampOpacity(normalized.cameraLegend?.backgroundOpacity, 0.65),
@@ -953,9 +974,10 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
     site.keyframes ||= [];
   }
   normalized.images ||= [];
-  for (const image of normalized.images) {
+  for (const [index, image] of normalized.images.entries()) {
     image.name ??= "画像";
     image.size ||= 1;
+    image.displayOrder = placedImageDisplayOrder(image, index);
     image.locked = image.locked ?? false;
     image.memo ||= "";
     image.x = Number.isFinite(image.x) ? image.x : image.keyframes?.[0]?.x ?? 0.5;
@@ -969,6 +991,7 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
       },
     ];
   }
+  normalized.images = normalizePlacedImageDisplayOrder(normalized.images);
   for (const arrow of normalized.arrows ?? []) {
     arrow.curveMode ||= "straight";
     arrow.hideWhenRoute = arrow.hideWhenRoute ?? false;
@@ -1139,6 +1162,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       project.cameraLegend = {
         showFactions: patch.showFactions ?? project.cameraLegend?.showFactions ?? true,
         factionSize: patch.factionSize !== undefined ? clampLegendSize(patch.factionSize, project.cameraLegend?.factionSize ?? 1) : clampLegendSize(project.cameraLegend?.factionSize, 1),
+        position: patch.position ?? project.cameraLegend?.position ?? "top-left",
         backgroundEnabled: patch.backgroundEnabled ?? project.cameraLegend?.backgroundEnabled ?? false,
         backgroundColor: patch.backgroundColor ?? project.cameraLegend?.backgroundColor ?? "#111827",
         backgroundOpacity: patch.backgroundOpacity !== undefined ? clampOpacity(patch.backgroundOpacity, project.cameraLegend?.backgroundOpacity ?? 0.65) : clampOpacity(project.cameraLegend?.backgroundOpacity, 0.65),
@@ -1589,6 +1613,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const id = createId("image");
       const position = clampPoint(point);
       project.images ||= [];
+      const displayOrder = Math.max(-1, ...project.images.map((image) => placedImageDisplayOrder(image, 0))) + 1;
       project.images.push({
         id,
         name: placement.name.trim() || "画像",
@@ -1597,6 +1622,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         naturalHeight: placement.naturalHeight,
         assetId: placement.assetId,
         size: placement.size ?? 1,
+        displayOrder,
         locked: false,
         memo: "",
         ...position,
@@ -1612,6 +1638,17 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }),
 
   updateImage: (id, patch) => commit(set, get, (project) => applyListPatch(project.images, id, patch)),
+
+  moveImageOrder: (id, direction) =>
+    commit(set, get, (project) => {
+      const orderedImages = sortPlacedImagesByDisplayOrder(project.images);
+      const index = orderedImages.findIndex((image) => image.id === id);
+      if (index < 0) return;
+      const nextIndex = direction === "up" ? Math.min(orderedImages.length - 1, index + 1) : Math.max(0, index - 1);
+      if (index === nextIndex) return;
+      [orderedImages[index], orderedImages[nextIndex]] = [orderedImages[nextIndex], orderedImages[index]];
+      project.images = normalizePlacedImageDisplayOrder(orderedImages);
+    }),
 
   registerImageAsset: (imageId) =>
     commit(set, get, (project) => {

@@ -190,6 +190,7 @@ export interface Faction {
 export interface CameraLegendSettings {
   showFactions: boolean;
   factionSize: number;
+  position?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
   backgroundEnabled?: boolean;
   backgroundColor?: string;
   backgroundOpacity?: number;
@@ -341,6 +342,7 @@ export interface PlacedImage extends MapPoint {
   naturalHeight?: number;
   assetId?: string;
   size: number;
+  displayOrder?: number;
   locked: boolean;
   memo: string;
   keyframes: PlacedImageKeyframe[];

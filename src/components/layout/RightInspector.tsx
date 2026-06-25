@@ -47,6 +47,7 @@ export function RightInspector() {
       backgroundEnabled: project.cameraLegend?.backgroundEnabled ?? false,
       backgroundColor: project.cameraLegend?.backgroundColor ?? "#111827",
       backgroundOpacity: currentLegendBackgroundOpacity,
+      position: project.cameraLegend?.position ?? "top-left",
       textBold: project.cameraLegend?.textBold ?? true,
     };
     return (
@@ -55,6 +56,15 @@ export function RightInspector() {
         <label className="check-row">
           <input type="checkbox" checked={cameraLegend.showFactions} onChange={(event) => updateCameraLegend({ showFactions: event.target.checked })} />
           カメラに陣営情報を表示
+        </label>
+        <label>
+          表示位置
+          <select value={cameraLegend.position} onChange={(event) => updateCameraLegend({ position: event.target.value as typeof cameraLegend.position })}>
+            <option value="top-left">左上</option>
+            <option value="top-right">右上</option>
+            <option value="bottom-left">左下</option>
+            <option value="bottom-right">右下</option>
+          </select>
         </label>
         <label>
           表示サイズ
@@ -92,7 +102,7 @@ export function RightInspector() {
               背景色
               <input type="color" value={cameraLegend.backgroundColor} onChange={(event) => updateCameraLegend({ backgroundColor: event.target.value })} />
             </label>
-            <label>
+        <label>
               背景透明度
               <div className="legend-size-control">
                 <input
