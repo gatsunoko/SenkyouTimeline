@@ -1464,13 +1464,14 @@ export function MapCanvas() {
               );
             })}
 
-          {withoutSelected(orderedPlacedImages, "image").map((imageObject) => {
+          {orderedPlacedImages.map((imageObject) => {
             const frame = resolvePlacedImageFrame(imageObject, project.timeline.currentTime, project.timeline.interpolationMode);
+            const displayFrame = multiDragDelta && isMultiSelected("image", imageObject.id) ? offsetPoint(frame) : frame;
             return (
               <PlacedImageShape
                 key={imageObject.id}
                 imageObject={imageObject}
-                frame={frame}
+                frame={displayFrame}
                 selected={isSelected("image", imageObject.id)}
                 mapWidth={mapWidth}
                 mapHeight={mapHeight}
@@ -1805,23 +1806,7 @@ export function MapCanvas() {
                 return <SitePiece key={`${site.id}-selected-front`} site={displaySite} color={faction?.color ?? "#8a96a8"} selected mapWidth={mapWidth} mapHeight={mapHeight} dragEnabled={objectDragEnabled} onSelect={() => selectSingle("site", site.id)} onDragEnd={(x, y) => updateSite(site.id, { x, y })} />;
               }
               if (item.type === "image") {
-                const imageObject = project.images.find((entry) => entry.id === item.id);
-                if (!imageObject) return null;
-                const frame = resolvePlacedImageFrame(imageObject, project.timeline.currentTime, project.timeline.interpolationMode);
-                const displayFrame = multiDragDelta && isMultiSelected("image", imageObject.id) ? offsetPoint(frame) : frame;
-                return (
-                  <PlacedImageShape
-                    key={`${imageObject.id}-selected-front`}
-                    imageObject={imageObject}
-                    frame={displayFrame}
-                    selected
-                    mapWidth={mapWidth}
-                    mapHeight={mapHeight}
-                    dragEnabled={objectDragEnabled}
-                    onSelect={() => selectSingle("image", imageObject.id)}
-                    onDragEnd={(x, y) => updateImageKeyframe(imageObject.id, project.timeline.currentTime, { x, y })}
-                  />
-                );
+                return null;
               }
               if (item.type === "label") {
                 const label = project.labels.find((entry) => entry.id === item.id);
