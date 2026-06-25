@@ -10,8 +10,10 @@ export function MapImageInspector() {
   const moveMapImageOrder = useProjectStore((state) => state.moveMapImageOrder);
   const deleteMapImage = useProjectStore((state) => state.deleteMapImage);
   const images = project.map.images ?? [];
-  const selectedImage = images.find((image) => image.id === selected.id) ?? images[0];
+  const orderedImages = [...images].reverse();
+  const selectedImage = orderedImages.find((image) => image.id === selected.id) ?? orderedImages[0];
   const selectedIndex = selectedImage ? images.findIndex((image) => image.id === selectedImage.id) : -1;
+  const selectedDisplayIndex = selectedImage ? orderedImages.findIndex((image) => image.id === selectedImage.id) : -1;
 
   const selectMapImage = (id: string) => {
     setTool("mapImageEdit");
@@ -20,7 +22,7 @@ export function MapImageInspector() {
 
   const removeSelectedImage = () => {
     if (!selectedImage) return;
-    const nextImage = images[selectedIndex + 1] ?? images[selectedIndex - 1] ?? null;
+    const nextImage = orderedImages[selectedDisplayIndex + 1] ?? orderedImages[selectedDisplayIndex - 1] ?? null;
     deleteMapImage(selectedImage.id);
     if (nextImage) selectMapImage(nextImage.id);
     else selectObject(null, null);
@@ -34,14 +36,17 @@ export function MapImageInspector() {
       ) : (
         <>
           <div className="point-list">
-            {images.map((image, index) => (
+            {orderedImages.map((image) => {
+              const index = images.findIndex((entry) => entry.id === image.id);
+              return (
               <div className={`point-row map-image-row ${selectedImage?.id === image.id ? "is-selected" : ""}`} key={image.id} onClick={() => selectMapImage(image.id)}>
                 <span>{image.name || `地図画像${index + 1}`}</span>
                 <small>
                   表示順 {index + 1} / 透明度 {Math.round((image.opacity ?? 1) * 100)}%
                 </small>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {selectedImage && (
