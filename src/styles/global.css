@@ -511,6 +511,11 @@ textarea {
   grid-template-columns: 22px 1fr 28px 18px;
 }
 
+.image-list-row {
+  grid-template-columns: 20px minmax(0, 1fr) 28px 28px 28px;
+  column-gap: 5px;
+}
+
 .object-list-icon {
   display: inline-flex;
   align-items: center;

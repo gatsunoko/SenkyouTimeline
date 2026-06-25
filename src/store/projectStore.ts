@@ -122,12 +122,16 @@ function sortPlacedImagesByDisplayOrder(images: PlacedImage[]) {
     .map(({ image }) => image);
 }
 
-function normalizePlacedImageDisplayOrder(images: PlacedImage[]) {
-  const ordered = sortPlacedImagesByDisplayOrder(images);
-  ordered.forEach((image, index) => {
+function assignPlacedImageDisplayOrder(images: PlacedImage[]) {
+  images.forEach((image, index) => {
     image.displayOrder = index;
   });
-  return ordered;
+  return images;
+}
+
+function normalizePlacedImageDisplayOrder(images: PlacedImage[]) {
+  const ordered = sortPlacedImagesByDisplayOrder(images);
+  return assignPlacedImageDisplayOrder(ordered);
 }
 
 interface ProjectStore {
@@ -1641,13 +1645,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   moveImageOrder: (id, direction) =>
     commit(set, get, (project) => {
-      const orderedImages = sortPlacedImagesByDisplayOrder(project.images);
-      const index = orderedImages.findIndex((image) => image.id === id);
+      const bottomToTopImages = sortPlacedImagesByDisplayOrder(project.images);
+      const topToBottomImages = [...bottomToTopImages].reverse();
+      const index = topToBottomImages.findIndex((image) => image.id === id);
       if (index < 0) return;
-      const nextIndex = direction === "up" ? Math.min(orderedImages.length - 1, index + 1) : Math.max(0, index - 1);
+      const nextIndex = direction === "up" ? Math.max(0, index - 1) : Math.min(topToBottomImages.length - 1, index + 1);
       if (index === nextIndex) return;
-      [orderedImages[index], orderedImages[nextIndex]] = [orderedImages[nextIndex], orderedImages[index]];
-      project.images = normalizePlacedImageDisplayOrder(orderedImages);
+      [topToBottomImages[index], topToBottomImages[nextIndex]] = [topToBottomImages[nextIndex], topToBottomImages[index]];
+      project.images = assignPlacedImageDisplayOrder([...topToBottomImages].reverse());
     }),
 
   registerImageAsset: (imageId) =>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Castle, Copy, Flag, Image as ImageIcon, Lock, Paintbrush, PanelLeftClose, PencilLine, Pentagon, Plus, Tags, Trash2, Unlock } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, Castle, Copy, Flag, Image as ImageIcon, Lock, Paintbrush, PanelLeftClose, PencilLine, Pentagon, Plus, Tags, Trash2, Unlock } from "lucide-react";
 import { defaultSiteIconUrl } from "../../data/defaultAssets";
 import { arrowTypeLabels, lineTypeLabels } from "../../data/pieceTemplates";
 import { useProjectStore } from "../../store/projectStore";
@@ -20,7 +20,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const [imageView, setImageView] = useState<ImageSidebarView>("images");
   const unitRowRefs = useRef(new Map<string, HTMLButtonElement>());
   const siteRowRefs = useRef(new Map<string, HTMLButtonElement>());
-  const imageRowRefs = useRef(new Map<string, HTMLButtonElement>());
+  const imageRowRefs = useRef(new Map<string, HTMLDivElement>());
   const regionRowRefs = useRef(new Map<string, HTMLButtonElement>());
   const lineRowRefs = useRef(new Map<string, HTMLButtonElement>());
   const arrowRowRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -38,6 +38,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const deleteSiteAsset = useProjectStore((state) => state.deleteSiteAsset);
   const setImagePlacementAsset = useProjectStore((state) => state.setImagePlacementAsset);
   const deleteImageAsset = useProjectStore((state) => state.deleteImageAsset);
+  const moveImageOrder = useProjectStore((state) => state.moveImageOrder);
   const selectObject = useProjectStore((state) => state.selectObject);
   const updateFaction = useProjectStore((state) => state.updateFaction);
   const updateUnit = useProjectStore((state) => state.updateUnit);
@@ -56,6 +57,14 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const displayPeriodText = (period: DisplayPeriod) => `表示 ${formatPeriodTime(period.start)} - ${formatPeriodTime(period.end)}`;
   const isPeriodActive = (period: DisplayPeriod) => (!period.start || compareTime(period.start, currentTime) <= 0) && (!period.end || compareTime(period.end, currentTime) >= 0);
   const objectTextClass = (period: DisplayPeriod) => `object-list-text ${isPeriodActive(period) ? "is-visible-now" : "is-hidden-now"}`;
+  const orderedImages = project.images
+    .map((imageObject, index) => ({
+      imageObject,
+      index,
+      order: Number.isFinite(imageObject.displayOrder) ? imageObject.displayOrder ?? index : index,
+    }))
+    .sort((left, right) => right.order - left.order || left.index - right.index)
+    .map(({ imageObject }) => imageObject);
 
   useEffect(() => {
     if (!selected.id) return;
@@ -424,18 +433,26 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
           {imageView === "images" && (
             <>
               {project.images.length === 0 && <div className="sidebar-empty">配置済みの画像はありません。</div>}
-              {project.images.map((imageObject) => {
+              {orderedImages.map((imageObject, imageOrderIndex) => {
                 const period = { start: timelineStart, end: timelineEnd };
                 return (
-                  <button
-                    className={`list-row ${selected.type === "image" && selected.id === imageObject.id ? "is-selected" : ""}`}
-                    type="button"
+                  <div
+                    className={`list-row image-list-row ${selected.type === "image" && selected.id === imageObject.id ? "is-selected" : ""}`}
+                    role="button"
+                    tabIndex={0}
                     key={imageObject.id}
                     ref={(node) => {
                       if (node) imageRowRefs.current.set(imageObject.id, node);
                       else imageRowRefs.current.delete(imageObject.id);
                     }}
                     onClick={() => selectObject("image", imageObject.id)}
+                    onKeyDown={(event) => {
+                      if (event.target !== event.currentTarget) return;
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        selectObject("image", imageObject.id);
+                      }
+                    }}
                   >
                     <img className="asset-thumb" src={imageObject.imageDataUrl} alt="" />
                     <span className={objectTextClass(period)}>
@@ -446,8 +463,31 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                     <button className={lockButtonClass(imageObject.locked)} type="button" onClick={(event) => { event.stopPropagation(); updateImage(imageObject.id, { locked: !imageObject.locked }); }}>
                       {imageObject.locked ? <Lock size={15} /> : <Unlock size={15} />}
                     </button>
-                    <ImageIcon size={16} />
-                  </button>
+                    <button
+                      className="icon-only"
+                      type="button"
+                      title="前面へ"
+                      disabled={imageOrderIndex <= 0}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        moveImageOrder(imageObject.id, "up");
+                      }}
+                    >
+                      <ArrowUp size={15} />
+                    </button>
+                    <button
+                      className="icon-only"
+                      type="button"
+                      title="背面へ"
+                      disabled={imageOrderIndex >= orderedImages.length - 1}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        moveImageOrder(imageObject.id, "down");
+                      }}
+                    >
+                      <ArrowDown size={15} />
+                    </button>
+                  </div>
                 );
               })}
             </>

@@ -36,7 +36,7 @@ export function ImageInspector({ id }: { id: string }) {
       index,
       order: Number.isFinite(entry.displayOrder) ? entry.displayOrder ?? index : index,
     }))
-    .sort((left, right) => left.order - right.order || left.index - right.index)
+    .sort((left, right) => right.order - left.order || left.index - right.index)
     .map(({ entry }) => entry);
   const orderIndex = orderedImages.findIndex((entry) => entry.id === imageObject.id);
 
@@ -57,13 +57,13 @@ export function ImageInspector({ id }: { id: string }) {
       <TextField label="名前" value={imageObject.name} onChange={(value) => updateImage(imageObject.id, { name: value })} />
       <NumberField label="サイズ" value={imageObject.size ?? 1} min={0.1} max={8} step={0.05} onChange={(value) => updateImage(imageObject.id, { size: value })} />
       <div className="inspector-button-row">
-        <button type="button" onClick={() => moveImageOrder(imageObject.id, "down")} disabled={orderIndex <= 0}>
-          <ArrowDown size={16} />
-          下へ
-        </button>
-        <button type="button" onClick={() => moveImageOrder(imageObject.id, "up")} disabled={orderIndex < 0 || orderIndex >= orderedImages.length - 1}>
+        <button type="button" onClick={() => moveImageOrder(imageObject.id, "up")} disabled={orderIndex <= 0}>
           <ArrowUp size={16} />
           上へ
+        </button>
+        <button type="button" onClick={() => moveImageOrder(imageObject.id, "down")} disabled={orderIndex < 0 || orderIndex >= orderedImages.length - 1}>
+          <ArrowDown size={16} />
+          下へ
         </button>
       </div>
       <div className="coordinate-grid">
