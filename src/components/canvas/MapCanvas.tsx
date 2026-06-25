@@ -333,10 +333,12 @@ export function MapCanvas() {
   const [selectionRect, setSelectionRect] = useState<CanvasRect | null>(null);
   const [multiSelected, setMultiSelected] = useState<MultiSelectionItem[]>([]);
   const [multiDragDelta, setMultiDragDelta] = useState<CanvasPoint | null>(null);
+  const [selectedImageDragPreview, setSelectedImageDragPreview] = useState<{ id: string; point: CanvasPoint } | null>(null);
   const [selectedRegionPointDragPreview, setSelectedRegionPointDragPreview] = useState<{ regionId: string; pointIndex: number; point: CanvasPoint } | null>(null);
   const middlePanRef = useRef<{ active: boolean; x: number; y: number }>({ active: false, x: 0, y: 0 });
   const mapImageResizeStartRef = useRef<MapImageResizePreview | null>(null);
   const mapImageDrag = usePrimaryButtonDrag();
+  const selectedImageDrag = usePrimaryButtonDrag();
   const selectionStartRef = useRef<CanvasPoint | null>(null);
   const selectionJustFinishedRef = useRef(false);
   const multiDragStartRef = useRef<CanvasPoint | null>(null);
@@ -1466,7 +1468,12 @@ export function MapCanvas() {
 
           {orderedPlacedImages.map((imageObject) => {
             const frame = resolvePlacedImageFrame(imageObject, project.timeline.currentTime, project.timeline.interpolationMode);
-            const displayFrame = multiDragDelta && isMultiSelected("image", imageObject.id) ? offsetPoint(frame) : frame;
+            const displayFrame =
+              selectedImageDragPreview?.id === imageObject.id
+                ? { ...frame, x: selectedImageDragPreview.point.x, y: selectedImageDragPreview.point.y }
+                : multiDragDelta && isMultiSelected("image", imageObject.id)
+                  ? offsetPoint(frame)
+                  : frame;
             return (
               <PlacedImageShape
                 key={imageObject.id}
@@ -1849,6 +1856,62 @@ export function MapCanvas() {
                 />
               );
             })}
+
+          {!exportViewport && tool === "select" && selected.type === "image" && selected.id && multiSelected.length === 0 &&
+            (() => {
+              const imageObject = project.images.find((entry) => entry.id === selected.id);
+              if (!imageObject || imageObject.locked || !objectDragEnabled) return null;
+              const frame = resolvePlacedImageFrame(imageObject, project.timeline.currentTime, project.timeline.interpolationMode);
+              const position = relativeToCanvas(
+                selectedImageDragPreview?.id === imageObject.id ? { ...frame, x: selectedImageDragPreview.point.x, y: selectedImageDragPreview.point.y } : frame,
+                mapWidth,
+                mapHeight,
+              );
+              const size = placedImageSize(imageObject);
+              return (
+                <Group
+                  key={`selected-image-hit-${imageObject.id}`}
+                  x={position.x}
+                  y={position.y}
+                  draggable
+                  onMouseDown={(event) => {
+                    event.cancelBubble = true;
+                    selectedImageDrag.updateDragButton(event);
+                  }}
+                  onClick={(event) => {
+                    event.cancelBubble = true;
+                    selectSingle("image", imageObject.id);
+                  }}
+                  onDragStart={(event) => {
+                    event.cancelBubble = true;
+                    selectedImageDrag.stopBlockedDrag(event);
+                  }}
+                  dragBoundFunc={(nextPosition) => (selectedImageDrag.isDragAllowed() ? nextPosition : position)}
+                  onDragMove={(event) => {
+                    event.cancelBubble = true;
+                    if (!selectedImageDrag.isDragAllowed()) return;
+                    setSelectedImageDragPreview({
+                      id: imageObject.id,
+                      point: { x: event.target.x() / mapWidth, y: event.target.y() / mapHeight },
+                    });
+                  }}
+                  onDragEnd={(event) => {
+                    event.cancelBubble = true;
+                    if (!selectedImageDrag.isDragAllowed()) {
+                      event.target.position(position);
+                      selectedImageDrag.resetDragButton();
+                      setSelectedImageDragPreview(null);
+                      return;
+                    }
+                    selectedImageDrag.resetDragButton();
+                    setSelectedImageDragPreview(null);
+                    updateImageKeyframe(imageObject.id, project.timeline.currentTime, { x: event.target.x() / mapWidth, y: event.target.y() / mapHeight });
+                  }}
+                >
+                  <Rect x={-size.width / 2 - 6} y={-size.height / 2 - 6} width={size.width + 12} height={size.height + 12} fill="rgba(255,255,255,0.01)" />
+                </Group>
+              );
+            })()}
 
           {!exportViewport && tool === "select" && multiSelected.length > 1 && selectedBounds && (
             <>
